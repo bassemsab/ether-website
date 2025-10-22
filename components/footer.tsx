@@ -5,7 +5,7 @@ const year = new Date().getFullYear();
 
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-black/10 bg-white/70">
+    <footer className="mt-24 border-t border-black/10 bg-surface/70">
       <div className="container flex flex-col gap-12 py-12 md:flex-row md:items-start md:justify-between">
         <div className="max-w-sm space-y-3">
           <p className="font-display text-2xl leading-tight">
@@ -42,7 +42,7 @@ export function SiteFooter() {
           </div>
         </div>
       </div>
-      <div className="border-t border-black/10 bg-white/80 py-6">
+      <div className="border-t border-black/10 bg-surface/80 py-6">
         <div className="container flex flex-col justify-between gap-4 text-xs text-muted-foreground md:flex-row">
           <span>© {year} {siteConfig.name}. Tous droits réservés.</span>
           <span>Studio basé à Paris · Montréal · Dakar</span>

@@ -33,7 +33,7 @@ export function ContactForm() {
             name="name"
             required
             minLength={3}
-            className="focus-ring w-full rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
+            className="focus-ring w-full rounded-2xl border border-black/10 bg-surface/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
             placeholder="Votre nom"
           />
         </label>
@@ -43,7 +43,7 @@ export function ContactForm() {
             type="email"
             name="email"
             required
-            className="focus-ring w-full rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
+            className="focus-ring w-full rounded-2xl border border-black/10 bg-surface/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
             placeholder="contact@studio.com"
           />
         </label>
@@ -52,7 +52,7 @@ export function ContactForm() {
         Organisation
         <input
           name="company"
-          className="focus-ring w-full rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
+          className="focus-ring w-full rounded-2xl border border-black/10 bg-surface/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
           placeholder="Maison, studio, institution..."
         />
       </label>
@@ -63,7 +63,7 @@ export function ContactForm() {
           required
           minLength={12}
           rows={4}
-          className="focus-ring w-full rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
+          className="focus-ring w-full rounded-2xl border border-black/10 bg-surface/70 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60"
           placeholder="Parlez-nous de votre projet..."
         />
       </label>

@@ -34,7 +34,7 @@ export function Hero() {
             {highlights.map((item) => (
               <div
                 key={item.label}
-                className="rounded-3xl border border-black/5 bg-white/60 p-5 backdrop-blur-sm"
+                className="rounded-3xl border border-black/5 bg-surface/60 p-5 backdrop-blur-sm"
               >
                 <dt className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
                   {item.label}

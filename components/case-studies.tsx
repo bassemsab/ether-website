@@ -14,7 +14,7 @@ export function CaseStudies() {
               height={1000}
               className="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.05]"
             />
-            <div className="absolute right-5 top-5 rounded-full bg-white/80 px-4 py-2 text-xs uppercase tracking-[0.3em] text-muted-foreground">
+            <div className="absolute right-5 top-5 rounded-full bg-surface/80 px-4 py-2 text-xs uppercase tracking-[0.3em] text-muted-foreground">
               {project.sector}
             </div>
           </div>
