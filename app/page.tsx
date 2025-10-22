@@ -41,8 +41,8 @@ export default function HomePage() {
         <Section
           id="cases"
           eyebrow="Études de cas"
-          title="Des lancements orchestrés avec soin."
-          description="Chaque mandat est conçu comme une résidence, du terrain jusqu’aux activations live."
+          title="Des accompagnements orchestrés avec soin."
+          description="Chaque mandat est conçu comme un cycle complet : analyse, création et opérations mesurables."
         >
           <CaseStudies />
         </Section>

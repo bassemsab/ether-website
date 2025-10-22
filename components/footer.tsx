@@ -45,7 +45,7 @@ export function SiteFooter() {
       <div className="border-t border-black/10 bg-surface/80 py-6">
         <div className="container flex flex-col justify-between gap-4 text-xs text-muted-foreground md:flex-row">
           <span>© {year} {siteConfig.name}. Tous droits réservés.</span>
-          <span>Studio basé à Paris · Montréal · Dakar</span>
+          <span>Studios à Toronto · Paris · Damas · Kuala Lumpur · Sharjah · Riyad · Melbourne</span>
         </div>
       </div>
     </footer>

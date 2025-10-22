@@ -1,19 +1,39 @@
 export function Studio() {
   const studios = [
     {
+      city: 'Toronto',
+      timezone: 'UTC-5',
+      focus: 'Pilotage de projets logiciels et support produit pour l’Amérique du Nord'
+    },
+    {
       city: 'Paris',
       timezone: 'UTC+1',
-      focus: 'Recherche utilisateur, direction photo, scenarii physiques'
+      focus: 'Direction artistique du label et DJ mixage live sur les scènes parisiennes'
     },
     {
-      city: 'Montréal',
-      timezone: 'UTC-5',
-      focus: 'Produit numérique, design system, QA accessibilité'
+      city: 'Damas',
+      timezone: 'UTC+3',
+      focus: 'Conseil en stratégie et structuration des organisations culturelles'
     },
     {
-      city: 'Dakar',
-      timezone: 'UTC+0',
-      focus: 'Brand storytelling, production audiovisuelle, communautés'
+      city: 'Kuala Lumpur',
+      timezone: 'UTC+8',
+      focus: 'DJ mixage et production studio pour la scène d’Asie du Sud-Est'
+    },
+    {
+      city: 'Sharjah',
+      timezone: 'UTC+4',
+      focus: 'Gestion des catalogues et opérations de distribution musicale au Moyen-Orient'
+    },
+    {
+      city: 'Riyad',
+      timezone: 'UTC+3',
+      focus: 'Accompagnement en gouvernance et intégration digitale pour les entreprises régionales'
+    },
+    {
+      city: 'Melbourne',
+      timezone: 'UTC+10',
+      focus: 'Support technique et maintenance 24/7 pour nos plateformes logicielles'
     }
   ];
 
@@ -29,15 +49,6 @@ export function Studio() {
           <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Sessions immersives sur place</div>
         </article>
       ))}
-      <div className="retro-card space-y-4 p-6">
-        <h3 className="font-display text-2xl">Collectif</h3>
-        <p className="text-sm text-muted-foreground">
-          UX strategists, creative technologists, motion designers et compositeurs sonores collaborent selon les projets.
-        </p>
-        <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-          16 talents · 7 disciplines · 3 langues
-        </p>
-      </div>
     </div>
   );
 }

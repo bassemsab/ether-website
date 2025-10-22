@@ -1,57 +1,57 @@
 export const highlights = [
-  { label: 'Studios accompagnés', value: '42', detail: 'Paris, Montréal, Dakar, Tokyo' },
-  { label: 'Taux de satisfaction', value: '98%', detail: 'Suivi post-lancement sur 12 mois' },
-  { label: 'ROI moyen', value: '3.4x', detail: 'Sur campagnes omnicanales' }
+  { label: 'Solutions logicielles livrées', value: '38', detail: 'Produits internes & plateformes clients' },
+  { label: 'Projets musicaux accompagnés', value: '22', detail: 'Label, mixage live à Kuala Lumpur et Paris' },
+  { label: 'Mandats de conseil', value: '45', detail: 'Stratégie, opérations et gouvernance' }
 ];
 
 export const services = [
   {
-    title: 'Direction Artistique',
+    title: 'Logiciels & Outils Informatiques',
     description:
-      'Narration visuelle holistique, moodboards tactiles, palettes chromatiques inspirées par l’analogique.',
-    deliverables: ['Identité modulaire', 'Design systems', 'Guidelines immersives']
+      'Conception, développement, exploitation et maintenance d’applications métier ou grand public, sécurisées et scalables.',
+    deliverables: ['Architecture & roadmap produit', 'Développement full stack', 'Maintenance & support 24/7']
   },
   {
-    title: 'Produits Numériques',
+    title: 'Label & Production Musicale',
     description:
-      'Interfaces sensibles, prototypes haute-fidélité, expériences cross-platform orchestrées avec soin.',
-    deliverables: ['UX research', 'UI kits', 'Accessibilité AA+']
+      'Production, enregistrement studio, distribution et gestion des droits d’auteur, avec expérience DJ mixage live à Kuala Lumpur et Paris.',
+    deliverables: ['Production & enregistrement', 'Distribution & publishing', 'Gestion catalogue & droits']
   },
   {
-    title: 'Stratégie de Lancement',
+    title: 'Conseil en Affaires & Gestion',
     description:
-      'Rituels de lancement, roadmaps growth, storytelling data-driven pour ancrer chaque activation.',
-    deliverables: ['Campaign boards', 'KPI dashboards', 'Playbooks internes']
+      'Assistance stratégique et opérationnelle pour piloter croissance, transformation et gouvernance des organisations.',
+    deliverables: ['Audits & due diligence', 'Structuration opérationnelle', 'Coaching des équipes dirigeantes']
   }
 ];
 
 export const caseStudies = [
   {
-    title: 'Aether Atelier',
-    sector: 'Mode circulaire',
+    title: 'Plateforme Atlas',
+    sector: 'Logiciels sur mesure',
     summary:
-      'Transformation du parcours e-commerce avec atelier virtuel, +62% de conversion saisonnière.',
-    metrics: ['Refonte du tunnel en 6 semaines', 'Score Lighthouse 95+', 'CX pilotée par les données'],
+      'Suite SaaS temps réel pour orchestrer des opérations terrain, avec SLA 99,9 % et mises à jour continues.',
+    metrics: ['Onboarding en 8 semaines', 'Interopérabilité multi-API', 'Monitoring & support 24/7'],
     image:
-      'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1600&q=80'
+      'https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=1600&q=80'
   },
   {
-    title: 'Nébuleuse Radio',
-    sector: 'Média culturel',
+    title: 'Label Sonar Lines',
+    sector: 'Production musicale',
     summary:
-      'Écosystème audio immersif : player spatial, grille interactive, +120k auditeurs mensuels.',
-    metrics: ['Pattern library RetroUI', 'Intégration WebGL audio-reactive', 'Partenariat long terme'],
+      'EP produit entre Kuala Lumpur et Paris, avec direction artistique, mixage et distribution internationale.',
+    metrics: ['3M streams cumulés', 'Vinyles pressés en série limitée', 'Gestion complète des droits'],
     image:
       'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1600&q=80'
   },
   {
-    title: 'Musée Ardent',
-    sector: 'Institution publique',
+    title: 'Programme Horizon',
+    sector: 'Conseil stratégique',
     summary:
-      'Signalétique numérique et application in-situ pour scénographie lumière & archives vivantes.',
-    metrics: ['Accessibilité AAA', 'Analytics comportementaux', '35% de temps de visite additionnel'],
+      'Plan de transformation pour un collectif créatif : structuration financière, gouvernance et KPI de croissance.',
+    metrics: ['Roadmap 18 mois', 'Cadre de gouvernance déployé', 'Croissance +34% YoY'],
     image:
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80'
+      'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1600&q=80'
   }
 ];
 
