@@ -2,70 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-  --background: 45 54% 97%;
-  --foreground: 248 27% 15%;
-  --muted: 40 35% 90%;
-  --muted-foreground: 32 15% 40%;
-  --card: 46 56% 96%;
-  --card-foreground: 249 37% 17%;
+@layer base {
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle at 1px 1px, rgba(30, 27, 75, 0.04), transparent 40%),
+      radial-gradient(circle at 2px 2px, rgba(30, 27, 75, 0.04), transparent 40%);
+    background-size: 32px 32px;
+    opacity: 0.7;
+    z-index: -1;
+  }
 }
 
-html {
-  scroll-behavior: smooth;
-}
+@layer components {
+  .grain-overlay {
+    position: relative;
+    isolation: isolate;
+  }
 
-body {
-  min-height: 100vh;
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-family: var(--font-neue), system-ui, sans-serif;
-  text-rendering: optimizeLegibility;
-}
+  .grain-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle at center, rgba(30, 27, 75, 0.05) 0%, transparent 60%),
+      radial-gradient(circle at top left, rgba(255, 112, 67, 0.06), transparent 50%),
+      radial-gradient(circle at bottom right, rgba(30, 27, 75, 0.08), transparent 55%);
+    mix-blend-mode: multiply;
+    opacity: 0.75;
+    z-index: -1;
+  }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle at 1px 1px, rgba(30, 27, 75, 0.04), transparent 40%),
-    radial-gradient(circle at 2px 2px, rgba(30, 27, 75, 0.04), transparent 40%);
-  background-size: 32px 32px;
-  opacity: 0.7;
-  z-index: -1;
-}
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:ring-brand focus-visible:ring-offset-muted;
+  }
 
-.grain-overlay {
-  position: relative;
-  isolation: isolate;
-}
+  .retro-card {
+    @apply rounded-3xl border border-black/5 bg-card shadow-retro transition-transform duration-300 will-change-transform hover:-translate-y-1 hover:shadow-glow;
+  }
 
-.grain-overlay::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle at center, rgba(30, 27, 75, 0.05) 0%, transparent 60%),
-    radial-gradient(circle at top left, rgba(255, 112, 67, 0.06), transparent 50%),
-    radial-gradient(circle at bottom right, rgba(30, 27, 75, 0.08), transparent 55%);
-  mix-blend-mode: multiply;
-  opacity: 0.75;
-  z-index: -1;
-}
+  .section-heading {
+    @apply text-sm uppercase tracking-[0.4em] text-muted-foreground;
+  }
 
-.focus-ring {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:ring-brand focus-visible:ring-offset-muted;
-}
-
-.retro-card {
-  @apply rounded-3xl border border-black/5 bg-card shadow-retro transition-transform duration-300 will-change-transform hover:-translate-y-1 hover:shadow-glow;
-}
-
-.section-heading {
-  @apply text-sm uppercase tracking-[0.4em] text-muted-foreground;
-}
-
-.divider {
-  @apply h-px w-full bg-gradient-to-r from-transparent via-foreground/40 to-transparent opacity-70;
+  .divider {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-foreground/40 to-transparent opacity-70;
+  }
 }

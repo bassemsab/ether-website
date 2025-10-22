@@ -12,8 +12,8 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-lg">
-      <div className="container mx-auto flex items-center justify-between gap-4 rounded-full border border-black/5 bg-white/70 px-6 py-4 shadow-retro-sm transition-all">
+    <header className="relative z-50 md:sticky md:top-0 md:backdrop-blur-lg">
+      <div className="container mx-auto flex items-center justify-between gap-4 rounded-full border border-black/5 bg-white px-6 py-4 shadow-retro-sm transition-all md:bg-white/70">
         <Link href="/" aria-label="Retour à l’accueil">
           {/* <BrandMark /> */}
           <Image
@@ -53,7 +53,7 @@ export function SiteHeader() {
           aria-expanded={open}
           aria-controls="mobile-menu"
           onClick={() => setOpen((prev) => !prev)}
-          className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/70 md:hidden"
+          className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white md:hidden md:bg-white/70"
         >
           <span className="sr-only">Menu</span>
           <div className="grid h-4 w-4 gap-1">
@@ -74,19 +74,19 @@ export function SiteHeader() {
       <div
         id="mobile-menu"
         className={cn(
-          "md:hidden",
+          "absolute left-0 right-0 top-full z-10 px-4 pt-4 transition-all duration-200 md:hidden",
           open
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0"
+            ? "pointer-events-auto opacity-100 translate-y-0"
+            : "pointer-events-none -translate-y-3 opacity-0"
         )}
       >
-        <nav className="container mt-4 space-y-3 rounded-3xl border border-black/5 bg-white/80 p-6 shadow-retro-sm backdrop-blur-md">
+        <nav className="space-y-3 rounded-3xl border border-black/5 bg-white p-6 shadow-retro-sm md:bg-white/80 md:backdrop-blur-md">
           {siteConfig.navigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className="block rounded-2xl bg-white/60 px-5 py-3 text-sm uppercase tracking-[0.3em] text-muted-foreground transition hover:bg-white hover:text-foreground"
+              className="block rounded-2xl bg-white px-5 py-3 text-sm uppercase tracking-[0.3em] text-muted-foreground transition hover:bg-white hover:text-foreground md:bg-white/60"
             >
               {item.label}
             </Link>

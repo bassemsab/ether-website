@@ -50,19 +50,14 @@ export function Hero() {
           </dl>
         </div>
         <div className="relative">
-          <div className="aspect-[4/5] overflow-hidden rounded-[2.5rem] border border-black/10 bg-white/60 shadow-retro">
-            <Image
-              src="https://img.ether.paris/ether-website/assets/ether.png?width=1000"
-              alt="Assemblage créatif par Ether"
-              width={900}
-              height={1125}
-              className="h-full w-full object-cover"
-              priority
-            />
-          </div>
-          <div className="absolute -bottom-20 left-1/2 w-[110%] -translate-x-1/2 rounded-full border border-black/5 bg-white/80 px-6 py-4 text-center text-xs uppercase tracking-[0.3em] text-muted-foreground shadow-retro-sm">
-            {siteConfig.name} · Tout partout
-          </div>
+          <Image
+            src="https://img.ether.paris/ether-website/assets/ether.png?width=1000"
+            alt="Assemblage créatif par Ether"
+            width={900}
+            height={1125}
+            className="h-full w-full object-cover rounded-3xl shadow-lg shadow-black/10"
+            priority
+          />
         </div>
       </div>
     </section>

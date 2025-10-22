@@ -1,100 +1,127 @@
-import type { Config } from 'tailwindcss';
-import plugin from 'tailwindcss/plugin';
-import forms from '@tailwindcss/forms';
-import typography from '@tailwindcss/typography';
+import forms from "@tailwindcss/forms";
+import typography from "@tailwindcss/typography";
+import plugin from "tailwindcss/plugin";
+import type { Config } from "tailwindcss";
+
+const retroui = plugin(({ addBase }) => {
+  addBase({
+    ":root": {
+      colorScheme: "light",
+      "--background": "45 54% 97%",
+      "--foreground": "248 27% 15%",
+      "--muted": "40 35% 90%",
+      "--muted-foreground": "32 15% 40%",
+      "--card": "46 56% 96%",
+      "--card-foreground": "249 37% 17%",
+      "--brand": "259 45% 15%",
+      "--brand-foreground": "0 0% 100%",
+      "--accent": "16 100% 64%",
+      "--accent-soft": "20 100% 92%",
+    },
+    html: {
+      scrollBehavior: "smooth",
+    },
+    body: {
+      minHeight: "100vh",
+      backgroundColor: "hsl(var(--background))",
+      color: "hsl(var(--foreground))",
+      fontFamily: "var(--font-neue), system-ui, sans-serif",
+      textRendering: "optimizeLegibility",
+    },
+    "::selection": {
+      backgroundColor: "hsl(var(--accent))",
+      color: "hsl(var(--brand))",
+    },
+  });
+});
 
 const config: Config = {
-  darkMode: ['class'],
+  darkMode: ["class"],
   content: [
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './lib/**/*.{js,ts,jsx,tsx,mdx}'
+    "./app/**/*.{ts,tsx,mdx}",
+    "./components/**/*.{ts,tsx,mdx}",
+    "./lib/**/*.{ts,tsx,mdx}",
+    "./content/**/*.{md,mdx}",
   ],
   theme: {
     container: {
       center: true,
       padding: {
-        DEFAULT: '1.5rem',
-        sm: '2rem',
-        lg: '3rem',
-        xl: '4rem'
-      }
+        DEFAULT: "1.5rem",
+        sm: "2rem",
+        lg: "3rem",
+        xl: "4rem",
+      },
     },
     extend: {
       fontFamily: {
-        sans: ['var(--font-neue)', 'var(--font-sans)', 'system-ui'],
-        display: ['var(--font-display)', 'var(--font-neue)', 'system-ui'],
-        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular']
+        sans: ["var(--font-neue)", "var(--font-sans)", "system-ui"],
+        display: ["var(--font-display)", "var(--font-neue)", "system-ui"],
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular"],
       },
       colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
         brand: {
-          DEFAULT: '#1E1B4B',
-          light: '#D9D6FF',
-          dark: '#0B0A24'
+          DEFAULT: "hsl(var(--brand))",
+          light: "#D9D6FF",
+          dark: "#0B0A24",
+          foreground: "hsl(var(--brand-foreground))",
         },
         accent: {
-          DEFAULT: '#FF7043',
-          soft: '#FFD9C7'
+          DEFAULT: "hsl(var(--accent))",
+          soft: "hsl(var(--accent-soft))",
         },
         muted: {
-          DEFAULT: '#F5F1E8',
-          foreground: '#6E655B'
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
         },
         card: {
-          DEFAULT: '#F9F5EC',
-          foreground: '#1B162A'
-        }
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
       },
       boxShadow: {
-        'retro-sm': '4px 4px 0px 0px rgba(30,27,57,0.15)',
-        retro: '12px 12px 0px 0px rgba(30,27,57,0.12)',
-        glow: '0 35px 120px -60px rgba(30,27,57,0.55)'
+        "retro-sm": "4px 4px 0px 0px rgba(30,27,57,0.15)",
+        retro: "12px 12px 0px 0px rgba(30,27,57,0.12)",
+        glow: "0 35px 120px -60px rgba(30,27,57,0.55)",
       },
       backgroundImage: {
         grain:
-          'radial-gradient(circle at 1px 1px, rgba(30,27,75,0.075) 1px, transparent 0)'
+          "radial-gradient(circle at 1px 1px, rgba(30,27,75,0.075) 1px, transparent 0)",
       },
       keyframes: {
         float: {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-6px)' }
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
         },
         shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' }
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
         },
         marquee: {
-          '0%': { transform: 'translateX(0)' },
-          '100%': { transform: 'translateX(-50%)' }
-        }
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
       },
       animation: {
-        float: 'float 6s ease-in-out infinite',
-        shimmer: 'shimmer 2s linear infinite',
-        marquee: 'marquee 30s linear infinite'
+        float: "float 6s ease-in-out infinite",
+        shimmer: "shimmer 2s linear infinite",
+        marquee: "marquee 30s linear infinite",
       },
       borderRadius: {
-        lg: '1.5rem',
-        xl: '2.5rem'
-      }
-    }
+        lg: "1.5rem",
+        xl: "2.5rem",
+      },
+    },
   },
   plugins: [
+    retroui,
     forms({
-      strategy: 'class'
+      strategy: "class",
     }),
     typography,
-    plugin(({ addBase }) => {
-      addBase({
-        '::selection': {
-          backgroundColor: '#FF7043',
-          color: '#0B0A24'
-        }
-      });
-    })
-  ]
+  ],
 };
 
 export default config;
