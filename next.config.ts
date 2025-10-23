@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     },
   },
   typedRoutes: false,
+  output: "standalone",
   images: {
     remotePatterns: [
       {
