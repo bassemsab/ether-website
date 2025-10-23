@@ -9,7 +9,7 @@ export function BrandMark({
     <span
       className={`inline-flex items-center gap-2 font-display text-lg tracking-[0.3em] ${className}`}
     >
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white shadow-retro-sm">
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-surface shadow-retro-sm">
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"

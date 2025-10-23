@@ -1,43 +1,155 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { BrandMark } from "./brand-mark";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  startTransition,
+  useEffect,
+} from "react";
 import Image from "next/image";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "./button";
-import { siteConfig } from "@/lib/utils/site-config";
 import { cn } from "@/lib/utils/cn";
+import {
+  locales,
+  localeAbbreviations,
+  isLocale,
+  localeDirections,
+  type Locale,
+} from "@/lib/i18n/config";
 
-export function SiteHeader() {
+type NavigationItem = {
+  label: string;
+  href: string;
+};
+
+type SiteHeaderProps = {
+  locale: Locale;
+  navigation: NavigationItem[];
+  collaborateLabel: string;
+  logoAlt: string;
+  languageLabel: string;
+  homeLabel: string;
+  menuLabel: string;
+};
+
+export function SiteHeader({
+  locale,
+  navigation,
+  collaborateLabel,
+  logoAlt,
+  languageLabel,
+  homeLabel,
+  menuLabel,
+}: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.dir = localeDirections[locale];
+      document.documentElement.lang = locale;
+    }
+  }, [locale]);
+
+  const localeLinks = useMemo(() => {
+    const segments = pathname.split("/").filter(Boolean);
+    const [, ...rest] = segments;
+    const basePath = rest.length ? `/${rest.join("/")}` : "";
+    const queryEntries = Array.from(searchParams.entries());
+    const queryString = queryEntries.length
+      ? `?${new URLSearchParams(queryEntries).toString()}`
+      : "";
+
+    return locales.map((loc) => ({
+      locale: loc,
+      href: `/${loc}${basePath}${queryString}`,
+      active: loc === locale,
+      label: localeAbbreviations[loc],
+    }));
+  }, [locale, pathname, searchParams]);
+
+  const changeLocale = useCallback(
+    (nextLocale: Locale) => {
+      const target = localeLinks.find((item) => item.locale === nextLocale);
+      if (!target || target.active) {
+        return;
+      }
+      if (typeof document !== "undefined") {
+        document.cookie = `NEXT_LOCALE=${nextLocale}; path=/;`;
+      }
+      startTransition(() => {
+        router.push(target.href as any);
+      });
+    },
+    [localeLinks, router]
+  );
+
+  const handleLocaleChange = useCallback(
+    (value: string, closeMenu = false) => {
+      if (!isLocale(value)) {
+        return;
+      }
+      if (closeMenu) {
+        setOpen(false);
+      }
+      changeLocale(value);
+    },
+    [changeLocale]
+  );
 
   return (
-    <header className="relative z-50 md:sticky md:top-0 md:backdrop-blur-lg">
-      <div className="container mx-auto flex items-center justify-between gap-4 rounded-full border border-black/5 bg-white px-6 py-4 shadow-retro-sm transition-all md:bg-white/70">
-        <Link href="/" aria-label="Retour à l’accueil">
+    <header className="relative z-50 px-6 pb-3 pt-4 md:sticky md:top-0 md:px-0 md:pb-0 md:pt-0">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-full border border-black/5 bg-surface px-5 py-3 shadow-retro-sm transition-all md:px-6 md:py-4 md:bg-surface/70">
+        <a
+          href={`/${locale}`}
+          aria-label={homeLabel}
+          className="flex items-center"
+        >
           {/* <BrandMark /> */}
           <Image
             src="https://img.ether.paris/ether-website/assets/ether.png?width=1000"
-            alt="Assemblage créatif par Ether"
+            alt={logoAlt}
             width={50}
             height={50}
             className="ml-4"
             priority
           />
-        </Link>
+        </a>
 
         <nav className="hidden items-center gap-8 md:flex">
-          {siteConfig.navigation.map((item) => (
-            <Link
+          {navigation.map((item) => (
+            <a
               key={item.href}
               href={item.href}
               className="text-xs uppercase tracking-[0.3em] text-muted-foreground transition hover:text-foreground"
             >
               {item.label}
-            </Link>
+            </a>
           ))}
         </nav>
-        <div className="hidden md:block">
+
+        <div className="hidden items-center gap-3 md:flex">
+          <div className="text-xs">
+            <label htmlFor="desktop-language" className="sr-only">
+              {languageLabel}
+            </label>
+            <select
+              id="desktop-language"
+              value={locale}
+              onChange={(event) => handleLocaleChange(event.target.value)}
+              className="rounded-full border border-black/10 bg-surface/80 px-3 py-1 uppercase tracking-[0.3em] text-muted-foreground transition focus:outline-none focus:ring-2 focus:ring-brand"
+            >
+              {localeLinks.map((item) => (
+                <option key={item.locale} value={item.locale}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <Button
             type="button"
             onClick={() => {
@@ -45,17 +157,18 @@ export function SiteHeader() {
               contact?.scrollIntoView({ behavior: "smooth" });
             }}
           >
-            Collaborer
+            {collaborateLabel}
           </Button>
         </div>
+
         <button
           type="button"
           aria-expanded={open}
           aria-controls="mobile-menu"
           onClick={() => setOpen((prev) => !prev)}
-          className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white md:hidden md:bg-white/70"
+          className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-surface md:hidden md:bg-surface/70"
         >
-          <span className="sr-only">Menu</span>
+          <span className="sr-only">{menuLabel}</span>
           <div className="grid h-4 w-4 gap-1">
             {[0, 1, 2].map((line) => (
               <span
@@ -74,22 +187,42 @@ export function SiteHeader() {
       <div
         id="mobile-menu"
         className={cn(
-          "absolute left-0 right-0 top-full z-10 px-4 pt-4 transition-all duration-200 md:hidden",
+          "absolute left-6 right-6 top-full z-10 pt-4 transition-all duration-200 md:hidden md:left-0 md:right-0",
           open
             ? "pointer-events-auto opacity-100 translate-y-0"
             : "pointer-events-none -translate-y-3 opacity-0"
         )}
       >
-        <nav className="space-y-3 rounded-3xl border border-black/5 bg-white p-6 shadow-retro-sm md:bg-white/80 md:backdrop-blur-md">
-          {siteConfig.navigation.map((item) => (
-            <Link
+        <nav className="space-y-3 rounded-3xl border border-black/5 bg-surface p-6 shadow-retro-sm md:bg-surface/80 md:backdrop-blur-md">
+          <div className="space-y-2 text-xs">
+            <label
+              htmlFor="mobile-language"
+              className="uppercase tracking-[0.3em] text-muted-foreground"
+            >
+              {languageLabel}
+            </label>
+            <select
+              id="mobile-language"
+              value={locale}
+              onChange={(event) => handleLocaleChange(event.target.value, true)}
+              className="w-full rounded-2xl border border-black/10 bg-surface px-4 py-2 uppercase tracking-[0.3em] text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand"
+            >
+              {localeLinks.map((item) => (
+                <option key={item.locale} value={item.locale}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {navigation.map((item) => (
+            <a
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className="block rounded-2xl bg-white px-5 py-3 text-sm uppercase tracking-[0.3em] text-muted-foreground transition hover:bg-white hover:text-foreground md:bg-white/60"
+              className="block rounded-2xl bg-surface px-5 py-3 text-sm uppercase tracking-[0.3em] text-muted-foreground transition hover:bg-surface hover:text-foreground md:bg-surface/60"
             >
               {item.label}
-            </Link>
+            </a>
           ))}
           <Button
             type="button"
@@ -101,7 +234,7 @@ export function SiteHeader() {
               contact?.scrollIntoView({ behavior: "smooth" });
             }}
           >
-            Collaborer
+            {collaborateLabel}
           </Button>
         </nav>
       </div>

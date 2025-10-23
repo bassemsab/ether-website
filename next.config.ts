@@ -5,8 +5,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "2mb",
     },
-    typedRoutes: true,
   },
+  typedRoutes: false,
+  output: "standalone",
   images: {
     remotePatterns: [
       {
