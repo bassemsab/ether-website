@@ -19,7 +19,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
 # Copy only the necessary output from the build stage
-COPY --from=build /app/public ./public
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/.next/standalone ./
 
