@@ -13,6 +13,7 @@ const retroui = plugin(({ addBase }) => {
       "--muted-foreground": "32 15% 40%",
       "--card": "46 56% 96%",
       "--card-foreground": "249 37% 17%",
+      "--surface": "50 30% 96%",
       "--brand": "259 45% 15%",
       "--brand-foreground": "0 0% 100%",
       "--accent": "16 100% 64%",
@@ -80,6 +81,7 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        surface: "hsl(var(--surface))",
       },
       boxShadow: {
         "retro-sm": "4px 4px 0px 0px rgba(30,27,57,0.15)",

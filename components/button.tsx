@@ -29,7 +29,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         variant === 'solid' &&
           'bg-brand text-white shadow-retro hover:-translate-y-0.5 hover:shadow-glow active:translate-y-0',
         variant === 'ghost' &&
-          'border border-black/10 bg-white/60 text-foreground backdrop-blur-md hover:border-black/20',
+          'border border-black/10 bg-surface/60 text-foreground backdrop-blur-md hover:border-black/20',
         sizes[size],
         'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none',
         className
