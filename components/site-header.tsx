@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, startTransition, useEffect } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  startTransition,
+  useEffect,
+} from "react";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "./button";
@@ -96,9 +102,13 @@ export function SiteHeader({
   );
 
   return (
-    <header className="relative z-50 bg-background px-6 pb-3 pt-4 md:sticky md:top-0 md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:backdrop-blur-lg">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 rounded-full border border-black/5 bg-surface px-5 py-3 shadow-retro-sm transition-all md:px-6 md:py-4 md:bg-surface/70">
-        <a href={`/${locale}`} aria-label={homeLabel} className="flex items-center">
+    <header className="relative z-50 px-6 pb-3 pt-4 md:sticky md:top-0 md:px-0 md:pb-0 md:pt-0">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-full border border-black/5 bg-surface px-5 py-3 shadow-retro-sm transition-all md:px-6 md:py-4 md:bg-surface/70">
+        <a
+          href={`/${locale}`}
+          aria-label={homeLabel}
+          className="flex items-center"
+        >
           {/* <BrandMark /> */}
           <Image
             src="https://img.ether.paris/ether-website/assets/ether.png?width=1000"
@@ -185,7 +195,10 @@ export function SiteHeader({
       >
         <nav className="space-y-3 rounded-3xl border border-black/5 bg-surface p-6 shadow-retro-sm md:bg-surface/80 md:backdrop-blur-md">
           <div className="space-y-2 text-xs">
-            <label htmlFor="mobile-language" className="uppercase tracking-[0.3em] text-muted-foreground">
+            <label
+              htmlFor="mobile-language"
+              className="uppercase tracking-[0.3em] text-muted-foreground"
+            >
               {languageLabel}
             </label>
             <select
