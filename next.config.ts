@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "2mb",
     },
   },
-  typedRoutes: false,
   output: "standalone",
   images: {
     remotePatterns: [

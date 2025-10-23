@@ -13,13 +13,22 @@ import { SiteFooter } from '@/components/footer';
 import { getDictionary } from '@/lib/i18n/dictionaries';
 import { defaultLocale, isLocale, locales, type Locale } from '@/lib/i18n/config';
 
+type ParamsInput = { locale: string } | Promise<{ locale: string }>;
+
+const resolveParams = async (params: ParamsInput): Promise<{ locale: string }> => {
+  if (typeof (params as Promise<{ locale: string }>).then === 'function') {
+    return params as Promise<{ locale: string }>;
+  }
+  return params as { locale: string };
+};
+
 type HomePageProps = {
-  params: Promise<{ locale: string }>;
+  params: ParamsInput;
 };
 
 export default async function HomePage({ params }: HomePageProps) {
-  const resolvedParams = await params;
-  const locale: Locale = isLocale(resolvedParams.locale) ? resolvedParams.locale : defaultLocale;
+  const { locale: rawLocale } = await resolveParams(params);
+  const locale: Locale = isLocale(rawLocale) ? rawLocale : defaultLocale;
   const dictionary = getDictionary(locale);
 
   const { site, hero, partnerMarquee, sections, contactForm, footer, languageSwitcher } = dictionary;
@@ -83,11 +92,7 @@ export default async function HomePage({ params }: HomePageProps) {
         >
           <CaseStudies studies={sections.cases.caseStudies} />
         </Section>
-        <Section
-          id="approach"
-          eyebrow={sections.approach.eyebrow}
-          title={sections.approach.title}
-        >
+        <Section id="approach" eyebrow={sections.approach.eyebrow} title={sections.approach.title}>
           <Approach steps={sections.approach.steps} />
         </Section>
         <Section
