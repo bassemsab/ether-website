@@ -1,10 +1,21 @@
-import Image from 'next/image';
-import { caseStudies } from '@/lib/utils/content';
+import Image from "next/image";
 
-export function CaseStudies() {
+type CaseStudy = {
+  title: string;
+  sector: string;
+  summary: string;
+  metrics: string[];
+  image: string;
+};
+
+type CaseStudiesProps = {
+  studies: CaseStudy[];
+};
+
+export function CaseStudies({ studies }: CaseStudiesProps) {
   return (
     <div className="grid gap-8 lg:grid-cols-3">
-      {caseStudies.map((project) => (
+      {studies.map((project) => (
         <article key={project.title} className="retro-card overflow-hidden">
           <div className="relative aspect-[4/5] overflow-hidden rounded-t-[2.5rem]">
             <Image

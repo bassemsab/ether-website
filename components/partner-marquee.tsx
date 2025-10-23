@@ -1,6 +1,8 @@
-import { partners } from '@/lib/utils/content';
+type PartnerMarqueeProps = {
+  partners: string[];
+};
 
-export function PartnerMarquee() {
+export function PartnerMarquee({ partners }: PartnerMarqueeProps) {
   const items = [...partners, ...partners];
 
   return (

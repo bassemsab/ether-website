@@ -1,6 +1,14 @@
-import { services } from '@/lib/utils/content';
+type Service = {
+  title: string;
+  description: string;
+  deliverables: string[];
+};
 
-export function Expertise() {
+type ExpertiseProps = {
+  services: Service[];
+};
+
+export function Expertise({ services }: ExpertiseProps) {
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {services.map((service) => (

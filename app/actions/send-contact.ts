@@ -2,12 +2,15 @@
 
 import { z } from 'zod';
 import { sendContactEmail } from '@/lib/api/email';
+import { defaultLocale, isLocale, type Locale } from '@/lib/i18n/config';
+import { getDictionary } from '@/lib/i18n/dictionaries';
 
 const contactSchema = z.object({
   name: z.string().min(3),
   email: z.string().email(),
   company: z.string().optional(),
-  message: z.string().min(12)
+  message: z.string().min(12),
+  locale: z.string().optional()
 });
 
 export async function submitContact(formData: FormData) {
@@ -17,13 +20,19 @@ export async function submitContact(formData: FormData) {
     name: payload.name,
     email: payload.email,
     company: payload.company,
-    message: payload.message
+    message: payload.message,
+    locale: payload.locale
   });
+
+  const locale: Locale = parsed.success && parsed.data.locale && isLocale(parsed.data.locale)
+    ? parsed.data.locale
+    : defaultLocale;
+  const dictionary = getDictionary(locale);
 
   if (!parsed.success) {
     return {
       success: false,
-      message: 'Merci de vérifier les informations du formulaire.'
+      message: dictionary.contactForm.error
     };
   }
 
@@ -31,6 +40,6 @@ export async function submitContact(formData: FormData) {
 
   return {
     success: true,
-    message: 'Merci ! Nous revenons vers vous sous 48h.'
+    message: dictionary.contactForm.success
   };
 }

@@ -1,6 +1,14 @@
-import { testimonials } from '@/lib/utils/content';
+type Testimonial = {
+  quote: string;
+  author: string;
+  role: string;
+};
 
-export function Testimonials() {
+type TestimonialsProps = {
+  testimonials: Testimonial[];
+};
+
+export function Testimonials({ testimonials }: TestimonialsProps) {
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {testimonials.map((testimonial) => (
@@ -10,7 +18,9 @@ export function Testimonials() {
           </blockquote>
           <figcaption className="space-y-1 text-sm">
             <div className="font-semibold text-foreground">{testimonial.author}</div>
-            <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">{testimonial.role}</div>
+            <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              {testimonial.role}
+            </div>
           </figcaption>
         </figure>
       ))}
