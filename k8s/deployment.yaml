@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: ether-website
-          image: ghcr.io/YOUR_ORG/ether-website:latest
+          image: ghcr.io/bassemsab/ether-website:latest
           imagePullPolicy: Always
           env:
             - name: PORT
