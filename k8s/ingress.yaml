@@ -2,11 +2,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ether-website
+  namespace: default
   annotations:
-    kubernetes.io/ingress.class: nginx
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
 spec:
   rules:
-    - host: ether.example.com
+    - host: ether.paris
       http:
         paths:
           - path: /
@@ -16,3 +19,6 @@ spec:
                 name: ether-website
                 port:
                   number: 80
+  tls:
+    - hosts:
+        - ether.paris
