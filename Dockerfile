@@ -4,6 +4,7 @@ FROM node:20.12.2-alpine AS base
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
+
 FROM base AS deps
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
@@ -16,6 +17,8 @@ RUN npm run build
 FROM node:20.12.2-alpine AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+RUN apk add --no-cache curl
+
 WORKDIR /app
 
 # Copy only the necessary output from the build stage
