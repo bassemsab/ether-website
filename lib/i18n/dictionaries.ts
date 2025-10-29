@@ -422,28 +422,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       testimonials: {
         eyebrow: "Témoignages",
         title: "Feedbacks d’alliés",
-        description:
-          "Des partenariats durables avec maisons, radios, musées et entreprises innovantes.",
-        testimonials: [
-          {
-            quote:
-              "Ether a su donner une voix nouvelle à notre marque. Leur rigueur créative et leur sens du détail sont rares.",
-            author: "Lina Gauthier",
-            role: "CEO, Atlas",
-          },
-          {
-            quote:
-              "Un partenaire stratégique qui comprend la scène musicale et sait la traduire en expériences numériques vibrantes.",
-            author: "Ulysse Peña",
-            role: "Directeur, Sonar Lines",
-          },
-          {
-            quote:
-              "Leur accompagnement a clarifié notre modèle économique tout en respectant notre identité artistique.",
-            author: "Amaya Dufresne",
-            role: "Fondatrice, Horizon Collective",
-          },
-        ],
+        description: "Contactez-nous pour en savoir plus.",
+        testimonials: [],
       },
       contact: {
         eyebrow: "Contact",
@@ -747,28 +727,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       testimonials: {
         eyebrow: "Testimonials",
         title: "Allies in resonance",
-        description:
-          "Long-term collaborations with maisons, radios, museums, and innovative companies.",
-        testimonials: [
-          {
-            quote:
-              "Ether gave our brand a new voice. Their creative rigour and attention to detail are unmatched.",
-            author: "Lina Gauthier",
-            role: "CEO, Atlas",
-          },
-          {
-            quote:
-              "A strategic partner who understands the music scene and translates it into vibrant digital experiences.",
-            author: "Ulysse Peña",
-            role: "Director, Sonar Lines",
-          },
-          {
-            quote:
-              "Their guidance clarified our business model while respecting our artistic identity.",
-            author: "Amaya Dufresne",
-            role: "Founder, Horizon Collective",
-          },
-        ],
+        description: "Ask us to know more.",
+        testimonials: [],
       },
       contact: {
         eyebrow: "Contact",
@@ -1064,27 +1024,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       testimonials: {
         eyebrow: "شهادات",
         title: "شركاء على الموجة ذاتها",
-        description:
-          "شراكات طويلة الأمد مع دورٍ ثقافية ومحطات إذاعية ومتاحف وشركات مبتكرة.",
-        testimonials: [
-          {
-            quote:
-              "منحت إيثر علامتنا صوتاً جديداً. إن دقتهم الإبداعية واهتمامهم بالتفاصيل أمر نادر.",
-            author: "لينا غوتييه",
-            role: "المديرة التنفيذية، أطلس",
-          },
-          {
-            quote:
-              "شريك استراتيجي يفهم المشهد الموسيقي ويترجمه إلى تجارب رقمية نابضة.",
-            author: "أوليس بينيا",
-            role: "المدير، سونار لاينز",
-          },
-          {
-            quote: "إرشادهم وضّح نموذج أعمالنا مع الحفاظ على هويتنا الفنية.",
-            author: "أمايا دوفريسن",
-            role: "المؤسسة، هورايزن",
-          },
-        ],
+        description: "تواصل معنا لمعرفة المزيد.",
+        testimonials: [],
       },
       contact: {
         eyebrow: "تواصل",
