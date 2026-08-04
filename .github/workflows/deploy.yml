@@ -36,7 +36,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha
+            type=sha,prefix=
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Set up Docker Buildx
@@ -60,6 +60,7 @@ jobs:
       - name: Apply K8s Configs
         run: |
           kubectl apply -f k8s/
+          kubectl set image deployment/ether-website ether-website=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n ether
           kubectl set env deployment/ether-website -n ether APP_RELEASE=${{ github.sha }}
 
       - name: Trigger Rollout Restart
