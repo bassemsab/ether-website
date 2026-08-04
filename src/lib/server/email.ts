@@ -17,7 +17,7 @@ export async function sendContactEmail(payload: ContactPayload) {
     return;
   }
 
-  const to = process.env.RESEND_CONTACT_EMAIL || "contact@ether.paris";
+  const to = process.env.RESEND_CONTACT_EMAIL || "support@ether.paris";
   const from = process.env.RESEND_FROM_EMAIL || "Ether <contact@ether.paris>";
 
   const subject = `Nouvelle prise de contact · ${payload.name}`;
