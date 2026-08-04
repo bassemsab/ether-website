@@ -21,7 +21,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: ether-website
-          image: ghcr.io/ether-paris/ether-website:latest
+          image: ghcr.io/bassemsab/ether-website:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
