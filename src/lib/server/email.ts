@@ -1,9 +1,5 @@
 import { Resend } from "resend";
 
-const resendApiKey = process.env.RESEND_EMAIL_TOKEN ?? "";
-
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
 export type ContactPayload = {
   name: string;
   email: string;
@@ -12,11 +8,13 @@ export type ContactPayload = {
 };
 
 export async function sendContactEmail(payload: ContactPayload) {
-  if (!resend) {
-    console.warn("Resend API key not configured, skipping email send.");
-    return;
+  const apiKey = process.env.RESEND_EMAIL_TOKEN;
+  if (!apiKey) {
+    console.error("[sendContactEmail] RESEND_EMAIL_TOKEN is missing in process.env");
+    throw new Error("RESEND_EMAIL_TOKEN is missing in environment.");
   }
 
+  const resend = new Resend(apiKey);
   const to = process.env.RESEND_CONTACT_EMAIL || "support@ether.paris";
   const from = process.env.RESEND_FROM_EMAIL || "Ether <contact@ether.paris>";
 
@@ -30,11 +28,18 @@ export async function sendContactEmail(payload: ContactPayload) {
     <p>${payload.message.replace(/\n/g, "<br/>")}</p>
   `;
 
-  await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from,
     to,
     subject,
     html,
     replyTo: payload.email,
   });
+
+  if (error) {
+    console.error("[sendContactEmail] Resend API error:", error);
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
+
+  return data;
 }
