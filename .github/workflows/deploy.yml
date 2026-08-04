@@ -58,6 +58,11 @@ jobs:
           echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
 
+      - name: Apply K8s Configs
+        run: |
+          kubectl apply -f k8s/
+          kubectl set env deployment/ether-website -n ether APP_RELEASE=${{ github.sha }}
+
       - name: Trigger Rollout Restart
         run: |
           kubectl rollout restart deployment ether-website -n ether
