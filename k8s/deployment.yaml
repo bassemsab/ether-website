@@ -23,87 +23,11 @@ spec:
         - name: ether-website
           image: ghcr.io/ether-paris/ether-website:latest
           imagePullPolicy: Always
-          env:
-            - name: PORT
-              value: "3000"
-            - name: NODE_ENV
-              value: production
-            - name: DB_PATH
-              value: "/data/visitors.sqlite"
-            - name: ORIGIN
-              value: "https://ether.paris"
-            - name: BASE_URL
-              value: "https://ether.paris"
-            - name: SERVER_IP
-              value: "135.181.95.61"
-            - name: AWS_REGION
-              value: "us-east-1"
-            - name: AWS_S3_BUCKET
-              value: "ether-yamls"
-            - name: STALWART_API_URL
-              value: "https://mail.ether.paris/api"
-            - name: STALWART_ADMIN_USER
-              value: "admin"
-            - name: RESEND_EMAIL_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: RESEND_EMAIL_TOKEN
-                  optional: true
-            - name: RESEND_CONTACT_EMAIL
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: RESEND_CONTACT_EMAIL
-                  optional: true
-            - name: ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: ADMIN_PASSWORD
-                  optional: true
-            - name: CLOUDFLARE_API_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: CLOUDFLARE_API_TOKEN
-                  optional: true
-            - name: CLOUDFLARE_ZONE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: CLOUDFLARE_ZONE_ID
-                  optional: true
-            - name: GITHUB_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: GITHUB_CLIENT_ID
-                  optional: true
-            - name: GITHUB_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: GITHUB_CLIENT_SECRET
-                  optional: true
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: AWS_ACCESS_KEY_ID
-                  optional: true
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: AWS_SECRET_ACCESS_KEY
-                  optional: true
-            - name: STALWART_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: STALWART_ADMIN_PASSWORD
-                  optional: true
+          envFrom:
+            - configMapRef:
+                name: ether-website-config
+            - secretRef:
+                name: ether-website-secrets
           ports:
             - name: http
               containerPort: 3000

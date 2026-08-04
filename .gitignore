@@ -65,3 +65,7 @@ docker-compose.*.yml
 *.tgz
 yarn-error.log
 pnpm-store/
+
+# Local databases & sessions
+*.sqlite
+session-*.json

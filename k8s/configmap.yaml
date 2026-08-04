@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ether-website-config
+  namespace: ether
+data:
+  PORT: "3000"
+  NODE_ENV: "production"
+  DB_PATH: "/data/visitors.sqlite"
+  ORIGIN: "https://ether.paris"
+  BASE_URL: "https://ether.paris"
+  SERVER_IP: "135.181.95.61"
+  AWS_REGION: "us-east-1"
+  AWS_S3_BUCKET: "ether-yamls"
+  STALWART_API_URL: "https://mail.ether.paris/api"
+  STALWART_ADMIN_USER: "admin"
