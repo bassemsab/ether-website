@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const resendApiKey = process.env.RESEDN_EMAIL_TOKEN ?? "";
+const resendApiKey = process.env.RESEND_EMAIL_TOKEN ?? "";
 
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
@@ -17,11 +17,8 @@ export async function sendContactEmail(payload: ContactPayload) {
     return;
   }
 
-  const to = process.env.RESEND_CONTACT_EMAIL;
-  if (!to) {
-    console.warn("RESEND_CONTACT_EMAIL is not set, skipping email send.");
-    return;
-  }
+  const to = process.env.RESEND_CONTACT_EMAIL || "contact@ether.paris";
+  const from = process.env.RESEND_FROM_EMAIL || "Ether <contact@ether.paris>";
 
   const subject = `Nouvelle prise de contact · ${payload.name}`;
   const html = `
@@ -34,9 +31,10 @@ export async function sendContactEmail(payload: ContactPayload) {
   `;
 
   await resend.emails.send({
-    from: "Ether <hello@mail.ether.paris>",
+    from,
     to,
     subject,
     html,
+    replyTo: payload.email,
   });
 }

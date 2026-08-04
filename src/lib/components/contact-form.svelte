@@ -20,9 +20,13 @@
   method="POST"
   use:enhance={() => {
     pending = true;
-    return async ({ result }) => {
+    return async ({ result, update }) => {
       pending = false;
-      if (result.type === 'success' || result.type === 'failure') {
+      if (result.type === 'success') {
+        // @ts-ignore
+        message = result.data?.message;
+        await update({ reset: true });
+      } else if (result.type === 'failure') {
         // @ts-ignore
         message = result.data?.message;
       }
