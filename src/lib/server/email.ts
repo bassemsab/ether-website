@@ -1,3 +1,4 @@
+import net from "node:net";
 import { Resend } from "resend";
 
 export type ContactPayload = {
@@ -7,18 +8,82 @@ export type ContactPayload = {
   message: string;
 };
 
+interface SmtpOptions {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}
+
+function sendSmtpEmail(options: SmtpOptions): Promise<void> {
+  const host = process.env.SMTP_HOST || "smtp.mail-server.svc.cluster.local";
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const user = process.env.SMTP_USER || "noreply@ether.paris";
+  const pass = process.env.SMTP_PASS || "cXkWxnZLRnjVtNXhnlNuQc3iesN0xZq7";
+
+  return new Promise((resolve, reject) => {
+    const client = net.connect({ host, port });
+    let step = 0;
+
+    client.on("error", (err) => {
+      client.destroy();
+      reject(err);
+    });
+
+    client.on("data", (chunk) => {
+      const resp = chunk.toString();
+
+      if (resp.startsWith("4") || resp.startsWith("5")) {
+        client.destroy();
+        return reject(new Error(`SMTP Server Error: ${resp.trim()}`));
+      }
+
+      if (step === 0 && resp.startsWith("220")) {
+        step = 1;
+        client.write("EHLO cluster.local\r\n");
+      } else if (step === 1 && resp.startsWith("250")) {
+        step = 2;
+        const authStr = Buffer.from(`\0${user}\0${pass}`).toString("base64");
+        client.write(`AUTH PLAIN ${authStr}\r\n`);
+      } else if (step === 2 && resp.startsWith("235")) {
+        step = 3;
+        const fromAddr = options.from.match(/<([^>]+)>/)?.[1] || options.from;
+        client.write(`MAIL FROM:<${fromAddr}>\r\n`);
+      } else if (step === 3 && resp.startsWith("250")) {
+        step = 4;
+        const toAddr = options.to.match(/<([^>]+)>/)?.[1] || options.to;
+        client.write(`RCPT TO:<${toAddr}>\r\n`);
+      } else if (step === 4 && resp.startsWith("250")) {
+        step = 5;
+        client.write("DATA\r\n");
+      } else if (step === 5 && resp.startsWith("354")) {
+        step = 6;
+        const headers = [
+          `From: ${options.from}`,
+          `To: ${options.to}`,
+          ...(options.replyTo ? [`Reply-To: ${options.replyTo}`] : []),
+          `Subject: ${options.subject}`,
+          "MIME-Version: 1.0",
+          "Content-Type: text/html; charset=utf-8"
+        ].join("\r\n");
+
+        const message = `${headers}\r\n\r\n${options.html}\r\n.\r\n`;
+        client.write(message);
+      } else if (step === 6 && resp.startsWith("250")) {
+        step = 7;
+        client.write("QUIT\r\n");
+        resolve();
+      }
+    });
+  });
+}
+
 export async function sendContactEmail(payload: ContactPayload) {
-  const apiKey = process.env.RESEND_EMAIL_TOKEN;
-  if (!apiKey) {
-    console.error("[sendContactEmail] RESEND_EMAIL_TOKEN is missing in process.env");
-    throw new Error("RESEND_EMAIL_TOKEN is missing in environment.");
-  }
-
-  const resend = new Resend(apiKey);
   const to = process.env.RESEND_CONTACT_EMAIL || "support@ether.paris";
-  const from = process.env.RESEND_FROM_EMAIL || "Ether <contact@ether.paris>";
-
+  const from = process.env.RESEND_FROM_EMAIL || "Ether <noreply@ether.paris>";
   const subject = `Nouvelle prise de contact · ${payload.name}`;
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -132,18 +197,34 @@ export async function sendContactEmail(payload: ContactPayload) {
     </html>
   `;
 
-  const { data, error } = await resend.emails.send({
-    from,
-    to,
-    subject,
-    html,
-    replyTo: payload.email,
-  });
-
-  if (error) {
-    console.error("[sendContactEmail] Resend API error:", error);
-    throw new Error(`Failed to send email: ${error.message}`);
+  // Prefer internal cluster SMTP mail server
+  try {
+    await sendSmtpEmail({
+      from,
+      to,
+      subject,
+      html,
+      replyTo: payload.email,
+    });
+    console.log(`[sendContactEmail] Sent email via internal SMTP server to ${to}`);
+    return;
+  } catch (smtpErr) {
+    console.warn("[sendContactEmail] SMTP send failed, trying Resend fallback if available:", smtpErr);
+    
+    // Fallback to Resend if API token is provided
+    const resendToken = process.env.RESEND_EMAIL_TOKEN;
+    if (resendToken) {
+      const resend = new Resend(resendToken);
+      const { data, error } = await resend.emails.send({
+        from,
+        to,
+        subject,
+        html,
+        replyTo: payload.email,
+      });
+      if (error) throw new Error(`Resend fallback failed: ${error.message}`);
+      return data;
+    }
+    throw smtpErr;
   }
-
-  return data;
 }
