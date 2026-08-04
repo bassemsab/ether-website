@@ -9,15 +9,8 @@ import {
 } from "$lib/server/db";
 import {
   createMailDNSRecord,
-  createSESTXTRecord,
-  createDKIMRecords,
 } from "$lib/server/cloudflare";
 import { initializeTenantRepo } from "$lib/server/github";
-import {
-  verifyDomainIdentity,
-  getDomainVerificationToken,
-  verifyDomainDkim,
-} from "$lib/server/aws-ses";
 import {
   createDomain,
   createUser,
@@ -140,35 +133,14 @@ async function onboardTenant(
       github_repo: repo.html_url,
     });
 
-    // Step 2: Verify domain in AWS SES
-    console.log(`[${domain}] Verifying domain in AWS SES...`);
-    await verifyDomainIdentity(domain);
-    const sesData = await getDomainVerificationToken(domain);
-    const sesToken = sesData.VerificationToken;
-    steps.push({ step: "aws_ses_init", status: "success" });
-
-    // Step 3: Create DNS records in Cloudflare
+    // Step 2: Create DNS records in Cloudflare
     console.log(`[${domain}] Creating DNS records in Cloudflare...`);
-
-    // Create mail.domain.com A record
     await createMailDNSRecord(domain, SERVER_IP);
-
-    // Create SES verification TXT record
-    await createSESTXTRecord(domain, sesToken);
-
-    // Create DKIM records
-    const dkimData = await verifyDomainDkim(domain);
-    if (dkimData.DkimTokens) {
-      await createDKIMRecords(domain, dkimData.DkimTokens);
-    }
 
     steps.push({ step: "cloudflare_dns", status: "success" });
     await updateTenantStatus(domain, "in_progress", {
-      aws_ses_token: sesToken,
       cloudflare_dns_records: JSON.stringify({
         mail: `mail.${domain}`,
-        ses: `_amazonses.${domain}`,
-        dkim: dkimData.DkimTokens || [],
       }),
     });
 
