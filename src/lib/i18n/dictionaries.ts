@@ -70,6 +70,7 @@ type HomeDictionary = {
     navigation: NavigationItem[];
     socials: NavigationItem[];
     collaborateCta: string;
+    studioCta: string;
     logoAlt: string;
   };
   header: {
@@ -93,6 +94,14 @@ type HomeDictionary = {
     partners: string[];
   };
   sections: {
+    platform: {
+      eyebrow: string;
+      title: string;
+      description: string;
+      primaryCta: string;
+      secondaryCta: string;
+      features: string[];
+    };
     manifesto: {
       eyebrow: string;
       title: string;
@@ -176,6 +185,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         { label: "Instagram", href: "https://www.instagram.com/bassem.sab/" },
       ],
       collaborateCta: "Collaborer",
+      studioCta: "Studio",
       logoAlt: "Assemblage créatif par Ether",
     },
     header: {
@@ -234,6 +244,15 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       ],
     },
     sections: {
+      platform: {
+        eyebrow: "Plateforme & Déploiement",
+        title: "Votre présence en ligne, instantanément déployée.",
+        description:
+          "Générez vos sites web avec SvelteKit & Bun, obtenez un nom de domaine ou sous-domaine ether.paris, et pilotez votre code en toute autonomie.",
+        primaryCta: "Créer un site",
+        secondaryCta: "En savoir plus",
+        features: ["Nom de domaine", "Infrastructure Bun & SQLite", "Dépôt Git dédié", "Studio IA agy"],
+      },
       manifesto: {
         eyebrow: "Manifeste",
         title:
@@ -482,6 +501,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         { label: "Instagram", href: "https://www.instagram.com/bassem.sab/" },
       ],
       collaborateCta: "Work with us",
+      studioCta: "Studio",
       logoAlt: "Creative assemblage by Ether",
     },
     header: {
@@ -540,6 +560,15 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       ],
     },
     sections: {
+      platform: {
+        eyebrow: "Platform & Deployment",
+        title: "Your online presence, deployed in seconds.",
+        description:
+          "Spin up websites powered by SvelteKit & Bun, secure custom domains or ether.paris subdomains, and manage code with complete autonomy.",
+        primaryCta: "Launch a site",
+        secondaryCta: "Learn more",
+        features: ["Custom Domain", "Bun & SQLite Infrastructure", "Dedicated Git Repository", "agy AI Studio"],
+      },
       manifesto: {
         eyebrow: "Manifesto",
         title: "Designing digital memories for cultures in motion.",
@@ -787,6 +816,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         { label: "Instagram", href: "https://www.instagram.com/bassem.sab/" },
       ],
       collaborateCta: "فلنبدأ التعاون",
+      studioCta: "الاستوديو",
       logoAlt: "تركيب إبداعي من إيثر",
     },
     header: {
@@ -845,6 +875,15 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       ],
     },
     sections: {
+      platform: {
+        eyebrow: "المنصة السحابية",
+        title: "حضورك الرقمي، يُطلق في ثوانٍ معدودة.",
+        description:
+          "أنشئ مواقع الويب بتقنيات SvelteKit وBun، مع دومين مخصص أو نطاق فرعي من ether.paris واستوديو ذكاء اصطناعي مدمج.",
+        primaryCta: "ابدأ موقعك",
+        secondaryCta: "اعرف المزيد",
+        features: ["نطاق مخصص", "بنية سحابية بـ Bun وSQLite", "مستودع Git مستقل", "استوديو الذكاء الاصطناعي agy"],
+      },
       manifesto: {
         eyebrow: "البيان",
         title: "نصمّم ذكريات رقمية لثقافات تتغيّر باستمرار.",

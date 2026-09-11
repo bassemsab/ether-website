@@ -11,6 +11,7 @@
   import Approach from '$lib/components/approach.svelte';
   import Studio from '$lib/components/studio.svelte';
   import Testimonials from '$lib/components/testimonials.svelte';
+  import Button from '$lib/components/button.svelte';
 
   import type { PageData } from './$types';
 
@@ -47,6 +48,7 @@
   {locale}
   navigation={headerNavigation}
   collaborateLabel={site.collaborateCta}
+  studioLabel={site.studioCta}
   logoAlt={site.logoAlt}
   languageLabel={languageSwitcher.label}
   homeLabel={site.name}
@@ -66,63 +68,44 @@
     />
   </div>
 
-  <!-- Tenant Registration CTA -->
+  <!-- Platform & Studio CTA -->
   <div class="container">
-    <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 px-6 py-16 text-center md:px-12 md:py-20">
-      <div class="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-20"></div>
-      <div class="relative z-10">
-        <span class="mb-4 inline-block rounded-full bg-white/20 px-4 py-1.5 text-sm font-medium text-white backdrop-blur-sm">
-          New! Multi-Tenant Platform
+    <section class="retro-card relative overflow-hidden p-8 md:p-14 text-center">
+      <div class="relative z-10 mx-auto max-w-3xl space-y-6">
+        <span class="section-heading">
+          {sections.platform.eyebrow}
         </span>
-        <h2 class="mb-4 text-3xl font-bold text-white md:text-4xl lg:text-5xl">
-          Launch Your Digital Presence
+        <h2 class="font-display text-3xl text-foreground md:text-4xl lg:text-5xl font-normal tracking-tight">
+          {sections.platform.title}
         </h2>
-        <p class="mx-auto mb-8 max-w-2xl text-lg text-blue-100 md:text-xl">
-          Get your own domain, professional email service, and website infrastructure in minutes. 
-          Powered by Kubernetes and AWS.
+        <p class="mx-auto max-w-2xl text-base text-muted-foreground md:text-lg leading-relaxed">
+          {sections.platform.description}
         </p>
-        <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <a
-            href="/admin/tenant-onboarding"
-            class="inline-flex items-center justify-center rounded-lg bg-white px-8 py-4 text-base font-semibold text-indigo-600 shadow-lg transition-all hover:bg-blue-50 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+
+        <div class="flex flex-col items-center justify-center gap-4 sm:flex-row pt-2">
+          <Button
+            href="/login"
+            size="lg"
+            variant="solid"
           >
-            <svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-            Register Your Domain
-          </a>
-          <a
+            {sections.platform.primaryCta}
+          </Button>
+          <Button
             href="#contact"
-            class="inline-flex items-center justify-center rounded-lg border-2 border-white/30 bg-white/10 px-8 py-4 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+            size="lg"
+            variant="ghost"
           >
-            Learn More
-          </a>
+            {sections.platform.secondaryCta}
+          </Button>
         </div>
-        <div class="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-blue-200">
-          <span class="flex items-center gap-2">
-            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>
-            Custom Domain
-          </span>
-          <span class="flex items-center gap-2">
-            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>
-            Professional Email
-          </span>
-          <span class="flex items-center gap-2">
-            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>
-            Website Template
-          </span>
-          <span class="flex items-center gap-2">
-            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>
-            GitHub Repository
-          </span>
+
+        <div class="flex flex-wrap items-center justify-center gap-2.5 pt-6">
+          {#each sections.platform.features as feature}
+            <span class="inline-flex items-center gap-2 rounded-full border border-black/10 bg-surface/80 px-4 py-1.5 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+              <span class="h-1.5 w-1.5 rounded-full bg-accent"></span>
+              {feature}
+            </span>
+          {/each}
         </div>
       </div>
     </section>

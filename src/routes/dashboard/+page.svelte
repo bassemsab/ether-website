@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PageData } from "./$types";
+  import BrandMark from "$lib/components/brand-mark.svelte";
 
   interface Props {
     data: PageData;
@@ -177,29 +178,28 @@
   <title>Tableau de bord · Ether Studio</title>
 </svelte:head>
 
-<div class="min-h-screen bg-[#07090e] text-slate-100 flex flex-col">
+<div class="min-h-screen bg-background text-foreground flex flex-col grain-overlay">
   <!-- Top Navigation -->
-  <header class="border-b border-slate-800/80 bg-[#0d121f]/90 backdrop-blur sticky top-0 z-30">
+  <header class="border-b border-black/5 bg-surface/80 backdrop-blur sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-6">
-        <a href="/" class="flex items-center gap-2.5 font-bold tracking-wider text-lg text-white">
-          <span class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-mono text-sm">E</span>
-          <span>ETHER</span>
+      <div class="flex items-center gap-4">
+        <a href="/" class="transition-opacity hover:opacity-80">
+          <BrandMark />
         </a>
-        <span class="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
-          Studio & Multi-Tenant
+        <span class="hidden sm:inline-block text-xs px-3 py-1 rounded-full border border-black/10 bg-surface uppercase tracking-[0.2em] font-mono text-muted-foreground">
+          Studio &amp; Sites
         </span>
       </div>
 
       <div class="flex items-center gap-4">
         {#if user}
-          <div class="flex items-center gap-2 text-sm text-slate-300">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <div class="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span>{user.email || user.github_username}</span>
           </div>
         {/if}
         <form method="POST" action="/logout">
-          <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer">
+          <button type="submit" class="focus-ring text-xs uppercase tracking-[0.15em] px-4 py-1.5 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-foreground transition-all cursor-pointer">
             Déconnexion
           </button>
         </form>
@@ -209,26 +209,27 @@
 
   <!-- Main View -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-    <!-- Header Banner -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 bg-gradient-to-r from-blue-900/20 via-indigo-900/10 to-slate-900/40 border border-blue-500/20 rounded-2xl shadow-xl">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold text-white tracking-tight">Vos Sites & Applications Web</h1>
-        <p class="text-sm text-slate-400">
-          Chaque site tourne sur Kubernetes avec SvelteKit 5 Runes, Bun runtime et sa propre base SQLite isolée.
+    <!-- Header Banner in retro style -->
+    <div class="retro-card flex flex-col md:flex-row md:items-center md:justify-between gap-6 p-6 md:p-8">
+      <div class="space-y-2">
+        <span class="section-heading">Plateforme &amp; Déploiement</span>
+        <h1 class="font-display text-2xl md:text-3xl text-foreground font-normal tracking-tight">Vos Sites &amp; Applications Web</h1>
+        <p class="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+          Chaque site tourne sur Kubernetes avec SvelteKit 5 Runes, Bun runtime et sa propre base SQLite isolée sur volume persistant.
         </p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 shrink-0">
         <button
           onclick={() => { selectedTenant = null; isSupportModalOpen = true; }}
-          class="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
+          class="focus-ring px-5 py-2.5 rounded-full border border-black/10 bg-surface/80 hover:bg-surface text-foreground text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer"
         >
           Infra sur-mesure
         </button>
         <button
           onclick={() => { isCreateModalOpen = true; }}
-          class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium shadow-lg shadow-blue-600/25 transition-all flex items-center gap-2 cursor-pointer"
+          class="focus-ring px-6 py-2.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
           </svg>
           Créer un site
@@ -237,9 +238,9 @@
     </div>
 
     {#if actionMessage}
-      <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm flex items-center justify-between">
+      <div class="p-4 rounded-2xl bg-surface border border-brand/20 text-brand text-sm flex items-center justify-between">
         <span>{actionMessage}</span>
-        <button onclick={() => actionMessage = null} class="text-emerald-400 hover:text-emerald-200">✕</button>
+        <button onclick={() => actionMessage = null} class="text-muted-foreground hover:text-foreground">✕</button>
       </div>
     {/if}
 
@@ -248,39 +249,39 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {#each tenants as tenant}
           {@const liveDomain = tenant.custom_domain || tenant.subdomain || tenant.domain}
-          <div class="p-6 bg-[#0d121f] border border-slate-800/80 rounded-2xl shadow-xl space-y-5 hover:border-slate-700/80 transition-all flex flex-col justify-between">
+          <div class="retro-card p-6 space-y-5 flex flex-col justify-between">
             <div>
               <!-- Title & Status -->
               <div class="flex items-start justify-between gap-2 mb-3">
                 <div>
-                  <h3 class="text-xl font-bold text-white tracking-tight">{tenant.brand_name || tenant.slug}</h3>
+                  <h3 class="font-display text-xl text-foreground font-normal tracking-tight">{tenant.brand_name || tenant.slug}</h3>
                   <a
                     href="https://{liveDomain}"
                     target="_blank"
                     rel="noopener"
-                    class="text-sm text-blue-400 hover:underline inline-flex items-center gap-1 mt-0.5"
+                    class="text-xs font-mono text-brand hover:underline inline-flex items-center gap-1 mt-1"
                   >
                     https://{liveDomain}
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                     </svg>
                   </a>
                 </div>
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
                   {tenant.status || 'actif'}
                 </span>
               </div>
 
               <!-- Tech Pills -->
               <div class="flex flex-wrap gap-2 py-2">
-                <span class="text-xs px-2.5 py-1 bg-slate-800/80 text-slate-300 rounded-lg border border-slate-700/50">
+                <span class="text-xs font-mono px-3 py-1 bg-surface rounded-full border border-black/10 text-muted-foreground">
                   SvelteKit 5 + Bun
                 </span>
-                <span class="text-xs px-2.5 py-1 bg-slate-800/80 text-slate-300 rounded-lg border border-slate-700/50">
+                <span class="text-xs font-mono px-3 py-1 bg-surface rounded-full border border-black/10 text-muted-foreground">
                   SQLite (1Gi PVC)
                 </span>
                 {#if tenant.custom_domain}
-                  <span class="text-xs px-2.5 py-1 bg-purple-500/10 text-purple-300 rounded-lg border border-purple-500/30">
+                  <span class="text-xs font-mono px-3 py-1 bg-accent-soft text-foreground rounded-full border border-accent/20">
                     Domaine : {tenant.custom_domain}
                   </span>
                 {/if}
@@ -288,38 +289,35 @@
             </div>
 
             <!-- Action Buttons -->
-            <div class="pt-4 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div class="pt-4 border-t border-black/5 grid grid-cols-2 sm:grid-cols-4 gap-2">
               <a
                 href="https://studio.ether.paris/?project={tenant.slug || tenant.domain}"
                 target="_blank"
                 rel="noopener"
-                class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 transition-all text-center"
+                class="px-3 py-2 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 shadow-retro-sm hover:-translate-y-0.5 transition-all text-center"
               >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                </svg>
                 Studio
               </a>
 
               <button
                 onclick={() => handlePublishSite(tenant)}
-                class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+                class="px-3 py-2 rounded-full border border-black/10 bg-surface/80 hover:bg-surface text-foreground text-xs uppercase tracking-[0.15em] transition-all cursor-pointer text-center"
               >
                 Publier
               </button>
 
               <button
                 onclick={() => { selectedTenant = tenant; isDomainModalOpen = true; }}
-                class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+                class="px-3 py-2 rounded-full border border-black/10 bg-surface/80 hover:bg-surface text-foreground text-xs uppercase tracking-[0.15em] transition-all cursor-pointer text-center"
               >
                 Domaine
               </button>
 
               <button
                 onclick={() => { selectedTenant = tenant; isGitModalOpen = true; }}
-                class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+                class="px-3 py-2 rounded-full border border-black/10 bg-surface/80 hover:bg-surface text-foreground text-xs uppercase tracking-[0.15em] transition-all cursor-pointer text-center"
               >
-                Git & DB
+                Git &amp; DB
               </button>
             </div>
           </div>
@@ -327,19 +325,19 @@
       </div>
     {:else}
       <!-- Empty State -->
-      <div class="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-[#0d121f]/50 space-y-4">
-        <div class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 mx-auto flex items-center justify-center">
+      <div class="retro-card p-12 text-center space-y-4">
+        <div class="w-12 h-12 rounded-2xl border border-black/10 bg-surface text-brand mx-auto flex items-center justify-center">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
           </svg>
         </div>
-        <h3 class="text-lg font-bold text-white">Vous n'avez pas encore de site</h3>
-        <p class="text-sm text-slate-400 max-w-md mx-auto">
-          Démarrez en quelques secondes avec un sous-domaine gratuit <code>.ether.paris</code> et accédez directement à Ether Studio.
+        <h3 class="font-display text-xl text-foreground font-normal">Vous n'avez pas encore de site</h3>
+        <p class="text-sm text-muted-foreground max-w-md mx-auto">
+          Démarrez en quelques secondes avec un sous-domaine gratuit <code class="font-mono text-brand">.ether.paris</code> et accédez directement à Ether Studio.
         </p>
         <button
           onclick={() => { isCreateModalOpen = true; }}
-          class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
+          class="focus-ring px-6 py-3 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all cursor-pointer hover:-translate-y-0.5"
         >
           Créer mon premier site
         </button>
@@ -349,22 +347,22 @@
 
   <!-- Modal 1: Create Site -->
   {#if isCreateModalOpen}
-    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="w-full max-w-lg bg-[#0d121f] border border-slate-800 rounded-2xl p-6 space-y-6 shadow-2xl">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="retro-card w-full max-w-lg p-6 md:p-8 space-y-6 bg-card">
         <div class="flex items-center justify-between">
-          <h2 class="text-xl font-bold text-white">Créer un nouveau site</h2>
-          <button onclick={() => isCreateModalOpen = false} class="text-slate-400 hover:text-white">✕</button>
+          <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Créer un nouveau site</h2>
+          <button onclick={() => isCreateModalOpen = false} class="text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
         {#if createError}
-          <div class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm rounded-xl">
+          <div class="p-3.5 rounded-2xl bg-accent-soft/80 border border-accent/40 text-foreground text-sm font-neue">
             {createError}
           </div>
         {/if}
 
         <form onsubmit={handleCreateSite} class="space-y-4">
           <div>
-            <label for="create-brand" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label for="create-brand" class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
               Nom du projet / Marque
             </label>
             <input
@@ -374,12 +372,12 @@
               value={newSiteBrand}
               oninput={(e) => autoSlug((e.target as HTMLInputElement).value)}
               required
-              class="w-full px-4 py-2.5 bg-[#07090e] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 outline-none"
+              class="w-full rounded-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm transition-all font-neue"
             />
           </div>
 
           <div>
-            <label for="create-slug" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label for="create-slug" class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-2">
               Sous-domaine gratuit
             </label>
             <div class="flex items-center">
@@ -389,31 +387,31 @@
                 bind:value={newSiteSlug}
                 placeholder="mon-cafe"
                 required
-                class="w-full px-4 py-2.5 bg-[#07090e] border border-slate-700 rounded-l-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 outline-none"
+                class="w-full rounded-l-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-mono transition-all"
               />
-              <span class="px-3 py-2.5 bg-slate-800 border border-l-0 border-slate-700 rounded-r-xl text-slate-400 text-sm font-mono">
+              <span class="px-4 py-3 bg-surface border border-l-0 border-black/10 rounded-r-2xl text-muted-foreground text-sm font-mono">
                 .ether.paris
               </span>
             </div>
-            <p class="text-xs text-slate-500 mt-1">Vous pourrez ajouter un nom de domaine personnalisé plus tard.</p>
+            <p class="text-xs text-muted-foreground mt-2 leading-relaxed">Vous pourrez rattacher un nom de domaine personnalisé ultérieurement.</p>
           </div>
 
-          <div class="pt-2 flex justify-end gap-3">
+          <div class="pt-4 flex items-center justify-end gap-3">
             <button
               type="button"
               onclick={() => isCreateModalOpen = false}
-              class="px-4 py-2 text-sm text-slate-400 hover:text-white"
+              class="px-4 py-2 text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground cursor-pointer"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={createLoading}
-              class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium shadow-lg shadow-blue-600/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              class="focus-ring px-6 py-2.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 hover:-translate-y-0.5"
             >
               {#if createLoading}
-                <span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                <span>Création en cours...</span>
+                <span class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span>Déploiement...</span>
               {:else}
                 <span>Générer et déployer</span>
               {/if}
@@ -426,14 +424,14 @@
 
   <!-- Modal 2: Domain Search & Buy -->
   {#if isDomainModalOpen && selectedTenant}
-    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="w-full max-w-2xl bg-[#0d121f] border border-slate-800 rounded-2xl p-6 space-y-6 shadow-2xl">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="retro-card w-full max-w-2xl p-6 md:p-8 space-y-6 bg-card">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-xl font-bold text-white">Réserver un nom de domaine</h2>
-            <p class="text-xs text-slate-400">Pour le site {selectedTenant.brand_name || selectedTenant.slug}</p>
+            <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Réserver un nom de domaine</h2>
+            <p class="text-xs uppercase tracking-[0.15em] text-muted-foreground mt-1">Pour le site {selectedTenant.brand_name || selectedTenant.slug}</p>
           </div>
-          <button onclick={() => isDomainModalOpen = false} class="text-slate-400 hover:text-white">✕</button>
+          <button onclick={() => isDomainModalOpen = false} class="text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
         <div class="flex gap-2">
@@ -441,12 +439,12 @@
             type="text"
             bind:value={domainQuery}
             placeholder="Rechercher un nom (ex: {selectedTenant.slug})"
-            class="flex-1 px-4 py-2.5 bg-[#07090e] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 outline-none"
+            class="flex-1 rounded-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-neue"
           />
           <button
             onclick={handleSearchDomains}
             disabled={searchLoading}
-            class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-all cursor-pointer disabled:opacity-50"
+            class="focus-ring px-6 py-2.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all cursor-pointer disabled:opacity-50 hover:-translate-y-0.5 shrink-0"
           >
             {searchLoading ? 'Recherche...' : 'Vérifier'}
           </button>
@@ -455,24 +453,24 @@
         {#if searchResults.length > 0}
           <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
             {#each searchResults as item}
-              <div class="p-3 bg-[#07090e] border border-slate-800 rounded-xl flex items-center justify-between">
+              <div class="p-3.5 bg-surface border border-black/10 rounded-2xl flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                  <span class="font-mono text-sm font-semibold text-white">{item.domain}</span>
-                  <span class="text-xs px-2 py-0.5 rounded-full {item.available ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500'}">
+                  <span class="font-mono text-sm font-semibold text-foreground">{item.domain}</span>
+                  <span class="text-xs font-mono px-2.5 py-0.5 rounded-full {item.available ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' : 'bg-surface border border-black/10 text-muted-foreground'}">
                     {item.available ? 'Disponible' : 'Pris'}
                   </span>
-                  <span class="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase font-mono">
+                  <span class="text-xs px-2 py-0.5 rounded-full bg-surface/90 border border-black/10 text-muted-foreground uppercase font-mono">
                     {item.provider}
                   </span>
                 </div>
 
                 <div class="flex items-center gap-3">
-                  <span class="text-sm font-medium text-slate-200">{item.formattedPrice}</span>
+                  <span class="text-sm font-mono font-medium text-foreground">{item.formattedPrice}</span>
                   {#if item.available}
                     <button
                       onclick={() => handleBuyDomain(item)}
                       disabled={domainBuyLoading}
-                      class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow transition-colors cursor-pointer disabled:opacity-50"
+                      class="focus-ring px-4 py-1.5 text-xs uppercase tracking-[0.15em] font-medium rounded-full bg-brand hover:bg-brand/90 text-white shadow-retro-sm transition-all cursor-pointer disabled:opacity-50"
                     >
                       Acheter
                     </button>
@@ -483,7 +481,7 @@
           </div>
         {/if}
 
-        <p class="text-xs text-slate-500">
+        <p class="text-xs text-muted-foreground leading-relaxed">
           Inclus : Abonnement annuel renouvelable automatiquement, DNS haute performance Cloudflare, certificat SSL Let's Encrypt et redirection email <code>contact@{domainQuery || 'votredomaine.com'}</code>.
         </p>
       </div>
@@ -492,46 +490,46 @@
 
   <!-- Modal 3: Git & Database Info -->
   {#if isGitModalOpen && selectedTenant}
-    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="w-full max-w-xl bg-[#0d121f] border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="retro-card w-full max-w-xl p-6 md:p-8 space-y-5 bg-card">
         <div class="flex items-center justify-between">
-          <h2 class="text-xl font-bold text-white">Accès Git & Données SQLite</h2>
-          <button onclick={() => isGitModalOpen = false} class="text-slate-400 hover:text-white">✕</button>
+          <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Accès Git &amp; Données SQLite</h2>
+          <button onclick={() => isGitModalOpen = false} class="text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
-        <div class="space-y-4 text-sm">
+        <div class="space-y-4 text-sm font-neue">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
               Dépôt Git hébergé
             </label>
-            <div class="p-3 bg-[#07090e] border border-slate-800 rounded-xl font-mono text-xs text-blue-400 break-all select-all">
+            <div class="p-3 bg-surface border border-black/10 rounded-2xl font-mono text-xs text-brand break-all select-all">
               {selectedTenant.git_repo_url || `https://git.ether.paris/${user?.email?.split('@')[0] || 'user'}/${selectedTenant.slug}.git`}
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
               Jeton d'accès personnel Git (PAT)
             </label>
-            <div class="p-3 bg-[#07090e] border border-slate-800 rounded-xl font-mono text-xs text-slate-300 select-all">
+            <div class="p-3 bg-surface border border-black/10 rounded-2xl font-mono text-xs text-foreground select-all">
               {selectedTenant.git_access_token || user?.gitea_token || 'Généré automatiquement lors de la création'}
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
               Base de données SQLite (Bun:sqlite)
             </label>
-            <div class="p-3 bg-[#07090e] border border-slate-800 rounded-xl space-y-1 text-xs text-slate-300">
-              <p>Emplacement persistant : <code class="text-blue-400">/data/app.db</code></p>
-              <p>Volume Kubernetes : <code class="text-indigo-400">tenant-storage (1Gi PVC)</code></p>
-              <p class="text-slate-500 mt-2">Votre application SvelteKit accède directement à Bun SQLite sans configuration réseau requise.</p>
+            <div class="p-3 bg-surface border border-black/10 rounded-2xl space-y-1.5 text-xs text-muted-foreground font-mono">
+              <p>Emplacement persistant : <code class="text-foreground font-bold">/data/app.db</code></p>
+              <p>Volume Kubernetes : <code class="text-foreground">tenant-storage (1Gi PVC)</code></p>
+              <p class="text-muted-foreground mt-2 font-neue">Votre application SvelteKit accède directement à Bun SQLite sans configuration réseau requise.</p>
             </div>
           </div>
         </div>
 
         <div class="pt-2 flex justify-end">
-          <button onclick={() => isGitModalOpen = false} class="px-4 py-2 rounded-xl bg-slate-800 text-white text-sm">
+          <button onclick={() => isGitModalOpen = false} class="focus-ring px-5 py-2 rounded-full border border-black/10 bg-surface text-foreground text-xs uppercase tracking-[0.2em] hover:bg-surface/80 cursor-pointer">
             Fermer
           </button>
         </div>
@@ -541,24 +539,24 @@
 
   <!-- Modal 4: Custom Infrastructure / Support -->
   {#if isSupportModalOpen}
-    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="w-full max-w-lg bg-[#0d121f] border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="retro-card w-full max-w-lg p-6 md:p-8 space-y-5 bg-card">
         <div class="flex items-center justify-between">
-          <h2 class="text-xl font-bold text-white">Infrastructure sur-mesure & Support</h2>
-          <button onclick={() => isSupportModalOpen = false} class="text-slate-400 hover:text-white">✕</button>
+          <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Infrastructure sur-mesure</h2>
+          <button onclick={() => isSupportModalOpen = false} class="text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
         {#if supportSuccess}
-          <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm rounded-xl">
+          <div class="p-4 bg-surface border border-brand/20 text-brand text-sm rounded-2xl font-neue">
             Demande envoyée avec succès ! Notre équipe d'infrastructure vous répondra sous 24h.
           </div>
         {:else}
           <form onsubmit={handleSendSupport} class="space-y-4">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Sujet</label>
+              <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">Sujet</label>
               <select
                 bind:value={supportSubject}
-                class="w-full px-4 py-2.5 bg-[#07090e] border border-slate-700 rounded-xl text-white outline-none"
+                class="w-full rounded-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground outline-none text-sm font-neue focus:border-brand"
               >
                 <option value="Base de données dédiée (PostgreSQL/Redis)">Base de données dédiée (PostgreSQL/Redis)</option>
                 <option value="Augmentation des quotas CPU/RAM">Augmentation des quotas CPU/RAM</option>
@@ -568,28 +566,28 @@
             </div>
 
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Description de votre besoin</label>
+              <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">Description de votre besoin</label>
               <textarea
                 bind:value={supportMessage}
                 rows="4"
                 required
                 placeholder="Détaillez vos besoins d'infrastructure ou vos questions..."
-                class="w-full px-4 py-2.5 bg-[#07090e] border border-slate-700 rounded-xl text-white outline-none text-sm placeholder-slate-500"
+                class="w-full rounded-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground outline-none text-sm placeholder:text-muted-foreground/50 font-neue focus:border-brand"
               ></textarea>
             </div>
 
-            <div class="flex justify-end gap-3 pt-2">
+            <div class="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
                 onclick={() => isSupportModalOpen = false}
-                class="px-4 py-2 text-sm text-slate-400 hover:text-white"
+                class="px-4 py-2 text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={supportLoading}
-                class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-all cursor-pointer disabled:opacity-50"
+                class="focus-ring px-6 py-2.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all cursor-pointer disabled:opacity-50 hover:-translate-y-0.5"
               >
                 {supportLoading ? 'Envoi...' : 'Transmettre la demande'}
               </button>

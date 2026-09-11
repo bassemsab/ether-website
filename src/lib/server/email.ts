@@ -81,7 +81,8 @@ function sendSmtpEmail(options: SmtpOptions): Promise<void> {
 
 export async function sendContactEmail(payload: ContactPayload) {
   const to = process.env.RESEND_CONTACT_EMAIL || "support@ether.paris";
-  const from = process.env.RESEND_FROM_EMAIL || "Ether <noreply@ether.paris>";
+  const rawFrom = process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
+  const from = rawFrom.replace(/^Ether\b/, "ether");
   const subject = `Nouvelle prise de contact · ${payload.name}`;
 
   const html = `
@@ -230,41 +231,190 @@ export async function sendContactEmail(payload: ContactPayload) {
 }
 
 export async function sendOtpEmail(email: string, code: string) {
-  const from = process.env.RESEND_FROM_EMAIL || "Ether <noreply@ether.paris>";
-  const subject = `Votre code de connexion Ether : ${code}`;
+  const rawFrom = process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
+  // Ensure sender name is strictly lowercase 'ether'
+  const from = rawFrom.replace(/^Ether\b/, "ether");
+  const subject = `Votre code de connexion ether : ${code}`;
 
   const html = `
     <!DOCTYPE html>
-    <html>
+    <html lang="fr">
     <head>
       <meta charset="utf-8">
-      <title>Code de connexion Ether</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="color-scheme" content="light dark">
+      <meta name="supported-color-schemes" content="light dark">
+      <title>Code de connexion ether</title>
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; color: #f3f4f6; padding: 24px; margin: 0; }
-        .container { max-width: 500px; background-color: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 32px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 24px; }
-        .logo { font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: 0.1em; }
-        .code-box { background-color: #1f2937; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0; }
-        .code { font-family: monospace; font-size: 36px; font-weight: 700; letter-spacing: 0.25em; color: #60a5fa; }
-        .footer { font-size: 12px; color: #6b7280; text-align: center; margin-top: 24px; }
+        :root {
+          color-scheme: light dark;
+          supported-color-schemes: light dark;
+        }
+        body {
+          margin: 0;
+          padding: 0;
+          background-color: #FBF9F5;
+          font-family: -apple-system, BlinkMacSystemFont, "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #1E1B39;
+          -webkit-font-smoothing: antialiased;
+        }
+        .email-table {
+          width: 100%;
+          border-collapse: collapse;
+          background-color: #FBF9F5;
+          padding: 32px 16px;
+        }
+        .email-card {
+          max-width: 480px;
+          margin: 0 auto;
+          background-color: #FFFFFF;
+          border: 1.5px solid #1E1B39;
+          border-radius: 20px;
+          box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15);
+          padding: 36px 32px;
+          text-align: center;
+        }
+        .logo-mark {
+          display: inline-block;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          vertical-align: middle;
+        }
+        .brand-title {
+          margin-top: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.28em;
+          text-transform: lowercase;
+          color: #1E1B39;
+        }
+        .brand-subtitle {
+          margin-top: 4px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          color: #78716C;
+        }
+        .greeting {
+          margin-top: 28px;
+          font-size: 15px;
+          line-height: 1.6;
+          color: #1E1B39;
+          text-align: left;
+        }
+        .code-container {
+          margin: 26px 0;
+          padding: 18px;
+          background-color: #FAF7F2;
+          border: 2px solid #1E1B39;
+          border-radius: 14px;
+          box-shadow: 3px 3px 0px 0px #1E1B39;
+          text-align: center;
+        }
+        .code-number {
+          font-family: "Space Grotesk", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          font-size: 34px;
+          font-weight: 700;
+          letter-spacing: 0.32em;
+          color: #1E1B39;
+          margin-left: 0.32em;
+        }
+        .expiry-note {
+          font-size: 12px;
+          line-height: 1.5;
+          color: #78716C;
+          text-align: left;
+          margin: 0;
+        }
+        .footer-note {
+          margin-top: 32px;
+          padding-top: 20px;
+          border-top: 1px solid #E7E5E4;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          color: #A8A29E;
+          text-align: center;
+        }
+        @media (prefers-color-scheme: dark) {
+          body, .email-table {
+            background-color: #0c0f17 !important;
+          }
+          .email-card {
+            background-color: #151a28 !important;
+            border-color: #384259 !important;
+            box-shadow: 4px 4px 0px 0px #384259 !important;
+            color: #F1F5F9 !important;
+          }
+          .brand-title, .greeting, .code-number {
+            color: #F8FAFC !important;
+          }
+          .brand-subtitle, .expiry-note {
+            color: #94A3B8 !important;
+          }
+          .code-container {
+            background-color: #1E2538 !important;
+            border-color: #4B5563 !important;
+            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
+          }
+          .footer-note {
+            border-top-color: #2D3748 !important;
+            color: #64748B !important;
+          }
+        }
       </style>
     </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="logo">ETHER</div>
-          <p style="color: #9ca3af; font-size: 14px; margin-top: 8px;">Studio & Hébergement de Sites Web</p>
-        </div>
-        <p>Bonjour,</p>
-        <p>Voici votre code de vérification à 6 chiffres pour accéder à votre espace de gestion et studio Ether :</p>
-        <div class="code-box">
-          <div class="code">${code}</div>
-        </div>
-        <p style="font-size: 13px; color: #9ca3af;">Ce code expire dans 10 minutes. Si vous n'avez pas demandé ce code, vous pouvez ignorer cet email en toute sécurité.</p>
-        <div class="footer">
-          © Ether · Plateforme Web & Studio IA · Paris
-        </div>
-      </div>
+    <body style="margin: 0; padding: 0; background-color: #FBF9F5; color: #1E1B39;">
+      <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #FBF9F5;">
+        <tr>
+          <td align="center" style="padding: 32px 16px;">
+            <div class="email-card" style="max-width: 480px; background-color: #FFFFFF; border: 1.5px solid #1E1B39; border-radius: 20px; box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15); padding: 36px 32px; text-align: center;">
+              
+              <!-- Official small ether logo -->
+              <div style="text-align: center;">
+                <img
+                  src="https://ether.paris/ether-logo.png"
+                  alt="ether"
+                  width="40"
+                  height="40"
+                  class="logo-mark"
+                  style="display: inline-block; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(30, 27, 57, 0.12); vertical-align: middle;"
+                />
+                <div class="brand-title" style="margin-top: 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.28em; text-transform: lowercase; color: #1E1B39;">
+                  ether
+                </div>
+                <div class="brand-subtitle" style="margin-top: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
+                  studio &amp; hébergement web
+                </div>
+              </div>
+
+              <!-- Message body -->
+              <p class="greeting" style="margin-top: 28px; margin-bottom: 8px; font-size: 15px; line-height: 1.6; color: #1E1B39; text-align: left;">
+                Bonjour,
+              </p>
+              <p class="greeting" style="margin-top: 0; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #57534E; text-align: left;">
+                Voici votre code de vérification à 6 chiffres pour accéder à votre espace studio et gérer vos sites :
+              </p>
+
+              <!-- OTP code container in ether retro style -->
+              <div class="code-container" style="margin: 24px 0; padding: 18px; background-color: #FAF7F2; border: 2px solid #1E1B39; border-radius: 14px; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center;">
+                <div class="code-number" style="font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 34px; font-weight: 700; letter-spacing: 0.32em; color: #1E1B39;">
+                  ${code}
+                </div>
+              </div>
+
+              <p class="expiry-note" style="font-size: 12px; line-height: 1.5; color: #78716C; text-align: left; margin: 0;">
+                Ce code est valide pendant 10 minutes. Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email en toute sécurité.
+              </p>
+
+              <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center;">
+                © ether · plateforme web &amp; studio · paris
+              </div>
+
+            </div>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `;

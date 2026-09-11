@@ -15,6 +15,7 @@
     locale: Locale;
     navigation: NavigationItem[];
     collaborateLabel: string;
+    studioLabel?: string;
     logoAlt: string;
     languageLabel: string;
     homeLabel: string;
@@ -25,6 +26,7 @@
     locale,
     navigation,
     collaborateLabel,
+    studioLabel,
     logoAlt,
     languageLabel,
     homeLabel,
@@ -120,10 +122,10 @@
         </select>
       </div>
       <a
-        href="/admin/tenant-onboarding"
-        class="inline-flex items-center justify-center rounded-full border-2 border-brand bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-brand transition hover:bg-brand hover:text-white"
+        href="/login"
+        class="whitespace-nowrap inline-flex items-center justify-center rounded-full border border-black/10 bg-surface/80 px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-foreground transition hover:border-brand hover:bg-brand hover:text-white"
       >
-        Register Domain
+        {studioLabel || "Studio"}
       </a>
       <Button
         type="button"
@@ -196,11 +198,11 @@
         </a>
       {/each}
       <a
-        href="/admin/tenant-onboarding"
+        href="/login"
         onclick={() => open = false}
-        class="block rounded-2xl border-2 border-brand bg-transparent px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.2em] text-brand transition hover:bg-brand hover:text-white"
+        class="block rounded-2xl border border-black/10 bg-surface px-5 py-3 text-center text-sm font-medium uppercase tracking-[0.2em] text-foreground transition hover:border-brand hover:bg-brand hover:text-white"
       >
-        Register Domain
+        {studioLabel || "Studio"}
       </a>
       <Button
         type="button"
