@@ -73,3 +73,13 @@
     @apply h-px w-full bg-gradient-to-r from-transparent via-foreground/40 to-transparent opacity-70;
   }
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

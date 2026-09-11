@@ -1430,7 +1430,7 @@
         </div>
 
         <!-- Quick Suggestion Chips -->
-        <div class="px-3 py-2 border-t border-black/5 bg-surface/30 flex items-center gap-1.5 overflow-x-auto text-[11px]">
+        <div class="px-3 py-2 border-t border-black/5 bg-surface/30 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <button
             onclick={() => { promptInput = "Ajoute une section Témoignages clients moderne avec 3 avis"; }}
             class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
@@ -1588,7 +1588,7 @@
 
         <!-- Horizontally Scrollable Tab Strip with Close Buttons -->
         <div
-          class="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 py-1 select-none"
+          class="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 py-1 select-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           onwheel={(e) => {
             if (e.deltaY !== 0) {
               e.preventDefault();
