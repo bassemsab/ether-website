@@ -31,13 +31,28 @@ const MAX_CONCURRENT_TURNS = parseInt(
   10,
 );
 
-function formatToolStep(toolName: string, params: any): string {
+function formatToolStep(toolName: string, params: any, su?: any): string {
+  // If the agent framework provided an explicit toolAction / toolSummary, prioritize it
+  const explicitSummary =
+    params?.toolSummary ||
+    params?.toolAction ||
+    su?.tool_info?.toolSummary ||
+    su?.tool_info?.toolAction ||
+    su?.tool_summary;
+  if (explicitSummary && typeof explicitSummary === "string") {
+    const clean = explicitSummary.trim();
+    if (clean.length > 0 && clean.length < 60 && !clean.toLowerCase().includes("generic")) {
+      return clean;
+    }
+  }
+
   if (toolName === "write_to_file") {
     const file = params?.TargetFile
       ? params.TargetFile.split("/").pop()
       : "fichier";
     return `Création de ${file}`;
   }
+
   if (
     toolName === "replace_file_content" ||
     toolName === "multi_replace_file_content"
@@ -47,30 +62,79 @@ function formatToolStep(toolName: string, params: any): string {
       : "fichier";
     return `Mise à jour de ${file}`;
   }
+
   if (toolName === "run_command") {
     const cmd = (params?.CommandLine || "").trim();
-    if (cmd.includes("install") || cmd.includes("add"))
+    if (!cmd) return "Exécution de commande";
+
+    if (cmd.includes("install") || cmd.includes("add")) {
       return "Installation des dépendances";
-    if (cmd.includes("build")) return "Vérification du code";
-    return "Configuration du projet";
+    }
+    if (cmd.includes("build")) {
+      return "Compilation du site";
+    }
+    if (cmd.includes("check") || cmd.includes("tsc")) {
+      return "Vérification des types TypeScript";
+    }
+    if (cmd.includes("dev") || cmd.includes("vite")) {
+      return "Démarrage du serveur de prévisualisation";
+    }
+    if (cmd.startsWith("curl") || cmd.includes("http")) {
+      return "Test HTTP de la page";
+    }
+    if (cmd.startsWith("sqlite") || cmd.includes(".sqlite") || cmd.includes("app.db")) {
+      return "Initialisation de la base SQLite";
+    }
+    if (cmd.startsWith("ls") || cmd.startsWith("find")) {
+      return "Exploration des dossiers";
+    }
+    if (cmd.startsWith("cat") || cmd.startsWith("head") || cmd.startsWith("tail")) {
+      const file = cmd.split(/\s+/).pop()?.split("/").pop();
+      return file ? `Consultation de ${file}` : "Consultation des fichiers";
+    }
+    if (cmd.startsWith("mkdir") || cmd.startsWith("cp") || cmd.startsWith("mv")) {
+      return "Organisation de l'arborescence";
+    }
+    if (cmd.startsWith("git")) {
+      return "Gestion de version Git";
+    }
+    const baseCmd = cmd.split(/\s+/)[0];
+    return `Exécution : ${baseCmd}`;
   }
+
   if (
     toolName === "view_file" ||
     toolName === "read_resource" ||
     toolName === "read_url_content"
   ) {
-    const file = params?.AbsolutePath
-      ? params.AbsolutePath.split("/").pop()
-      : "fichier";
+    const file =
+      params?.AbsolutePath?.split("/").pop() ||
+      params?.Uri?.split("/").pop() ||
+      params?.Url ||
+      "fichier";
     return `Lecture de ${file}`;
   }
-  if (toolName === "list_dir" || toolName === "find_by_name") {
-    return "Exploration du projet";
+
+  if (toolName === "list_dir") {
+    const dir = params?.DirectoryPath?.split("/").pop();
+    return dir ? `Exploration du dossier ${dir}` : "Exploration du projet";
   }
+
+  if (toolName === "find_by_name") {
+    const pattern = params?.Pattern || "";
+    return pattern ? `Recherche de fichier "${pattern}"` : "Recherche de fichiers";
+  }
+
   if (toolName === "grep_search") {
-    return "Recherche dans le code";
+    const query = (params?.Query || "").slice(0, 25);
+    return query ? `Recherche de "${query}"` : "Recherche dans le code";
   }
-  return "Amélioration du site...";
+
+  if (toolName === "schedule") {
+    return "Planification d'une tâche";
+  }
+
+  return "Analyse et préparation...";
 }
 
 // Ensure base directories exist
@@ -883,6 +947,7 @@ const server = Bun.serve({
                                 const friendlyMsg = formatToolStep(
                                   toolName,
                                   su.tool_info?.parameters,
+                                  su,
                                 );
                                 sendEvent("step", {
                                   id: su.step_index,

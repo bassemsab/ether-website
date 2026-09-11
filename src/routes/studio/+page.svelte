@@ -317,12 +317,107 @@
         }
   );
 
+  interface TreeNode {
+    name: string;
+    path: string;
+    isFolder: boolean;
+    children: TreeNode[];
+    file?: FileItem;
+    depth: number;
+  }
+
+  function buildFileTree(fileMap: Record<string, FileItem>, searchQuery: string): TreeNode[] {
+    const root: Record<string, any> = {};
+    const q = searchQuery.trim().toLowerCase();
+
+    for (const [filePath, file] of Object.entries(fileMap)) {
+      if (q && !filePath.toLowerCase().includes(q) && !file.name.toLowerCase().includes(q)) {
+        continue;
+      }
+
+      const parts = filePath.split("/").filter(Boolean);
+      let current = root;
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const isFile = i === parts.length - 1;
+        const currentPath = parts.slice(0, i + 1).join("/");
+
+        if (!current[part]) {
+          current[part] = {
+            name: part,
+            path: currentPath,
+            isFolder: !isFile,
+            children: {},
+            file: isFile ? file : undefined,
+          };
+        }
+        current = current[part].children;
+      }
+    }
+
+    function toSortedArray(obj: Record<string, any>, depth = 0): TreeNode[] {
+      const items: TreeNode[] = Object.values(obj).map((node) => ({
+        name: node.name,
+        path: node.path,
+        isFolder: node.isFolder,
+        depth,
+        children: toSortedArray(node.children, depth + 1),
+        file: node.file,
+      }));
+
+      return items.sort((a, b) => {
+        if (a.isFolder && !b.isFolder) return -1;
+        if (!a.isFolder && b.isFolder) return 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    return toSortedArray(root, 0);
+  }
+
   let activeFile = $state(
     Object.keys(files)[0] || "src/routes/+page.svelte"
   );
+  let openTabs = $state<string[]>([
+    Object.keys(files)[0] || "src/routes/+page.svelte"
+  ]);
+  let collapsedFolders = $state<Record<string, boolean>>({});
   let showExplorer = $state(true);
   let fileSearchQuery = $state("");
   let saveToast = $state<string | null>(null);
+
+  const fileTree = $derived(buildFileTree(files, fileSearchQuery));
+
+  function toggleFolder(folderPath: string) {
+    collapsedFolders[folderPath] = !collapsedFolders[folderPath];
+  }
+
+  function selectAndOpenFile(filePath: string) {
+    if (!openTabs.includes(filePath)) {
+      openTabs = [...openTabs, filePath];
+    }
+    switchFile(filePath);
+  }
+
+  function closeTab(e: MouseEvent, filePath: string) {
+    e.stopPropagation();
+    const remaining = openTabs.filter((p) => p !== filePath);
+    if (remaining.length === 0) {
+      const allKeys = Object.keys(files);
+      const fallback = allKeys.find((k) => k !== filePath) || allKeys[0];
+      if (fallback) {
+        openTabs = [fallback];
+        switchFile(fallback);
+      }
+      return;
+    }
+    openTabs = remaining;
+    if (activeFile === filePath) {
+      const next = remaining[remaining.length - 1];
+      switchFile(next);
+    }
+  }
 
   const filteredFiles = $derived(
     Object.entries(files).filter(([path, file]) => {
@@ -422,7 +517,7 @@
       if (typeof window !== "undefined" && window.innerWidth < 900) {
         showChat = false;
       }
-      switchFile(matchedKey);
+      selectAndOpenFile(matchedKey);
       if (editorView) {
         editorView.focus();
       }
@@ -1125,27 +1220,43 @@
                 {/if}
 
                 {#if msg.role === 'assistant' && msg.steps && msg.steps.length > 0}
-                  <div class="mb-3 p-2.5 rounded-lg bg-black/[0.03] border border-black/5 text-[11px] font-mono space-y-1.5">
-                    <div class="flex items-center gap-2 text-muted-foreground font-medium">
-                      <span class="w-2 h-2 rounded-full {isThinking && msg === messages[messages.length-1] ? 'bg-brand animate-pulse' : 'bg-green-600'}"></span>
-                      <span>Actions en cours :</span>
-                    </div>
-                    <div class="space-y-1 pl-4">
+                  <details
+                    class="mb-3 rounded-lg bg-black/[0.03] border border-black/5 text-[11px] font-mono overflow-hidden group"
+                    open={Boolean(isThinking && msg === messages[messages.length - 1])}
+                  >
+                    <summary class="flex items-center justify-between p-2.5 cursor-pointer select-none hover:bg-black/[0.02] transition-colors text-muted-foreground font-medium">
+                      <div class="flex items-center gap-2">
+                        {#if isThinking && msg === messages[messages.length - 1]}
+                          <svg class="animate-spin h-3 w-3 text-brand" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                          </svg>
+                          <span class="text-foreground font-semibold">Actions en cours ({msg.steps.length})</span>
+                        {:else}
+                          <span class="text-green-600 font-bold text-[10px]">✓</span>
+                          <span>{msg.steps.length} action{msg.steps.length > 1 ? 's' : ''} exécutée{msg.steps.length > 1 ? 's' : ''}</span>
+                        {/if}
+                      </div>
+                      <svg class="w-3.5 h-3.5 text-muted-foreground/70 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </summary>
+                    <div class="px-3 pb-2.5 pt-1 space-y-1 max-h-48 overflow-y-auto border-t border-black/5">
                       {#each msg.steps as step}
                         <div class="flex items-center gap-2">
                           {#if step.state === 'running'}
-                            <svg class="animate-spin h-3 w-3 text-brand" fill="none" viewBox="0 0 24 24">
+                            <svg class="animate-spin h-3 w-3 text-brand shrink-0" fill="none" viewBox="0 0 24 24">
                               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                             </svg>
                           {:else}
-                            <span class="text-green-600 font-bold">✓</span>
+                            <span class="text-green-600 font-bold shrink-0 text-[10px]">✓</span>
                           {/if}
-                          <span class="{step.state === 'running' ? 'text-foreground font-medium' : 'text-muted-foreground'}">{step.name}</span>
+                          <span class="truncate {step.state === 'running' ? 'text-foreground font-medium' : 'text-muted-foreground'}">{step.name}</span>
                         </div>
                       {/each}
                     </div>
-                  </div>
+                  </details>
                 {/if}
 
                 {#if msg.role === 'user'}
@@ -1255,26 +1366,68 @@
       style={showPreview ? `width: ${editorWidth}px; max-width: calc(100% - 320px); min-width: 280px;` : ''}
     >
       <!-- File Tabs & Editor Controls -->
-      <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-2 text-xs font-mono shrink-0">
-        <div class="flex items-center gap-1 overflow-x-auto min-w-0">
-          <button
-            onclick={() => showExplorer = !showExplorer}
-            class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 text-brand' : ''}"
-            title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </button>
+      <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
+        <button
+          onclick={() => showExplorer = !showExplorer}
+          class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 text-brand' : ''}"
+          title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        </button>
 
-          {#each Object.entries(files) as [path, file]}
-            <button
+        <!-- Horizontally Scrollable Tab Strip with Close Buttons -->
+        <div
+          class="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 py-1 select-none"
+          onwheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.preventDefault();
+              (e.currentTarget as HTMLElement).scrollLeft += e.deltaY;
+            }
+          }}
+        >
+          {#each openTabs as path}
+            {@const file = files[path] || { name: path.split('/').pop() || path, path }}
+            <div
+              class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-black/5'}"
+              role="tab"
+              aria-selected={activeFile === path}
+              tabindex="0"
               onclick={() => switchFile(path)}
-              class="px-2.5 py-1 rounded-t border-b-2 font-medium transition-all shrink-0 flex items-center gap-1.5 {activeFile === path ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+              onkeydown={(e) => e.key === 'Enter' && switchFile(path)}
               title={path}
             >
-              <span>{file.name}</span>
-            </button>
+              {#if path.endsWith('.svelte')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 shrink-0">S</span>
+              {:else if path.endsWith('.ts')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 shrink-0">TS</span>
+              {:else if path.endsWith('.js') || path.endsWith('.mjs')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 shrink-0">JS</span>
+              {:else if path.endsWith('.json')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 shrink-0">{"{}"}</span>
+              {:else if path.endsWith('.html')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
+              {:else if path.endsWith('.css')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
+              {:else}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
+              {/if}
+
+              <span class="truncate max-w-[130px]">{file.name}</span>
+
+              <!-- Close Tab Button -->
+              <button
+                type="button"
+                onclick={(e) => closeTab(e, path)}
+                class="p-0.5 rounded hover:bg-black/10 text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                title="Fermer l'onglet"
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           {/each}
         </div>
 
@@ -1304,36 +1457,44 @@
         </div>
       </div>
 
-      <!-- Main Editor Area with Explorer Sidebar -->
+      <!-- Main Editor Area with Tree-based Explorer Sidebar -->
       <div class="flex-1 flex overflow-hidden min-h-0">
         <!-- File Explorer Sidebar -->
         {#if showExplorer}
-          <div class="w-48 sm:w-52 border-r border-black/10 bg-surface/40 flex flex-col shrink-0 overflow-hidden select-none">
+          <div class="w-52 sm:w-56 border-r border-black/10 bg-surface/40 flex flex-col shrink-0 overflow-hidden select-none">
             <!-- Explorer Header & Filter -->
             <div class="p-2 border-b border-black/10 space-y-1.5 shrink-0 bg-surface/60">
               <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                <span>Fichiers ({filteredFiles.length})</span>
-                <button
-                  onclick={loadTenantFiles}
-                  class="p-0.5 rounded hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
-                  title="Recharger la liste des fichiers"
-                >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <span class="flex items-center gap-1.5 font-semibold text-foreground/80">
+                  <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
-                </button>
+                  <span>Explorateur</span>
+                </span>
+                <div class="flex items-center gap-1">
+                  <span class="text-[10px] text-muted-foreground">({Object.keys(files).length})</span>
+                  <button
+                    onclick={loadTenantFiles}
+                    class="p-0.5 rounded hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
+                    title="Recharger l'arborescence"
+                  >
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div class="relative">
                 <input
                   type="text"
                   bind:value={fileSearchQuery}
-                  placeholder="Filtrer..."
+                  placeholder="Filtrer les fichiers..."
                   class="w-full bg-card border border-black/10 rounded px-2 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:border-brand"
                 />
                 {#if fileSearchQuery}
                   <button
                     onclick={() => fileSearchQuery = ""}
-                    class="absolute right-1 top-1 text-muted-foreground hover:text-foreground text-[10px] px-1"
+                    class="absolute right-1 top-1 text-muted-foreground hover:text-foreground text-[10px] px-1 cursor-pointer"
                   >
                     ✕
                   </button>
@@ -1341,41 +1502,82 @@
               </div>
             </div>
 
-            <!-- File List -->
-            <div class="flex-1 overflow-y-auto p-1 space-y-0.5 font-mono text-xs">
-              {#if filteredFiles.length === 0}
-                <div class="p-3 text-[11px] text-muted-foreground text-center">
-                  Aucun fichier
+            <!-- Recursive Tree Snippet -->
+            {#snippet renderTreeNode(node: TreeNode)}
+              {#if node.isFolder}
+                {@const isCollapsed = Boolean(collapsedFolders[node.path]) && !fileSearchQuery.trim()}
+                <div>
+                  <button
+                    type="button"
+                    onclick={() => toggleFolder(node.path)}
+                    class="w-full text-left py-1 px-1 rounded flex items-center gap-1.5 hover:bg-black/5 transition-colors cursor-pointer text-xs group select-none"
+                    style="padding-left: {node.depth * 14 + 6}px"
+                    title={node.path}
+                  >
+                    <svg class="w-3 h-3 text-muted-foreground/80 transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                    </svg>
+
+                    {#if isCollapsed}
+                      <svg class="w-3.5 h-3.5 text-amber-600/85 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                      </svg>
+                    {:else}
+                      <svg class="w-3.5 h-3.5 text-amber-600/85 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v4.5A1.5 1.5 0 013.5 18H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                        <path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2v-2z" />
+                      </svg>
+                    {/if}
+
+                    <span class="truncate font-medium text-foreground text-[11px]">{node.name}</span>
+                  </button>
+
+                  {#if !isCollapsed}
+                    <div class="space-y-0.5">
+                      {#each node.children as child}
+                        {@render renderTreeNode(child)}
+                      {/each}
+                    </div>
+                  {/if}
                 </div>
               {:else}
-                {#each filteredFiles as [path, file]}
-                  <button
-                    onclick={() => switchFile(path)}
-                    class="w-full text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors cursor-pointer group {activeFile === path ? 'bg-brand/10 text-brand font-medium' : 'text-muted-foreground hover:bg-black/5 hover:text-foreground'}"
-                    title={path}
-                  >
-                    {#if path.endsWith('.svelte')}
-                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-orange-500/15 text-orange-600 shrink-0">S</span>
-                    {:else if path.endsWith('.ts')}
-                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-blue-500/15 text-blue-600 shrink-0">TS</span>
-                    {:else if path.endsWith('.js') || path.endsWith('.mjs')}
-                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-amber-500/15 text-amber-600 shrink-0">JS</span>
-                    {:else if path.endsWith('.json')}
-                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-emerald-500/15 text-emerald-600 shrink-0">{"{}"}</span>
-                    {:else if path.endsWith('.html')}
-                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
-                    {:else if path.endsWith('.css')}
-                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
-                    {:else}
-                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
-                    {/if}
-                    <div class="min-w-0 flex-1 truncate">
-                      <div class="truncate text-[11px] {activeFile === path ? 'font-semibold' : ''}">{file.name}</div>
-                      <div class="truncate text-[9px] text-muted-foreground/70 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {path.replace(`/${file.name}`, '').replace(file.name, '') || '/'}
-                      </div>
-                    </div>
-                  </button>
+                <button
+                  type="button"
+                  onclick={() => selectAndOpenFile(node.path)}
+                  class="w-full text-left py-1 px-1 rounded flex items-center gap-1.5 transition-colors cursor-pointer text-xs group {activeFile === node.path ? 'bg-brand/10 text-brand font-medium' : 'text-muted-foreground hover:bg-black/5 hover:text-foreground'}"
+                  style="padding-left: {node.depth * 14 + 18}px"
+                  title={node.path}
+                >
+                  {#if node.path.endsWith('.svelte')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 shrink-0">S</span>
+                  {:else if node.path.endsWith('.ts')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 shrink-0">TS</span>
+                  {:else if node.path.endsWith('.js') || node.path.endsWith('.mjs')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 shrink-0">JS</span>
+                  {:else if node.path.endsWith('.json')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 shrink-0">{"{}"}</span>
+                  {:else if node.path.endsWith('.html')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
+                  {:else if node.path.endsWith('.css')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
+                  {:else}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
+                  {/if}
+
+                  <span class="truncate text-[11px] {activeFile === node.path ? 'font-semibold' : ''}">{node.name}</span>
+                </button>
+              {/if}
+            {/snippet}
+
+            <!-- Tree View Nodes -->
+            <div class="flex-1 overflow-y-auto p-1 font-mono text-xs space-y-0.5">
+              {#if fileTree.length === 0}
+                <div class="p-4 text-[11px] text-muted-foreground text-center">
+                  Aucun fichier trouvé
+                </div>
+              {:else}
+                {#each fileTree as node}
+                  {@render renderTreeNode(node)}
                 {/each}
               {/if}
             </div>
