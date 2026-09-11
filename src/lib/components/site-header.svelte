@@ -81,17 +81,15 @@
     <a
       href={`/${locale}`}
       aria-label={homeLabel}
-      class="flex items-center ml-2"
+      class="flex items-center"
     >
-      <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-white border border-black/10 shadow-retro-sm p-1.5 transition-transform hover:scale-105">
-        <img
-          src="https://img.ether.paris/ether-website/assets/ether-logo-white.png?width=1000"
-          alt={logoAlt}
-          width={32}
-          height={32}
-          class="h-7 w-7 object-contain"
-        />
-      </span>
+      <img
+        src="https://img.ether.paris/ether-website/assets/ether.png?width=1000"
+        alt={logoAlt}
+        width={50}
+        height={50}
+        class="ml-4"
+      />
     </a>
 
     <nav class="hidden items-center gap-8 md:flex">

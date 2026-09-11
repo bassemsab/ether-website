@@ -363,15 +363,13 @@ export async function sendOtpEmail(email: string, code: string) {
               
               <!-- Official ether logo -->
               <div style="text-align: center;">
-                <div style="display: inline-block; background-color: #FFFFFF; border: 1.5px solid #1E1B39; border-radius: 14px; padding: 6px 14px; box-shadow: 2px 2px 0px 0px rgba(30, 27, 57, 0.15);">
-                  <img
-                    src="https://img.ether.paris/ether-website/assets/ether-logo-white.png?width=1000"
-                    alt="ether"
-                    width="72"
-                    class="logo-mark"
-                    style="display: block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
-                  />
-                </div>
+                <img
+                  src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark"
+                  style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
