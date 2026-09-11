@@ -22,7 +22,14 @@ export interface ProfileStatus {
   isExpired: boolean;
   expiryDate: string | null;
   lastUpdated: string | null;
+  quotaStatus: "ready" | "throttled";
+  throttledUntil: number | null;
+  turnsCount: number;
 }
+
+// In-memory runtime quota & metrics tracking per profile
+const profileThrottleMap = new Map<string, number>();
+const profileTurnsMap = new Map<string, number>();
 
 // Google Antigravity standard OAuth Client ID
 export const DEFAULT_CLIENT_ID =
@@ -37,6 +44,65 @@ export const GOOGLE_SCOPES = [
   "openid",
   "https://www.googleapis.com/auth/cloud-platform",
 ].join(" ");
+
+/**
+ * Marks a profile as temporarily throttled (due to 429 / Resource Exhausted).
+ * Default cooldown is 10 minutes.
+ */
+export function markProfileThrottled(name: string, durationMs: number = 10 * 60 * 1000) {
+  const until = Date.now() + durationMs;
+  profileThrottleMap.set(name, until);
+  console.warn(`⚠️ Profile [${name}] marked as throttled until ${new Date(until).toLocaleTimeString()}`);
+}
+
+/**
+ * Checks if a profile is currently available (has token, not expired, not throttled).
+ */
+export function isProfileAvailable(profile: ProfileStatus): boolean {
+  if (!profile.hasToken || profile.isExpired) return false;
+  const throttledUntil = profileThrottleMap.get(profile.name);
+  if (throttledUntil && Date.now() < throttledUntil) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Increments cumulative turns processed on a profile.
+ */
+export function incrementProfileTurnCount(name: string) {
+  const current = profileTurnsMap.get(name) || 0;
+  profileTurnsMap.set(name, current + 1);
+}
+
+/**
+ * Selects the next healthy profile in the pool, excluding any already tried or throttled.
+ */
+export function getNextHealthyProfile(
+  dataDir: string,
+  preferred?: string,
+  exclude: string[] = []
+): string | null {
+  const profiles = listStoredProfiles(dataDir);
+  const excludeSet = new Set(exclude);
+
+  // 1. Try preferred profile if available and not excluded
+  if (preferred && !excludeSet.has(preferred)) {
+    const match = profiles.find((p) => p.name === preferred);
+    if (match && isProfileAvailable(match)) {
+      return match.name;
+    }
+  }
+
+  // 2. Try any other available non-excluded profile
+  for (const p of profiles) {
+    if (!excludeSet.has(p.name) && isProfileAvailable(p)) {
+      return p.name;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Generates an authorization URL for manual or headless Google login.
@@ -212,6 +278,12 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
       } catch (e) {}
     }
 
+    // Quota and cooldown status
+    const throttledUntil = profileThrottleMap.get(name) || null;
+    const isCurrentlyThrottled = throttledUntil !== null && Date.now() < throttledUntil;
+    const quotaStatus: "ready" | "throttled" = isCurrentlyThrottled ? "throttled" : "ready";
+    const turnsCount = profileTurnsMap.get(name) || 0;
+
     result.push({
       name,
       email,
@@ -219,10 +291,22 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
       isExpired,
       expiryDate,
       lastUpdated,
+      quotaStatus,
+      throttledUntil: isCurrentlyThrottled ? throttledUntil : null,
+      turnsCount,
     });
   }
 
   return result;
+}
+
+/**
+ * Creates an empty profile directory slot for dynamic expansion.
+ */
+export function createEmptyProfile(dataDir: string, name: string): string {
+  const profileDir = join(dataDir, "profiles", name);
+  mkdirSync(profileDir, { recursive: true });
+  return profileDir;
 }
 
 /**
@@ -288,6 +372,9 @@ export function saveProfile(
   if (!existsSync(installIdPath)) {
     writeFileSync(installIdPath, randomUUID());
   }
+
+  // Clear throttle upon fresh auth
+  profileThrottleMap.delete(name);
 
   return profileDir;
 }

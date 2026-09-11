@@ -192,6 +192,18 @@ try {
     )
   `);
 
+  // Tenant daily prompt usage tracking (Fair-use protection)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tenant_prompt_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_slug TEXT NOT NULL,
+      date TEXT NOT NULL,
+      prompt_count INTEGER DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_slug, date)
+    )
+  `);
+
   // Safe migrations for existing SQLite schemas
   const safeAddColumn = (table: string, columnDef: string) => {
     try {
@@ -667,5 +679,61 @@ export async function updateDomainOrderStatus(
   } catch (error) {
     console.error("Failed to update domain order status:", error);
     return null;
+  }
+}
+
+// Tenant Fair-Use Prompt Tracking Helpers
+export function getTenantDailyLimit(plan?: string | null): number {
+  const normalized = (plan || "demo").toLowerCase().trim();
+  if (normalized === "enterprise" || normalized === "unlimited") return 1000;
+  if (normalized === "pro" || normalized === "starter" || normalized === "paid") return 150;
+  return 25; // demo / free
+}
+
+export function checkTenantPromptLimit(
+  tenantSlug: string,
+  plan: string = "demo"
+): { allowed: boolean; current: number; limit: number; remaining: number } {
+  const limit = getTenantDailyLimit(plan);
+  if (!db) {
+    return { allowed: true, current: 0, limit, remaining: limit };
+  }
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const row = db
+      .prepare(`SELECT prompt_count FROM tenant_prompt_usage WHERE tenant_slug = ? AND date = ?`)
+      .get(tenantSlug, today) as { prompt_count: number } | undefined;
+
+    const current = row?.prompt_count || 0;
+    const remaining = Math.max(0, limit - current);
+    const allowed = current < limit;
+
+    return { allowed, current, limit, remaining };
+  } catch (error) {
+    console.error("Failed to check tenant prompt limit:", error);
+    return { allowed: true, current: 0, limit, remaining: limit };
+  }
+}
+
+export function incrementTenantPromptCount(tenantSlug: string): number {
+  if (!db) return 1;
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const stmt = db.prepare(`
+      INSERT INTO tenant_prompt_usage (tenant_slug, date, prompt_count, updated_at)
+      VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(tenant_slug, date) DO UPDATE SET
+        prompt_count = prompt_count + 1,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING prompt_count
+    `);
+
+    const result = stmt.get(tenantSlug, today) as { prompt_count: number } | undefined;
+    return result?.prompt_count || 1;
+  } catch (error) {
+    console.error("Failed to increment tenant prompt count:", error);
+    return 1;
   }
 }

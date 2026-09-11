@@ -4,6 +4,7 @@ import {
   getRunnerProfiles,
   startProfileAuth,
   finishProfileAuth,
+  createRunnerProfile,
 } from "$lib/server/agent-bridge";
 
 export const GET: RequestHandler = async ({ cookies, locals }) => {
@@ -30,6 +31,11 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
     const body = await request.json();
     const action = body.action;
     const profile = (body.profile || "primary").trim();
+
+    if (action === "create_profile") {
+      const result = await createRunnerProfile(profile);
+      return json({ success: true, profile: result.profile, authUrl: result.authUrl });
+    }
 
     if (action === "start_auth") {
       const { authUrl } = await startProfileAuth(profile);

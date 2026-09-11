@@ -6,8 +6,11 @@ import {
   exchangeCodeForTokens,
   fetchUserEmail,
   saveProfile,
+  createEmptyProfile,
   injectProfileIntoTenantSandbox,
-  refreshAccessToken,
+  markProfileThrottled,
+  getNextHealthyProfile,
+  incrementProfileTurnCount,
 } from "./auth-helper";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
@@ -53,30 +56,31 @@ async function enqueueTenantTurn<T>(tenant: string, fn: () => Promise<T>): Promi
 }
 
 /**
- * Resolves the best available Google profile for execution.
+ * Resolves the best initial Google profile for execution.
  */
-function resolveProfile(requestedProfile?: string): string {
+function resolveInitialProfile(requestedProfile?: string): string {
+  const next = getNextHealthyProfile(DATA_DIR, requestedProfile);
+  if (next) return next;
+
   const profiles = listStoredProfiles(DATA_DIR);
-  if (profiles.length === 0) {
-    return "default";
-  }
+  if (profiles.length > 0) return profiles[0].name;
 
-  // If requested profile is healthy and has token, use it
-  if (requestedProfile) {
-    const match = profiles.find((p) => p.name === requestedProfile);
-    if (match && match.hasToken && !match.isExpired) {
-      return match.name;
-    }
-  }
+  return "primary";
+}
 
-  // Otherwise, find the first valid non-expired profile
-  const valid = profiles.find((p) => p.hasToken && !p.isExpired);
-  if (valid) {
-    return valid.name;
-  }
-
-  // Fallback to first profile or primary
-  return profiles[0].name;
+/**
+ * Detects if a process output indicates a Google rate limit / quota exhaustion.
+ */
+function isQuotaError(output: string): boolean {
+  const lower = output.toLowerCase();
+  return (
+    lower.includes("429") ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("quota exceeded") ||
+    lower.includes("rate limit") ||
+    lower.includes("too many requests") ||
+    lower.includes("exhausted resource")
+  );
 }
 
 /**
@@ -143,10 +147,24 @@ const server = Bun.serve({
       );
     }
 
-    // List Profiles
+    // List Profiles with Quota Telemetry
     if (path === "/profiles" && req.method === "GET") {
       const profiles = listStoredProfiles(DATA_DIR);
       return Response.json({ success: true, profiles }, { headers: corsHeaders });
+    }
+
+    // Create New Profile Slot (e.g. profile-3, profile-4)
+    if (path === "/profiles/create" && req.method === "POST") {
+      try {
+        const body = (await req.json()) as any;
+        const profile = (body.profile || `profile-${Date.now()}`).trim();
+        createEmptyProfile(DATA_DIR, profile);
+
+        const authUrl = generateAuthUrl(body.clientId, body.redirectUri, profile);
+        return Response.json({ success: true, profile, authUrl }, { headers: corsHeaders });
+      } catch (err: any) {
+        return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
+      }
     }
 
     // Start OAuth Flow (Generates Authorization URL)
@@ -215,7 +233,7 @@ const server = Bun.serve({
       }
     }
 
-    // Prompt Turn Execution
+    // Prompt Turn Execution with Transparent Auto-Failover
     if (path === "/prompt" && req.method === "POST") {
       try {
         const body = (await req.json()) as any;
@@ -229,21 +247,12 @@ const server = Bun.serve({
           return Response.json({ success: false, error: "Prompt is required" }, { status: 400, headers: corsHeaders });
         }
 
-        const selectedProfile = resolveProfile(requestedProfile);
         const tenantCodeDir = ensureTenantCodebase(project);
-
-        // Prepare tenant sandbox with Google credentials
-        let sandboxHome = join(DATA_DIR, "tenants", project, ".gemini-sandbox");
-        try {
-          sandboxHome = injectProfileIntoTenantSandbox(DATA_DIR, selectedProfile, project);
-        } catch (e) {
-          // If no profiles exist yet, allow fallback sandbox
-          mkdirSync(join(sandboxHome, ".gemini"), { recursive: true });
-        }
+        const triedProfiles: string[] = [];
 
         // Execute turn within per-tenant sequential queue
         if (isStream) {
-          // Return SSE ReadableStream
+          // SSE Stream with transparent quota retry
           const stream = new ReadableStream({
             async start(controller) {
               const sendEvent = (event: string, data: any) => {
@@ -253,55 +262,103 @@ const server = Bun.serve({
 
               try {
                 await enqueueTenantTurn(project, async () => {
-                  sendEvent("status", { message: `Lancement de la session (${selectedProfile})...`, profile: selectedProfile });
+                  let activeProfile = resolveInitialProfile(requestedProfile);
+                  let success = false;
+                  let attemptCount = 0;
+                  const maxAttempts = 3;
 
-                  // Check if agy binary exists
-                  const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
-                  const hasAgy = existsSync(agyBin);
+                  while (!success && attemptCount < maxAttempts) {
+                    attemptCount++;
+                    triedProfiles.push(activeProfile);
 
-                  if (hasAgy) {
-                    const args = [agyBin, "-p", prompt, "--dangerously-skip-permissions"];
-                    if (conversationId) {
-                      args.push("--conversation", conversationId);
+                    sendEvent("status", {
+                      message: `Exécution sur ${activeProfile}...`,
+                      profile: activeProfile,
+                    });
+
+                    // Prepare tenant sandbox with Google credentials
+                    let sandboxHome = join(DATA_DIR, "tenants", project, ".gemini-sandbox");
+                    try {
+                      sandboxHome = injectProfileIntoTenantSandbox(DATA_DIR, activeProfile, project);
+                    } catch (e) {
+                      mkdirSync(join(sandboxHome, ".gemini"), { recursive: true });
                     }
 
-                    const proc = Bun.spawn(args, {
-                      cwd: tenantCodeDir,
-                      env: {
-                        ...process.env,
-                        HOME: sandboxHome,
-                        AGY_PROFILE: selectedProfile,
-                      },
-                      stdout: "pipe",
-                      stderr: "pipe",
-                    });
+                    const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
+                    const hasAgy = existsSync(agyBin);
 
-                    const reader = proc.stdout.getReader();
-                    const decoder = new TextDecoder();
+                    if (hasAgy) {
+                      const args = [agyBin, "-p", prompt, "--dangerously-skip-permissions"];
+                      if (conversationId) {
+                        args.push("--conversation", conversationId);
+                      }
 
-                    while (true) {
-                      const { done, value } = await reader.read();
-                      if (done) break;
-                      const text = decoder.decode(value);
-                      sendEvent("chunk", { text });
+                      const proc = Bun.spawn(args, {
+                        cwd: tenantCodeDir,
+                        env: {
+                          ...process.env,
+                          HOME: sandboxHome,
+                          AGY_PROFILE: activeProfile,
+                        },
+                        stdout: "pipe",
+                        stderr: "pipe",
+                      });
+
+                      const reader = proc.stdout.getReader();
+                      const decoder = new TextDecoder();
+                      let fullOutput = "";
+
+                      while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const text = decoder.decode(value);
+                        fullOutput += text;
+                        sendEvent("chunk", { text });
+                      }
+
+                      const stderrText = await new Response(proc.stderr).text();
+                      await proc.exited;
+
+                      const combinedOutput = `${fullOutput} ${stderrText}`;
+
+                      if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
+                        console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
+                        markProfileThrottled(activeProfile);
+
+                        const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
+                        if (nextProfile) {
+                          sendEvent("status", {
+                            message: `Quota atteint sur ${activeProfile}. Basculement automatique sur ${nextProfile}...`,
+                            profile: nextProfile,
+                          });
+                          activeProfile = nextProfile;
+                          continue; // Retry with next profile!
+                        }
+                      }
+
+                      success = proc.exitCode === 0;
+                      if (success) {
+                        incrementProfileTurnCount(activeProfile);
+                      }
+
+                      sendEvent("done", {
+                        success,
+                        profileUsed: activeProfile,
+                        conversationId: conversationId || `conv_${Date.now()}`,
+                      });
+                    } else {
+                      // Simulated development fallback
+                      sendEvent("chunk", {
+                        text: `[Agent Studio · ${activeProfile}] Modifications générées pour ${project}.\nCode mis à jour avec Svelte 5 Runes et Bun SQLite.`,
+                      });
+                      incrementProfileTurnCount(activeProfile);
+                      sendEvent("done", {
+                        success: true,
+                        profileUsed: activeProfile,
+                        conversationId: conversationId || `conv_${Date.now()}`,
+                      });
+                      success = true;
                     }
-
-                    await proc.exited;
-                    sendEvent("done", {
-                      success: proc.exitCode === 0,
-                      profileUsed: selectedProfile,
-                      conversationId: conversationId || `conv_${Date.now()}`,
-                    });
-                  } else {
-                    // Simulated fallback when agy binary is not in environment
-                    sendEvent("chunk", {
-                      text: `[Agent Studio · ${selectedProfile}] Modifications générées pour le projet ${project}.\nCode mis à jour avec Svelte 5 Runes et Bun SQLite.`,
-                    });
-                    sendEvent("done", {
-                      success: true,
-                      profileUsed: selectedProfile,
-                      conversationId: conversationId || `conv_${Date.now()}`,
-                    });
                   }
                 });
               } catch (turnErr: any) {
@@ -321,46 +378,86 @@ const server = Bun.serve({
             },
           });
         } else {
-          // Standard JSON request/response
+          // Standard JSON request/response with automatic failover retry
           const result = await enqueueTenantTurn(project, async () => {
-            const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
-            const hasAgy = existsSync(agyBin);
+            let activeProfile = resolveInitialProfile(requestedProfile);
+            let attemptCount = 0;
+            const maxAttempts = 3;
 
-            if (hasAgy) {
-              const args = [agyBin, "-p", prompt, "--dangerously-skip-permissions"];
-              if (conversationId) {
-                args.push("--conversation", conversationId);
+            while (attemptCount < maxAttempts) {
+              attemptCount++;
+              triedProfiles.push(activeProfile);
+
+              let sandboxHome = join(DATA_DIR, "tenants", project, ".gemini-sandbox");
+              try {
+                sandboxHome = injectProfileIntoTenantSandbox(DATA_DIR, activeProfile, project);
+              } catch (e) {
+                mkdirSync(join(sandboxHome, ".gemini"), { recursive: true });
               }
 
-              const proc = Bun.spawn(args, {
-                cwd: tenantCodeDir,
-                env: {
-                  ...process.env,
-                  HOME: sandboxHome,
-                  AGY_PROFILE: selectedProfile,
-                },
-                stdout: "pipe",
-                stderr: "pipe",
-              });
+              const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
+              const hasAgy = existsSync(agyBin);
 
-              const stdout = await new Response(proc.stdout).text();
-              const stderr = await new Response(proc.stderr).text();
-              await proc.exited;
+              if (hasAgy) {
+                const args = [agyBin, "-p", prompt, "--dangerously-skip-permissions"];
+                if (conversationId) {
+                  args.push("--conversation", conversationId);
+                }
 
-              return {
-                success: proc.exitCode === 0,
-                response: stdout || stderr || "Turn completed.",
-                profileUsed: selectedProfile,
-                conversationId: conversationId || `conv_${Date.now()}`,
-              };
-            } else {
-              return {
-                success: true,
-                response: `[Agent Studio · ${selectedProfile}] Modification appliquée pour ${project}. Code prêt sur le volume persistant.`,
-                profileUsed: selectedProfile,
-                conversationId: conversationId || `conv_${Date.now()}`,
-              };
+                const proc = Bun.spawn(args, {
+                  cwd: tenantCodeDir,
+                  env: {
+                    ...process.env,
+                    HOME: sandboxHome,
+                    AGY_PROFILE: activeProfile,
+                  },
+                  stdout: "pipe",
+                  stderr: "pipe",
+                });
+
+                const stdout = await new Response(proc.stdout).text();
+                const stderr = await new Response(proc.stderr).text();
+                await proc.exited;
+
+                const combinedOutput = `${stdout} ${stderr}`;
+
+                if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
+                  console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
+                  markProfileThrottled(activeProfile);
+
+                  const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
+                  if (nextProfile) {
+                    activeProfile = nextProfile;
+                    continue; // Retry with next profile!
+                  }
+                }
+
+                if (proc.exitCode === 0) {
+                  incrementProfileTurnCount(activeProfile);
+                }
+
+                return {
+                  success: proc.exitCode === 0,
+                  response: stdout || stderr || "Turn completed.",
+                  profileUsed: activeProfile,
+                  conversationId: conversationId || `conv_${Date.now()}`,
+                };
+              } else {
+                incrementProfileTurnCount(activeProfile);
+                return {
+                  success: true,
+                  response: `[Agent Studio · ${activeProfile}] Modification appliquée pour ${project}. Code prêt sur le volume persistant.`,
+                  profileUsed: activeProfile,
+                  conversationId: conversationId || `conv_${Date.now()}`,
+                };
+              }
             }
+
+            return {
+              success: false,
+              response: "Tous les profils Google ont temporairement épuisé leur quota. Veuillez réessayer dans quelques minutes.",
+              profileUsed: activeProfile,
+            };
           });
 
           return Response.json(result, { headers: corsHeaders });

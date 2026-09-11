@@ -21,6 +21,7 @@
   const liveUrl = $derived(tenant.custom_domain ? `https://${tenant.custom_domain}` : `https://${projectSlug}.ether.paris`);
 
   // Chat State
+  const availableProfiles = $derived(data.availableProfiles || ["primary", "secondary"]);
   let messages = $state([
     {
       role: "assistant",
@@ -31,7 +32,10 @@
   ]);
   let promptInput = $state("");
   let isThinking = $state(false);
-  let activeProfile = $state<"primary" | "secondary">("primary");
+  let activeProfile = $state<string>("auto");
+  let promptQuota = $state(
+    data.promptQuota || { allowed: true, current: 0, limit: 25, remaining: 25, plan: "demo" }
+  );
   let publishLoading = $state(false);
   let publishStatus = $state<string | null>(null);
 
@@ -304,6 +308,23 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
     const text = promptInput.trim();
     if (!text || isThinking) return;
 
+    if (promptQuota.remaining <= 0) {
+      messages.push({
+        role: "assistant",
+        content: `⚠️ Quota quotidien atteint (${promptQuota.limit} prompts/jour pour l'offre ${promptQuota.plan}). Réinitialisation automatique à minuit.`,
+        profile: "secondary",
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+      return;
+    }
+
+    // Optimistically update quota
+    promptQuota.current++;
+    promptQuota.remaining = Math.max(0, promptQuota.remaining - 1);
+    if (promptQuota.remaining <= 0) {
+      promptQuota.allowed = false;
+    }
+
     promptInput = "";
     messages.push({
       role: "user",
@@ -358,11 +379,19 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
             if (dataMatch) {
               try {
                 const data = JSON.parse(dataMatch[1]);
+                if (data.quotaExceeded) {
+                  promptQuota.remaining = 0;
+                  promptQuota.allowed = false;
+                }
                 if (data.text) {
                   messages[assistantMsgIndex].content += data.text;
                 }
                 if (data.profileUsed) {
                   messages[assistantMsgIndex].profile = data.profileUsed;
+                }
+                if (data.message && !data.text) {
+                  // Transparent status message (e.g. quota auto failover)
+                  messages[assistantMsgIndex].content += `\n_${data.message}_\n\n`;
                 }
               } catch (e) {}
             }
@@ -372,6 +401,14 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
       } else {
         // Fallback standard JSON
         const resData = await res.json();
+        if (resData.quotaRemaining !== undefined) {
+          promptQuota.remaining = resData.quotaRemaining;
+        }
+        if (!resData.success && resData.quotaExceeded) {
+          promptQuota.remaining = 0;
+          promptQuota.allowed = false;
+        }
+
         if (resData.success) {
           messages.push({
             role: "assistant",
@@ -579,10 +616,12 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
             <select
               bind:value={activeProfile}
               class="text-[10px] font-mono bg-surface border border-black/10 rounded px-2 py-0.5 text-foreground cursor-pointer outline-none hover:border-brand transition-colors"
-              title="Sélectionner le profil Google actif"
+              title="Sélectionner le profil Google actif ou basculement automatique"
             >
-              <option value="primary">Google : Primary</option>
-              <option value="secondary">Google : Secondary</option>
+              <option value="auto">⚡ Auto (Failover)</option>
+              {#each availableProfiles as prof}
+                <option value={prof}>Google : {prof}</option>
+              {/each}
             </select>
             <button
               onclick={() => showChat = false}
@@ -646,23 +685,42 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
           </button>
         </div>
 
+        <!-- Quota Warning if limit reached -->
+        {#if promptQuota.remaining <= 0}
+          <div class="px-3 py-2 bg-amber-500/10 border-t border-amber-500/20 text-amber-800 text-[11px] font-mono flex items-center justify-between">
+            <span>⚠️ Quota quotidien atteint ({promptQuota.limit} prompts/jour).</span>
+            <span class="text-[10px] opacity-75">Reset à minuit</span>
+          </div>
+        {/if}
+
         <!-- Prompt Input -->
         <form onsubmit={handleSendPrompt} class="p-3 border-t border-black/10 bg-surface/80 flex items-center gap-2">
           <input
             type="text"
             bind:value={promptInput}
-            placeholder="Demandez une modification à l'agent..."
-            disabled={isThinking}
-            class="flex-1 rounded-full border border-black/10 bg-card px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all"
+            placeholder={promptQuota.remaining > 0 ? "Demandez une modification à l'agent..." : "Quota quotidien atteint pour aujourd'hui"}
+            disabled={isThinking || promptQuota.remaining <= 0}
+            class="flex-1 rounded-full border border-black/10 bg-card px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={!promptInput.trim() || isThinking}
+            disabled={!promptInput.trim() || isThinking || promptQuota.remaining <= 0}
             class="focus-ring px-4 py-2 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40"
           >
             Envoyer
           </button>
         </form>
+
+        <!-- Quota Status Bar -->
+        <div class="px-3 py-1.5 border-t border-black/5 bg-surface/30 flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+          <div class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full {promptQuota.remaining > 0 ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+            <span>Quota Quotidien ({promptQuota.plan}) :</span>
+          </div>
+          <span class="font-semibold {promptQuota.remaining > 0 ? 'text-foreground' : 'text-amber-600'}">
+            {promptQuota.remaining} / {promptQuota.limit} prompts restants
+          </span>
+        </div>
       </div>
     {/if}
 

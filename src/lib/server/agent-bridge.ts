@@ -39,6 +39,9 @@ export interface RunnerProfileInfo {
   hasToken: boolean;
   isExpired: boolean;
   expiryDate: string | null;
+  quotaStatus?: "ready" | "throttled";
+  throttledUntil?: number | null;
+  turnsCount?: number;
 }
 
 const RUNNER_ENDPOINT = env.AGY_PRIMARY_ENDPOINT || "http://agent-runner.ether.svc.cluster.local:8080";
@@ -215,6 +218,24 @@ export async function finishProfileAuth(profile: string, code: string): Promise<
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || `Erreur lors de la validation du code OAuth (${res.status})`);
+  }
+
+  return (await res.json()) as any;
+}
+
+/**
+ * Creates a new profile slot on the runner daemon (e.g. profile-3, profile-4).
+ */
+export async function createRunnerProfile(profile: string): Promise<{ success: boolean; profile: string; authUrl: string }> {
+  const res = await fetch(`${RUNNER_ENDPOINT}/profiles/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profile }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || `Erreur lors de la création du profil (${res.status})`);
   }
 
   return (await res.json()) as any;

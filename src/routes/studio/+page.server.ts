@@ -1,6 +1,7 @@
 import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
-import { getTenantBySlug } from "$lib/server/db";
+import { getTenantBySlug, checkTenantPromptLimit } from "$lib/server/db";
+import { getRunnerProfiles } from "$lib/server/agent-bridge";
 
 export const load: PageServerLoad = async ({ url, locals }) => {
   if (!locals.user) {
@@ -20,11 +21,23 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     custom_domain: null,
     k8s_namespace: `tenant-${projectSlug}`,
     git_repo_url: `https://git.ether.paris/${projectSlug}/${projectSlug}.git`,
+    plan: "demo",
     status: "active",
   };
 
   const brandName = tenantData.brand_name || tenantData.slug || projectSlug;
   const subdomain = tenantData.subdomain || `${projectSlug}.ether.paris`;
+
+  const plan = tenant?.plan || "demo";
+  const promptQuota = checkTenantPromptLimit(projectSlug, plan);
+
+  let availableProfiles: string[] = ["primary", "secondary"];
+  try {
+    const runnerProfiles = await getRunnerProfiles();
+    if (runnerProfiles && runnerProfiles.length > 0) {
+      availableProfiles = runnerProfiles.map((p) => p.name);
+    }
+  } catch (e) {}
 
   // Initial code template preview for the code editor
   const defaultPageCode = `<script lang="ts">
@@ -56,9 +69,14 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 </main>`;
 
   return {
-    tenant,
+    tenant: tenantData,
     projectSlug,
     defaultCode: defaultPageCode,
     user: locals.user,
+    promptQuota: {
+      ...promptQuota,
+      plan,
+    },
+    availableProfiles,
   };
 };

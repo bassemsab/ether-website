@@ -15,6 +15,54 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
   let successMsg = $state<string | null>(null);
+  let newProfileName = $state("");
+  let showAddModal = $state(false);
+
+  const displayProfileNames = $derived(
+    Array.from(new Set(["primary", "secondary", ...profiles.map((p: any) => p.name)]))
+  );
+
+  async function handleRefresh() {
+    loading = true;
+    try {
+      const res = await fetch("/api/admin/profiles");
+      const resData = await res.json();
+      if (resData.success) {
+        profiles = resData.profiles;
+      }
+    } catch (e) {}
+    loading = false;
+  }
+
+  async function handleCreateProfile() {
+    const name = (newProfileName || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+    if (!name) return;
+    loading = true;
+    error = null;
+
+    try {
+      const res = await fetch("/api/admin/profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create_profile", profile: name }),
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        successMsg = `Profil [${name}] créé avec succès !`;
+        showAddModal = false;
+        newProfileName = "";
+        activeAuthProfile = name;
+        authUrl = resData.authUrl;
+        await handleRefresh();
+      } else {
+        error = resData.error || "Impossible de créer le profil.";
+      }
+    } catch (err: any) {
+      error = err.message;
+    } finally {
+      loading = false;
+    }
+  }
 
   async function handleStartAuth(profileName: string) {
     activeAuthProfile = profileName;
@@ -61,12 +109,7 @@
       const resData = await res.json();
       if (resData.success) {
         successMsg = `Profil [${activeAuthProfile}] connecté avec succès (${resData.email}) !`;
-        // Refresh profiles list
-        const refreshRes = await fetch("/api/admin/profiles");
-        const refreshData = await refreshRes.json();
-        if (refreshData.success) {
-          profiles = refreshData.profiles;
-        }
+        await handleRefresh();
         activeAuthProfile = null;
         authUrl = null;
         authCode = "";
@@ -140,24 +183,102 @@
       </div>
     {/if}
 
+    <!-- Action Toolbar -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-surface/60 border border-black/10">
+      <div class="space-y-0.5">
+        <div class="text-xs font-mono font-semibold text-foreground flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-brand"></span>
+          <span>Pool Multi-Comptes Google ({displayProfileNames.length} profils configurés)</span>
+        </div>
+        <p class="text-[11px] text-muted-foreground font-mono">
+          Basculement transparent activé : en cas de quota 429 atteint, le runner bascule automatiquement sur le compte suivant.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <button
+          onclick={handleRefresh}
+          disabled={loading}
+          class="px-3.5 py-1.5 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-xs font-mono text-foreground transition-all cursor-pointer disabled:opacity-50"
+        >
+          {loading ? "Actualisation..." : "Rafraîchir ↻"}
+        </button>
+
+        <button
+          onclick={() => {
+            showAddModal = true;
+            newProfileName = `profile-${displayProfileNames.length + 1}`;
+          }}
+          class="px-4 py-1.5 rounded-full bg-brand text-white text-xs font-mono font-medium shadow-retro-sm hover:bg-brand/90 transition-all cursor-pointer flex items-center gap-1.5"
+        >
+          <span>+ Ajouter un compte Google</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Add Profile Modal -->
+    {#if showAddModal}
+      <div class="retro-card p-6 bg-surface/90 rounded-2xl border-2 border-brand/30 space-y-4 shadow-retro">
+        <div class="flex items-center justify-between border-b border-black/10 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-brand animate-ping"></span>
+            <h3 class="font-display font-medium text-base text-foreground">
+              Ajouter un compte Google au pool partagé
+            </h3>
+          </div>
+          <button
+            onclick={() => (showAddModal = false)}
+            class="text-muted-foreground hover:text-foreground text-sm font-mono cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <p class="text-xs text-muted-foreground font-mono leading-relaxed">
+          Ce compte sera stocké sur le volume persistant Kubernetes et automatiquement utilisé par l'agent IA de vos locataires pour absorber la charge et les quotas.
+        </p>
+
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            bind:value={newProfileName}
+            placeholder="Nom du profil (ex: profile-3)"
+            class="flex-1 px-4 py-2.5 rounded-lg border border-black/15 bg-card text-foreground font-mono text-xs outline-none focus:border-brand"
+          />
+          <button
+            onclick={handleCreateProfile}
+            disabled={!newProfileName.trim() || loading}
+            class="px-5 py-2.5 rounded-lg bg-brand text-white text-xs font-mono font-medium hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-50"
+          >
+            {loading ? "Création..." : "Créer et Connecter"}
+          </button>
+        </div>
+      </div>
+    {/if}
+
     <!-- Profiles Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {#each ["primary", "secondary"] as profileName}
+      {#each displayProfileNames as profileName}
         {@const profile = profiles.find((p: any) => p.name === profileName)}
         <div class="retro-card p-6 bg-card rounded-2xl flex flex-col justify-between space-y-6">
-          <div class="space-y-3">
+          <div class="space-y-4">
             <div class="flex items-center justify-between">
               <span class="font-display text-lg capitalize font-medium text-foreground">
                 Profil {profileName}
               </span>
-              {#if profile?.hasToken && !profile.isExpired}
+              {#if profile?.quotaStatus === 'throttled'}
+                <span class="px-2.5 py-0.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-700 text-[11px] font-mono flex items-center gap-1.5" title="Google quota atteint · Cooldown actif">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  Quota Cooldown
+                </span>
+              {:else if profile?.hasToken && !profile.isExpired}
                 <span class="px-2.5 py-0.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 text-[11px] font-mono flex items-center gap-1.5">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  Connecté
+                  Actif & Prêt
                 </span>
               {:else if profile?.isExpired}
-                <span class="px-2.5 py-0.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-700 text-[11px] font-mono flex items-center gap-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                <span class="px-2.5 py-0.5 rounded-full border border-rose-500/20 bg-rose-500/10 text-rose-700 text-[11px] font-mono flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                   Expiré
                 </span>
               {:else}
@@ -174,10 +295,24 @@
               </div>
             </div>
 
+            <!-- Quota Telemetry -->
+            <div class="grid grid-cols-2 gap-2 p-3 rounded-xl bg-surface/50 border border-black/5 text-xs font-mono">
+              <div>
+                <span class="text-muted-foreground block text-[10px]">Prompts traités :</span>
+                <span class="font-semibold text-foreground">{profile?.turnsCount || 0} turns</span>
+              </div>
+              <div>
+                <span class="text-muted-foreground block text-[10px]">Failover auto :</span>
+                <span class="text-emerald-700 font-semibold">Activé</span>
+              </div>
+            </div>
+
             <p class="text-xs text-muted-foreground leading-relaxed">
               {profileName === "primary"
                 ? "Profil principal utilisé par défaut pour les générations de code et les projets Studio."
-                : "Profil de secours pour basculer automatiquement en cas de limitation de quota Google."}
+                : profileName === "secondary"
+                ? "Profil de secours pour basculer automatiquement en cas de limitation de quota Google."
+                : `Profil supplémentaire pour étendre le quota global du pool de génération.`}
             </p>
           </div>
 
@@ -191,7 +326,7 @@
             </button>
 
             <span class="text-[10px] font-mono text-muted-foreground">
-              Volume: /data/profiles/{profileName}
+              /data/profiles/{profileName}
             </span>
           </div>
         </div>
