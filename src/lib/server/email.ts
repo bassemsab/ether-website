@@ -65,7 +65,7 @@ function sendSmtpEmail(options: SmtpOptions): Promise<void> {
           ...(options.replyTo ? [`Reply-To: ${options.replyTo}`] : []),
           `Subject: ${options.subject}`,
           "MIME-Version: 1.0",
-          "Content-Type: text/html; charset=utf-8"
+          "Content-Type: text/html; charset=utf-8",
         ].join("\r\n");
 
         const message = `${headers}\r\n\r\n${options.html}\r\n.\r\n`;
@@ -81,7 +81,8 @@ function sendSmtpEmail(options: SmtpOptions): Promise<void> {
 
 export async function sendContactEmail(payload: ContactPayload) {
   const to = process.env.RESEND_CONTACT_EMAIL || "support@ether.paris";
-  const rawFrom = process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
+  const rawFrom =
+    process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
   const from = rawFrom.replace(/^Ether\b/, "ether");
   const subject = `Nouvelle prise de contact · ${payload.name}`;
 
@@ -170,7 +171,7 @@ export async function sendContactEmail(payload: ContactPayload) {
         
         <div class="field">
           <div class="label">Nom complet</div>
-          <div class="value">${payload.name || 'Non renseigné'}</div>
+          <div class="value">${payload.name || "Non renseigné"}</div>
         </div>
         
         <div class="field">
@@ -178,12 +179,16 @@ export async function sendContactEmail(payload: ContactPayload) {
           <div class="value"><a href="mailto:${payload.email}" style="color: #2563eb; text-decoration: none;">${payload.email}</a></div>
         </div>
         
-        ${payload.company ? `
+        ${
+          payload.company
+            ? `
         <div class="field">
           <div class="label">Organisation</div>
           <div class="value">${payload.company}</div>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <div class="field" style="margin-bottom: 0;">
           <div class="label">Message</div>
@@ -207,11 +212,16 @@ export async function sendContactEmail(payload: ContactPayload) {
       html,
       replyTo: payload.email,
     });
-    console.log(`[sendContactEmail] Sent email via internal SMTP server to ${to}`);
+    console.log(
+      `[sendContactEmail] Sent email via internal SMTP server to ${to}`,
+    );
     return;
   } catch (smtpErr) {
-    console.warn("[sendContactEmail] SMTP send failed, trying Resend fallback if available:", smtpErr);
-    
+    console.warn(
+      "[sendContactEmail] SMTP send failed, trying Resend fallback if available:",
+      smtpErr,
+    );
+
     // Fallback to Resend if API token is provided
     const resendToken = process.env.RESEND_EMAIL_TOKEN;
     if (resendToken) {
@@ -231,7 +241,8 @@ export async function sendContactEmail(payload: ContactPayload) {
 }
 
 export async function sendOtpEmail(email: string, code: string) {
-  const rawFrom = process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
+  const rawFrom =
+    process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
   // Ensure sender name is strictly lowercase 'ether'
   const from = rawFrom.replace(/^Ether\b/, "ether");
   const subject = `Votre code de connexion ether : ${code}`;
@@ -417,20 +428,45 @@ export async function sendOtpEmail(email: string, code: string) {
     console.log(`[sendOtpEmail] Sent OTP to ${email} via SMTP`);
     return;
   } catch (smtpErr) {
-    console.warn("[sendOtpEmail] SMTP send failed, falling back to Resend:", smtpErr);
-    const resendToken = process.env.RESEND_EMAIL_TOKEN;
-    if (resendToken) {
-      const resend = new Resend(resendToken);
-      const { data, error } = await resend.emails.send({
-        from,
-        to: email,
-        subject,
-        html,
-      });
-      if (error) throw new Error(`Resend send failed: ${error.message}`);
-      return data;
+    console.warn(
+      "[sendOtpEmail] SMTP send failed, falling back to Resend:",
+      smtpErr,
+    );
+    const resendToken =
+      process.env.RESEND_EMAIL_TOKEN ||
+      process.env.RESEND_API_KEY ||
+      process.env.RESEDN_EMAIL_TOKEN;
+    if (resendToken && !resendToken.includes("replace_with")) {
+      try {
+        const resend = new Resend(resendToken);
+        const { data, error } = await resend.emails.send({
+          from,
+          to: email,
+          subject,
+          html,
+        });
+        if (!error) return data;
+        console.warn("[sendOtpEmail] Resend error:", error);
+      } catch (rErr) {
+        console.warn("[sendOtpEmail] Resend send threw:", rErr);
+      }
     }
+
+    // In local development, never block login: print the code to the terminal
+    const isLocal =
+      process.env.NODE_ENV !== "production" ||
+      (process.env.BASE_URL || "").includes("localhost") ||
+      process.platform === "darwin";
+
+    if (isLocal) {
+      console.log("\n==================================================");
+      console.log(`🔑 [CODE DE CONNEXION LOCAL]`);
+      console.log(`   Email : ${email}`);
+      console.log(`   Code  : ${code}`);
+      console.log("==================================================\n");
+      return;
+    }
+
     throw smtpErr;
   }
 }
-

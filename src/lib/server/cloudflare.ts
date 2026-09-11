@@ -27,14 +27,14 @@ export async function createDNSRecord(record: DNSRecord) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(record),
-    }
+    },
   );
 
   const data = await response.json();
 
   if (!data.success) {
     throw new Error(
-      `Cloudflare API error: ${data.errors?.map((e: any) => e.message).join(", ")}`
+      `Cloudflare API error: ${data.errors?.map((e: any) => e.message).join(", ")}`,
     );
   }
 
@@ -97,14 +97,14 @@ export async function listDNSRecords() {
       headers: {
         Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
       },
-    }
+    },
   );
 
   const data = await response.json();
 
   if (!data.success) {
     throw new Error(
-      `Cloudflare API error: ${data.errors?.map((e: any) => e.message).join(", ")}`
+      `Cloudflare API error: ${data.errors?.map((e: any) => e.message).join(", ")}`,
     );
   }
 

@@ -6,7 +6,7 @@ import disposableDomains from "disposable-email-domains";
  * Rejects temporary disposable emails while allowing institutional and custom domains.
  */
 const DISPOSABLE_DOMAINS = new Set<string>(
-  (disposableDomains as string[]).map((d) => d.toLowerCase())
+  (disposableDomains as string[]).map((d) => d.toLowerCase()),
 );
 
 const EMAIL_RE = /^[^\s@]+@([^\s@]+\.[^\s@]+)$/;
@@ -23,7 +23,7 @@ export type EmailDomainVerdict =
  */
 export async function checkEmailDomain(
   rawEmail: string,
-  resolveMx: (domain: string) => Promise<unknown[]> = dns.resolveMx
+  resolveMx: (domain: string) => Promise<unknown[]> = dns.resolveMx,
 ): Promise<EmailDomainVerdict> {
   const email = rawEmail.trim().toLowerCase();
   const match = EMAIL_RE.exec(email);

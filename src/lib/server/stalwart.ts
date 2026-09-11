@@ -39,9 +39,9 @@ async function authenticate(): Promise<string> {
 
   // Note: In a real implementation, we'd handle the OAuth flow properly
   // For now, we'll use basic auth with admin credentials
-  return Buffer.from(`${STALWART_ADMIN_USER}:${STALWART_ADMIN_PASSWORD}`).toString(
-    "base64"
-  );
+  return Buffer.from(
+    `${STALWART_ADMIN_USER}:${STALWART_ADMIN_PASSWORD}`,
+  ).toString("base64");
 }
 
 export async function createDomain(domain: string) {
@@ -76,7 +76,7 @@ export async function createDomain(domain: string) {
 export async function createUser(
   username: string,
   domain: string,
-  password: string
+  password: string,
 ) {
   const auth = await authenticate();
   const email = `${username}@${domain}`;

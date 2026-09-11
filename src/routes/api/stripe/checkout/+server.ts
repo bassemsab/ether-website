@@ -13,12 +13,18 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     const { tenantId, domain, provider, priceCents } = body;
 
     if (!tenantId || !domain || !priceCents) {
-      return json({ success: false, error: "Paramètres manquants" }, { status: 400 });
+      return json(
+        { success: false, error: "Paramètres manquants" },
+        { status: 400 },
+      );
     }
 
     const tenant = await getTenantById(tenantId);
     if (!tenant || tenant.user_id !== locals.user.id) {
-      return json({ success: false, error: "Site introuvable ou accès refusé" }, { status: 404 });
+      return json(
+        { success: false, error: "Site introuvable ou accès refusé" },
+        { status: 404 },
+      );
     }
 
     const origin = url.origin;
@@ -42,7 +48,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
       provider || "cloudflare",
       sessionId,
       priceCents,
-      "eur"
+      "eur",
     );
 
     return json({ success: true, url: checkoutUrl });

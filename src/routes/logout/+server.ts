@@ -5,7 +5,10 @@ import { getSessionCookieDomain } from "$lib/server/auth";
 
 export const POST: RequestHandler = async ({ cookies, request, url }) => {
   const sessionToken = cookies.get("session");
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || url.hostname;
+  const host =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    url.hostname;
   const cookieDomain = getSessionCookieDomain(host);
 
   if (sessionToken) {

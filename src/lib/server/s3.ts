@@ -24,10 +24,13 @@ async function signRequest(
   method: string,
   path: string,
   payload: string | null,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): Promise<Record<string, string>> {
   const now = new Date();
-  const dateStamp = now.toISOString().replace(/[:-]|\.\d{3}/g, "").slice(0, 8);
+  const dateStamp = now
+    .toISOString()
+    .replace(/[:-]|\.\d{3}/g, "")
+    .slice(0, 8);
   const timeStamp = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
 
   const credentialScope = `${dateStamp}/${AWS_REGION}/s3/aws4_request`;
@@ -36,7 +39,9 @@ async function signRequest(
   const canonicalHeaders = Object.entries({
     host: `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`,
     "x-amz-date": timeStamp,
-    "x-amz-content-sha256": payload ? await sha256(payload) : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "x-amz-content-sha256": payload
+      ? await sha256(payload)
+      : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     ...headers,
   })
     .sort(([a], [b]) => a.localeCompare(b))
@@ -53,7 +58,9 @@ async function signRequest(
     .map((k) => k.toLowerCase())
     .join(";");
 
-  const payloadHash = payload ? await sha256(payload) : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const payloadHash = payload
+    ? await sha256(payload)
+    : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
   const canonicalRequest = [
     method,
@@ -76,7 +83,7 @@ async function signRequest(
   const signingKey = await getSigningKey(
     AWS_SECRET_ACCESS_KEY!,
     dateStamp,
-    AWS_REGION
+    AWS_REGION,
   );
   const signature = await hmacHex(signingKey, stringToSign);
 
@@ -103,7 +110,7 @@ async function sha256(message: string): Promise<string> {
 async function getSigningKey(
   secretKey: string,
   dateStamp: string,
-  region: string
+  region: string,
 ): Promise<ArrayBuffer> {
   const encoder = new TextEncoder();
   const secretKeyBytes = encoder.encode(`AWS4${secretKey}`);
@@ -121,9 +128,13 @@ async function hmac(key: ArrayBuffer, message: string): Promise<ArrayBuffer> {
     key,
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
-  const signature = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(message));
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    cryptoKey,
+    encoder.encode(message),
+  );
   return signature;
 }
 
@@ -141,14 +152,9 @@ export async function uploadConfig(config: S3Config): Promise<string | null> {
   const key = `tenants/${config.domain}/${config.filename}`;
   const contentType = config.contentType || "application/yaml";
 
-  const headers = await signRequest(
-    "PUT",
-    `/${key}`,
-    config.content,
-    {
-      "Content-Type": contentType,
-    }
-  );
+  const headers = await signRequest("PUT", `/${key}`, config.content, {
+    "Content-Type": contentType,
+  });
 
   const response = await fetch(
     `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`,
@@ -159,7 +165,7 @@ export async function uploadConfig(config: S3Config): Promise<string | null> {
         "Content-Type": contentType,
       },
       body: config.content,
-    }
+    },
   );
 
   if (!response.ok) {
@@ -174,7 +180,7 @@ export async function uploadConfig(config: S3Config): Promise<string | null> {
 export async function downloadConfig(
   domain: string,
   filename: string,
-  versionId?: string
+  versionId?: string,
 ): Promise<{ content: string; versionId: string | null } | null> {
   if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
     throw new Error("AWS credentials not configured");
@@ -191,7 +197,7 @@ export async function downloadConfig(
     `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`,
     {
       headers,
-    }
+    },
   );
 
   if (response.status === 404) {
@@ -226,7 +232,7 @@ export async function listTenantConfigs(domain: string): Promise<S3Object[]> {
     `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${query}`,
     {
       headers,
-    }
+    },
   );
 
   if (!response.ok) {
@@ -235,15 +241,17 @@ export async function listTenantConfigs(domain: string): Promise<S3Object[]> {
   }
 
   const xml = await response.text();
-  
+
   // Parse XML response
   const objects: S3Object[] = [];
   const contentsMatch = xml.match(/<Contents>([\s\S]*?)<\/Contents>/g);
-  
+
   if (contentsMatch) {
     for (const content of contentsMatch) {
       const keyMatch = content.match(/<Key>(.*?)<\/Key>/);
-      const lastModifiedMatch = content.match(/<LastModified>(.*?)<\/LastModified>/);
+      const lastModifiedMatch = content.match(
+        /<LastModified>(.*?)<\/LastModified>/,
+      );
       const sizeMatch = content.match(/<Size>(\d+)<\/Size>/);
 
       if (keyMatch && lastModifiedMatch && sizeMatch) {
@@ -261,7 +269,7 @@ export async function listTenantConfigs(domain: string): Promise<S3Object[]> {
 
 export async function listConfigVersions(
   domain: string,
-  filename: string
+  filename: string,
 ): Promise<S3Object[]> {
   if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
     throw new Error("AWS credentials not configured");
@@ -276,7 +284,7 @@ export async function listConfigVersions(
     `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${query}`,
     {
       headers,
-    }
+    },
   );
 
   if (!response.ok) {
@@ -285,16 +293,18 @@ export async function listConfigVersions(
   }
 
   const xml = await response.text();
-  
+
   // Parse XML response
   const objects: S3Object[] = [];
   const versionMatch = xml.match(/<Version>([\s\S]*?)<\/Version>/g);
-  
+
   if (versionMatch) {
     for (const version of versionMatch) {
       const keyMatch = version.match(/<Key>(.*?)<\/Key>/);
       const versionIdMatch = version.match(/<VersionId>(.*?)<\/VersionId>/);
-      const lastModifiedMatch = version.match(/<LastModified>(.*?)<\/LastModified>/);
+      const lastModifiedMatch = version.match(
+        /<LastModified>(.*?)<\/LastModified>/,
+      );
       const sizeMatch = version.match(/<Size>(\d+)<\/Size>/);
 
       if (keyMatch && versionIdMatch && lastModifiedMatch && sizeMatch) {
@@ -314,7 +324,7 @@ export async function listConfigVersions(
 export async function deleteConfig(
   domain: string,
   filename: string,
-  versionId?: string
+  versionId?: string,
 ): Promise<boolean> {
   if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
     throw new Error("AWS credentials not configured");
@@ -332,7 +342,7 @@ export async function deleteConfig(
     {
       method: "DELETE",
       headers,
-    }
+    },
   );
 
   return response.ok || response.status === 204;

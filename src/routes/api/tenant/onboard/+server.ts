@@ -7,9 +7,7 @@ import {
   updateTenantStatus,
   getUserById,
 } from "$lib/server/db";
-import {
-  createMailDNSRecord,
-} from "$lib/server/cloudflare";
+import { createMailDNSRecord } from "$lib/server/cloudflare";
 import { initializeTenantRepo } from "$lib/server/github";
 import {
   createDomain,

@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
     avatar_url: session.avatar_url,
   };
 
-  const tenants = await getTenantsByUserId(session.user_id);
+  const tenants = await getTenantsByUserId(session.user_id, session.email);
 
   return {
     user,

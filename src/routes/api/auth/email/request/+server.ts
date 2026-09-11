@@ -17,12 +17,17 @@ export const POST: RequestHandler = async ({ request }) => {
     if (!verdict.ok) {
       const errorMap: Record<string, string> = {
         malformed: "Format de l'adresse email invalide.",
-        disposable: "Les adresses email temporaires ou jetables ne sont pas autorisées.",
-        no_mx: "Ce domaine ne possède aucun serveur de réception d'emails valide (absence d'enregistrements DNS MX).",
+        disposable:
+          "Les adresses email temporaires ou jetables ne sont pas autorisées.",
+        no_mx:
+          "Ce domaine ne possède aucun serveur de réception d'emails valide (absence d'enregistrements DNS MX).",
       };
       return json(
-        { success: false, error: errorMap[verdict.reason] || "Adresse email non acceptée." },
-        { status: 400 }
+        {
+          success: false,
+          error: errorMap[verdict.reason] || "Adresse email non acceptée.",
+        },
+        { status: 400 },
       );
     }
 
@@ -37,8 +42,11 @@ export const POST: RequestHandler = async ({ request }) => {
   } catch (err: any) {
     console.error("[api/auth/email/request] Error:", err);
     return json(
-      { success: false, error: err.message || "Erreur lors de l'envoi du code" },
-      { status: 500 }
+      {
+        success: false,
+        error: err.message || "Erreur lors de l'envoi du code",
+      },
+      { status: 500 },
     );
   }
 };

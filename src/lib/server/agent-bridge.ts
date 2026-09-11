@@ -1,21 +1,24 @@
 import { env } from "$env/dynamic/private";
 
 export const ETHER_STUDIO_SYSTEM_INSTRUCTIONS = `
-You are the Ether Studio autonomous website generator running in the customer's workspace on Kubernetes.
-Your task is to build, customize, and refine their modern website.
+You are the friendly, autonomous website assistant for Ether Studio.
+Your task is to build, customize, and refine the customer's website according to their wishes.
 
-Strict Platform Rules:
+Communication & Tone Guidelines:
+1. Explain things in very simple, reassuring, plain terms.
+2. NEVER mention internal technical jargon to the user (do NOT say Kubernetes, PVC, SvelteKit 5 Runes, Bun runtime, Docker, hydration, or SQLite driver names).
+3. Speak about visual elements, features, and content (e.g. "J'ai créé la section contact avec un formulaire", "Voici le catalogue de vos produits", "Les couleurs et typographies ont été adaptées").
+4. If the user writes in French, answer warmly in French. If in English, answer in English.
+
+Technical Engineering Rules:
 1. Framework: SvelteKit with Svelte 5 Runes ONLY.
    - Use $state(), $derived(), $props(), $effect().
-   - NEVER use Svelte 4 legacy syntax (no "export let", no "$:").
+   - NEVER use legacy syntax (no "export let", no "$:").
 2. Runtime: Bun.
    - For database persistence, use Bun's native SQLite driver ("bun:sqlite").
-   - The database file is located on the persistent PVC at "/data/app.db".
-3. Styling: Tailwind CSS. Create elegant, high-converting, mobile-responsive layouts.
-4. External Integrations:
-   - When integrating external resources (Firebase, Supabase, Stripe, public REST APIs), use standard HTTPS (port 443).
-   - Never attempt to scan or reach internal cluster IPs (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, or 169.254.169.254).
-5. Always preserve existing project configuration files (package.json, svelte.config.js, vite.config.ts).
+   - The database file is located on persistent storage at "/data/app.db" (or locally at "./data/app.db").
+3. Styling: Tailwind CSS. Create clean, elegant, responsive layouts.
+4. Always preserve existing project configuration files (package.json, svelte.config.js, vite.config.ts).
 `;
 
 export interface AgentTurnPayload {
@@ -44,12 +47,16 @@ export interface RunnerProfileInfo {
   turnsCount?: number;
 }
 
-const RUNNER_ENDPOINT = env.AGY_PRIMARY_ENDPOINT || "http://agent-runner.ether.svc.cluster.local:8080";
+const RUNNER_ENDPOINT =
+  env.AGY_PRIMARY_ENDPOINT ||
+  "http://agent-runner.ether.svc.cluster.local:8080";
 
 /**
  * Dispatches a prompt to the permanent runner daemon with automatic profile selection & fallback.
  */
-export async function dispatchAgyPrompt(payload: AgentTurnPayload): Promise<AgentTurnResult> {
+export async function dispatchAgyPrompt(
+  payload: AgentTurnPayload,
+): Promise<AgentTurnResult> {
   const fullPrompt = `[System Context]\n${ETHER_STUDIO_SYSTEM_INSTRUCTIONS}\n\n[User Request]\n${payload.userPrompt}`;
   const targetProfile = payload.preferredProfile || "primary";
 
@@ -92,7 +99,9 @@ export async function dispatchAgyPrompt(payload: AgentTurnPayload): Promise<Agen
 /**
  * Initiates an SSE streaming connection to the agent runner daemon.
  */
-export async function streamAgyPrompt(payload: AgentTurnPayload): Promise<Response> {
+export async function streamAgyPrompt(
+  payload: AgentTurnPayload,
+): Promise<Response> {
   const fullPrompt = `[System Context]\n${ETHER_STUDIO_SYSTEM_INSTRUCTIONS}\n\n[User Request]\n${payload.userPrompt}`;
   const targetProfile = payload.preferredProfile || "primary";
 
@@ -113,7 +122,14 @@ export async function streamAgyPrompt(payload: AgentTurnPayload): Promise<Respon
     });
 
     if (res.ok && res.body) {
-      return res;
+      return new Response(res.body, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
     }
 
     const errText = await res.text();
@@ -176,7 +192,9 @@ export async function getRunnerProfiles(): Promise<RunnerProfileInfo[]> {
 /**
  * Starts the OAuth authorization flow for a specific profile on the runner daemon.
  */
-export async function startProfileAuth(profile: string): Promise<{ authUrl: string }> {
+export async function startProfileAuth(
+  profile: string,
+): Promise<{ authUrl: string }> {
   const res = await fetch(`${RUNNER_ENDPOINT}/auth/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -194,7 +212,10 @@ export async function startProfileAuth(profile: string): Promise<{ authUrl: stri
 /**
  * Finishes the OAuth authorization flow with the authorization code.
  */
-export async function finishProfileAuth(profile: string, code: string): Promise<{ email: string; profile: string }> {
+export async function finishProfileAuth(
+  profile: string,
+  code: string,
+): Promise<{ email: string; profile: string }> {
   const res = await fetch(`${RUNNER_ENDPOINT}/auth/finish`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -203,7 +224,9 @@ export async function finishProfileAuth(profile: string, code: string): Promise<
 
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || `Erreur lors de la validation du code OAuth (${res.status})`);
+    throw new Error(
+      err.error || `Erreur lors de la validation du code OAuth (${res.status})`,
+    );
   }
 
   return (await res.json()) as any;
@@ -212,7 +235,9 @@ export async function finishProfileAuth(profile: string, code: string): Promise<
 /**
  * Creates a new profile slot on the runner daemon (e.g. profile-3, profile-4).
  */
-export async function createRunnerProfile(profile: string): Promise<{ success: boolean; profile: string; authUrl: string }> {
+export async function createRunnerProfile(
+  profile: string,
+): Promise<{ success: boolean; profile: string; authUrl: string }> {
   const res = await fetch(`${RUNNER_ENDPOINT}/profiles/create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -221,7 +246,9 @@ export async function createRunnerProfile(profile: string): Promise<{ success: b
 
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || `Erreur lors de la création du profil (${res.status})`);
+    throw new Error(
+      err.error || `Erreur lors de la création du profil (${res.status})`,
+    );
   }
 
   return (await res.json()) as any;

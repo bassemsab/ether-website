@@ -13,12 +13,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const tenantId = body.tenantId;
 
     if (!tenantId) {
-      return json({ success: false, error: "ID de site requis" }, { status: 400 });
+      return json(
+        { success: false, error: "ID de site requis" },
+        { status: 400 },
+      );
     }
 
     const tenant = await getTenantById(tenantId);
     if (!tenant || tenant.user_id !== locals.user.id) {
-      return json({ success: false, error: "Site introuvable ou accès non autorisé" }, { status: 404 });
+      return json(
+        { success: false, error: "Site introuvable ou accès non autorisé" },
+        { status: 404 },
+      );
     }
 
     const namespace = tenant.k8s_namespace || `tenant-${tenant.slug}`;
@@ -37,13 +43,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // 2. Rollout restart the production deployment
     try {
       const proc = Bun.spawn({
-        cmd: ["kubectl", "rollout", "restart", "deployment/web-prod", "-n", namespace],
+        cmd: [
+          "kubectl",
+          "rollout",
+          "restart",
+          "deployment/web-prod",
+          "-n",
+          namespace,
+        ],
         stdout: "pipe",
         stderr: "pipe",
       });
       await proc.exited;
     } catch (k8sErr: any) {
-      console.warn(`[api/tenant/publish] kubectl rollout note for ${tenant.slug}:`, k8sErr.message);
+      console.warn(
+        `[api/tenant/publish] kubectl rollout note for ${tenant.slug}:`,
+        k8sErr.message,
+      );
     }
 
     await updateTenantStatus(tenant.domain, "active", {

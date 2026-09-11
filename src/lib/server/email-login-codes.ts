@@ -17,7 +17,15 @@ export function hashCode(code: string): string {
 
 export type VerifyCodeResult =
   | { ok: true }
-  | { ok: false; reason: "malformed" | "not_found" | "expired" | "too_many_attempts" | "wrong_code" };
+  | {
+      ok: false;
+      reason:
+        | "malformed"
+        | "not_found"
+        | "expired"
+        | "too_many_attempts"
+        | "wrong_code";
+    };
 
 export interface EmailLoginCodeRecord {
   id: number;
@@ -41,7 +49,7 @@ export async function createEmailLoginCode(email: string): Promise<string> {
   await executeQuery(
     `INSERT INTO email_login_codes (email, code_hash, attempts, expires_at)
      VALUES (?, ?, 0, ?)`,
-    [normalizedEmail, hash, expiresAt]
+    [normalizedEmail, hash, expiresAt],
   );
 
   return code;
@@ -50,7 +58,10 @@ export async function createEmailLoginCode(email: string): Promise<string> {
 /**
  * Consumes the latest unconsumed code for `email` if `code` matches it.
  */
-export async function verifyEmailCode(email: string, code: string): Promise<VerifyCodeResult> {
+export async function verifyEmailCode(
+  email: string,
+  code: string,
+): Promise<VerifyCodeResult> {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail || !/^\d{6}$/.test(code)) {
     return { ok: false, reason: "malformed" };
@@ -61,7 +72,7 @@ export async function verifyEmailCode(email: string, code: string): Promise<Veri
      WHERE email = ? AND consumed_at IS NULL
      ORDER BY created_at DESC
      LIMIT 1`,
-    [normalizedEmail]
+    [normalizedEmail],
   )) as EmailLoginCodeRecord[];
 
   const row = rows[0];
@@ -79,14 +90,14 @@ export async function verifyEmailCode(email: string, code: string): Promise<Veri
   if (hashCode(code) !== row.code_hash) {
     await executeQuery(
       `UPDATE email_login_codes SET attempts = attempts + 1 WHERE id = ?`,
-      [row.id]
+      [row.id],
     );
     return { ok: false, reason: "wrong_code" };
   }
 
   await executeQuery(
     `UPDATE email_login_codes SET consumed_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    [row.id]
+    [row.id],
   );
 
   return { ok: true };

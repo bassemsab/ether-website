@@ -29,12 +29,20 @@ export function sanitizeUsername(emailOrSlug: string): string {
 /**
  * Creates or retrieves a user on Gitea.
  */
-export async function ensureGiteaUser(email: string, requestedUsername?: string): Promise<{ username: string; token: string }> {
+export async function ensureGiteaUser(
+  email: string,
+  requestedUsername?: string,
+): Promise<{ username: string; token: string }> {
   const username = sanitizeUsername(requestedUsername || email);
 
   if (!GITEA_ADMIN_TOKEN) {
-    console.warn("[Gitea] GITEA_ADMIN_TOKEN not set, generating mock token for development");
-    return { username, token: `mock_tok_${Math.random().toString(36).slice(2)}` };
+    console.warn(
+      "[Gitea] GITEA_ADMIN_TOKEN not set, generating mock token for development",
+    );
+    return {
+      username,
+      token: `mock_tok_${Math.random().toString(36).slice(2)}`,
+    };
   }
 
   const headers = {
@@ -43,7 +51,9 @@ export async function ensureGiteaUser(email: string, requestedUsername?: string)
   };
 
   // Check if user exists
-  const checkRes = await fetch(`${GITEA_API_URL}/users/${username}`, { headers });
+  const checkRes = await fetch(`${GITEA_API_URL}/users/${username}`, {
+    headers,
+  });
   if (checkRes.status === 404) {
     // Create user
     const createRes = await fetch(`${GITEA_API_URL}/admin/users`, {
@@ -66,14 +76,17 @@ export async function ensureGiteaUser(email: string, requestedUsername?: string)
 
   // Create a personal access token for the user
   const tokenName = `ether-access-${Date.now()}`;
-  const tokenRes = await fetch(`${GITEA_API_URL}/admin/users/${username}/tokens`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      name: tokenName,
-      scopes: ["all"],
-    }),
-  });
+  const tokenRes = await fetch(
+    `${GITEA_API_URL}/admin/users/${username}/tokens`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: tokenName,
+        scopes: ["all"],
+      }),
+    },
+  );
 
   let token = "";
   if (tokenRes.ok) {
@@ -89,7 +102,11 @@ export async function ensureGiteaUser(email: string, requestedUsername?: string)
 /**
  * Creates a repository under the user account.
  */
-export async function createGiteaRepo(username: string, repoName: string, description: string): Promise<GiteaRepo> {
+export async function createGiteaRepo(
+  username: string,
+  repoName: string,
+  description: string,
+): Promise<GiteaRepo> {
   const safeRepoName = repoName.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
 
   if (!GITEA_ADMIN_TOKEN) {
@@ -118,7 +135,10 @@ export async function createGiteaRepo(username: string, repoName: string, descri
 
   if (!res.ok) {
     const err = await res.text();
-    console.warn(`[Gitea] Repo creation note for ${username}/${safeRepoName}:`, err);
+    console.warn(
+      `[Gitea] Repo creation note for ${username}/${safeRepoName}:`,
+      err,
+    );
   }
 
   return {
@@ -138,7 +158,7 @@ export async function commitGiteaFile(
   repoName: string,
   filepath: string,
   content: string,
-  commitMessage: string
+  commitMessage: string,
 ): Promise<boolean> {
   if (!GITEA_ADMIN_TOKEN) return true;
 
@@ -167,7 +187,7 @@ export async function commitGiteaFile(
 export async function seedTenantRepoTemplate(
   username: string,
   repoName: string,
-  site: { brandName: string; domain: string; slug: string }
+  site: { brandName: string; domain: string; slug: string },
 ): Promise<void> {
   const packageJson = JSON.stringify(
     {
@@ -194,7 +214,7 @@ export async function seedTenantRepoTemplate(
       },
     },
     null,
-    2
+    2,
   );
 
   const svelteConfig = `import adapter from '@sveltejs/adapter-node';
@@ -306,11 +326,53 @@ Website created with **Ether Studio**.
 - **Deployment:** Kubernetes container workload
 `;
 
-  await commitGiteaFile(username, repoName, "README.md", readme, "Initial commit: README");
-  await commitGiteaFile(username, repoName, "package.json", packageJson, "Add package.json");
-  await commitGiteaFile(username, repoName, "svelte.config.js", svelteConfig, "Add svelte.config.js");
-  await commitGiteaFile(username, repoName, "vite.config.ts", viteConfig, "Add vite.config.ts");
-  await commitGiteaFile(username, repoName, "Dockerfile", dockerfile, "Add Dockerfile");
-  await commitGiteaFile(username, repoName, "src/lib/server/db.ts", dbHelper, "Add Bun SQLite helper");
-  await commitGiteaFile(username, repoName, "src/routes/+page.svelte", pageSvelte, "Add initial home page");
+  await commitGiteaFile(
+    username,
+    repoName,
+    "README.md",
+    readme,
+    "Initial commit: README",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "package.json",
+    packageJson,
+    "Add package.json",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "svelte.config.js",
+    svelteConfig,
+    "Add svelte.config.js",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "vite.config.ts",
+    viteConfig,
+    "Add vite.config.ts",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "Dockerfile",
+    dockerfile,
+    "Add Dockerfile",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "src/lib/server/db.ts",
+    dbHelper,
+    "Add Bun SQLite helper",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "src/routes/+page.svelte",
+    pageSvelte,
+    "Add initial home page",
+  );
 }

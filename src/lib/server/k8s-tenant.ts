@@ -27,7 +27,7 @@ export function generateTenantManifests(config: TenantK8sConfig): string {
           service:
             name: web-prod
             port:
-              number: 3000`
+              number: 3000`,
     )
     .join("\n");
 
@@ -240,11 +240,21 @@ spec:
 /**
  * Applies tenant manifests to Kubernetes cluster using kubectl.
  */
-export async function applyTenantK8s(config: TenantK8sConfig): Promise<boolean> {
+export async function applyTenantK8s(
+  config: TenantK8sConfig,
+): Promise<boolean> {
   // 1. Ensure namespace exists
   try {
     const nsProc = Bun.spawn({
-      cmd: ["kubectl", "create", "namespace", config.namespace, "--dry-run=client", "-o", "yaml"],
+      cmd: [
+        "kubectl",
+        "create",
+        "namespace",
+        config.namespace,
+        "--dry-run=client",
+        "-o",
+        "yaml",
+      ],
       stdout: "pipe",
     });
     const nsYaml = await new Response(nsProc.stdout).text();
@@ -260,7 +270,16 @@ export async function applyTenantK8s(config: TenantK8sConfig): Promise<boolean> 
   // 2. Ensure ghcr-secret is copied into the namespace for pulling images
   try {
     const secProc = Bun.spawn({
-      cmd: ["kubectl", "get", "secret", "ghcr-secret", "-n", "ether", "-o", "json"],
+      cmd: [
+        "kubectl",
+        "get",
+        "secret",
+        "ghcr-secret",
+        "-n",
+        "ether",
+        "-o",
+        "json",
+      ],
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -302,13 +321,17 @@ export async function applyTenantK8s(config: TenantK8sConfig): Promise<boolean> 
     } catch {}
 
     if (exitCode !== 0) {
-      console.warn(`[applyTenantK8s] kubectl note for ${config.slug}: ${stderr}`);
+      console.warn(
+        `[applyTenantK8s] kubectl note for ${config.slug}: ${stderr}`,
+      );
       return false;
     }
 
     return true;
   } catch (err: any) {
-    console.warn(`[applyTenantK8s] Could not invoke kubectl (running locally?): ${err.message}`);
+    console.warn(
+      `[applyTenantK8s] Could not invoke kubectl (running locally?): ${err.message}`,
+    );
     return false;
   }
 }
@@ -320,7 +343,7 @@ export async function updateTenantCustomDomainIngress(
   slug: string,
   namespace: string,
   subdomain: string,
-  customDomain: string
+  customDomain: string,
 ): Promise<boolean> {
   return applyTenantK8s({
     slug,

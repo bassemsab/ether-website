@@ -2,6 +2,21 @@
   import { onMount } from "svelte";
   import BrandMark from "$lib/components/brand-mark.svelte";
   import type { PageData } from "./$types";
+  import { marked } from "marked";
+
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+  });
+
+  function renderMarkdown(content: string): string {
+    if (!content) return "";
+    try {
+      return marked.parse(content) as string;
+    } catch {
+      return content;
+    }
+  }
 
   // CodeMirror imports
   import { EditorView, basicSetup } from "codemirror";
@@ -14,22 +29,107 @@
     data: PageData;
   }
 
+  interface ChatStep {
+    id: number | string;
+    name: string;
+    state: "running" | "completed";
+  }
+
+  interface ChatMessage {
+    role: "user" | "assistant";
+    content: string;
+    profile: string;
+    time: string;
+    steps?: ChatStep[];
+  }
+
   let { data }: Props = $props();
 
   const tenant = $derived(data.tenant);
   const projectSlug = $derived(data.projectSlug || "tester");
-  const liveUrl = $derived(tenant.custom_domain ? `https://${tenant.custom_domain}` : `https://${projectSlug}.ether.paris`);
+  const liveClusterUrl = $derived(
+    tenant.custom_domain ? `https://${tenant.custom_domain}` : `https://${projectSlug}.ether.paris`
+  );
+  const localPreviewUrl = $derived(`/?preview_tenant=${projectSlug}`);
+
+  let isLocal = $state(false);
+  let previewTarget = $state<"local" | "live">("local");
+  const activePreviewUrl = $derived(previewTarget === "local" ? localPreviewUrl : liveClusterUrl);
+
+  const isAdmin = $derived(Boolean(data.isAdmin));
 
   // Chat State
-  const availableProfiles = $derived(data.availableProfiles || ["primary", "secondary"]);
-  let messages = $state([
-    {
-      role: "assistant",
-      content: `Bonjour ! Je suis l'agent IA Ether Studio. Votre site **${tenant.brand_name || projectSlug}** tourne sur Kubernetes avec SvelteKit 5 Runes, Bun et une base de données SQLite isolée sur volume persistant.\n\nQue souhaitez-vous ajouter ou modifier sur votre site ?`,
-      profile: "primary",
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    },
-  ]);
+  const availableProfiles = $derived(
+    data.availableProfiles || [
+      { name: "primary", label: "Agent 1" },
+      { name: "secondary", label: "Agent 2" },
+    ]
+  );
+
+  function getProfileLabel(profileName?: string): string {
+    if (!profileName || profileName === "auto") return "Auto";
+    const found = availableProfiles.find((p) => p.name === profileName);
+    if (found?.label) return found.label;
+    if (profileName === "primary") return "Agent 1";
+    if (profileName === "secondary") return "Agent 2";
+    if (profileName.startsWith("profile-")) {
+      return `Agent ${profileName.replace("profile-", "")}`;
+    }
+    return `Agent ${profileName}`;
+  }
+
+  // Profile Custom Dropdown State
+  let profileMenuOpen = $state(false);
+  let profileMenuContainer = $state<HTMLDivElement | null>(null);
+
+  function handleWindowClick(event: MouseEvent) {
+    if (profileMenuOpen && profileMenuContainer && !profileMenuContainer.contains(event.target as Node)) {
+      profileMenuOpen = false;
+    }
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape" && profileMenuOpen) {
+      profileMenuOpen = false;
+    }
+  }
+
+  let conversationId = $state<string | null>(data.lastConversationId || null);
+
+  let messages = $state<ChatMessage[]>(
+    data.chatHistory && data.chatHistory.length > 0
+      ? (data.chatHistory as ChatMessage[])
+      : [
+          {
+            role: "assistant",
+            content: `Bonjour ! Je suis votre assistant Ether Studio pour **${tenant.brand_name || projectSlug}**.\n\nDites-moi simplement ce que vous souhaitez ajouter ou modifier sur votre site et je m'en occupe !`,
+            profile: "primary",
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        ]
+  );
+
+  async function handleClearChat() {
+    if (confirm("Voulez-vous vraiment réinitialiser la conversation ?")) {
+      try {
+        await fetch("/api/studio/chat/clear", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectSlug }),
+        });
+      } catch {}
+      conversationId = null;
+      messages = [
+        {
+          role: "assistant",
+          content: `Bonjour ! Je suis votre assistant Ether Studio pour **${tenant.brand_name || projectSlug}**.\n\nDites-moi simplement ce que vous souhaitez ajouter ou modifier sur votre site et je m'en occupe !`,
+          profile: "primary",
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ];
+    }
+  }
+
   let promptInput = $state("");
   let isThinking = $state(false);
   let activeProfile = $state<string>("auto");
@@ -38,6 +138,27 @@
   );
   let publishLoading = $state(false);
   let publishStatus = $state<string | null>(null);
+
+  // Chat scroll container
+  let chatContainer = $state<HTMLDivElement | null>(null);
+
+  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+    if (chatContainer) {
+      requestAnimationFrame(() => {
+        chatContainer?.scrollTo({
+          top: chatContainer.scrollHeight,
+          behavior,
+        });
+      });
+    }
+  }
+
+  $effect(() => {
+    // Keep chat scrolled to bottom when new messages arrive or while thinking
+    if (messages.length || isThinking) {
+      scrollToBottom();
+    }
+  });
 
   // Dockable & Resizable Panels State
   let showChat = $state(true);
@@ -129,73 +250,52 @@
     content: string;
   }
 
-  let files = $state<Record<string, FileItem>>({
-    "src/routes/+page.svelte": {
-      name: "+page.svelte",
-      path: "src/routes/+page.svelte",
-      lang: "html",
-      content: data.defaultCode || "",
-    },
-    "src/lib/server/db.ts": {
-      name: "db.ts",
-      path: "src/lib/server/db.ts",
-      lang: "typescript",
-      content: `import { Database } from "bun:sqlite";
-
-// Base de données persistante SQLite pour ${tenant.brand_name || projectSlug}
-const db = new Database(process.env.DB_PATH || "data.sqlite");
-
-// Schéma des tables
-db.run(\`
-  CREATE TABLE IF NOT EXISTS visitors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ip TEXT,
-    path TEXT,
-    user_agent TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-\`);
-
-export function getRecentVisitors() {
-  return db.query("SELECT * FROM visitors ORDER BY timestamp DESC LIMIT 20").all();
-}
-
-export function logVisitor(ip: string, path: string, userAgent: string) {
-  return db.query("INSERT INTO visitors (ip, path, user_agent) VALUES (?, ?, ?)").run(ip, path, userAgent);
-}
-`,
-    },
-    "package.json": {
-      name: "package.json",
-      path: "package.json",
-      lang: "json",
-      content: JSON.stringify(
-        {
-          name: projectSlug,
-          version: "1.0.0",
-          private: true,
-          scripts: {
-            dev: "bun --bun vite dev",
-            build: "bun --bun vite build",
-            preview: "vite preview",
+  let files = $state<Record<string, FileItem>>(
+    data.initialFiles && Object.keys(data.initialFiles).length > 0
+      ? (data.initialFiles as Record<string, FileItem>)
+      : {
+          "src/routes/+page.svelte": {
+            name: "+page.svelte",
+            path: "src/routes/+page.svelte",
+            lang: "html",
+            content: data.defaultCode || "",
           },
-          dependencies: {
-            "@sveltejs/kit": "^2.0.0",
-            svelte: "^5.0.0",
-            tailwindcss: "^3.4.3",
-          },
-        },
-        null,
-        2
-      ),
-    },
-  });
+        }
+  );
 
-  let activeFile = $state("src/routes/+page.svelte");
+  let activeFile = $state(
+    Object.keys(files)[0] || "src/routes/+page.svelte"
+  );
   let editorSaved = $state(false);
   let editorContainer = $state<HTMLDivElement | null>(null);
   let editorView = $state<EditorView | null>(null);
   const languageCompartment = new Compartment();
+
+  async function loadTenantFiles() {
+    try {
+      const res = await fetch(`/api/studio/files?project=${projectSlug}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.files) {
+          files = json.files;
+          if (!files[activeFile]) {
+            activeFile = Object.keys(files)[0] || "src/routes/+page.svelte";
+          }
+          if (editorView && files[activeFile]) {
+            const currentDoc = editorView.state.doc.toString();
+            const newDoc = files[activeFile].content;
+            if (currentDoc !== newDoc) {
+              editorView.dispatch({
+                changes: { from: 0, to: currentDoc.length, insert: newDoc },
+              });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load tenant files:", err);
+    }
+  }
 
   function getLangExtension(lang: SupportedLang) {
     if (lang === "typescript") {
@@ -252,9 +352,14 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
   });
 
   onMount(() => {
+    if (typeof window !== "undefined") {
+      isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      previewTarget = isLocal ? "local" : "live";
+    }
+
     if (!editorContainer) return;
 
-    const initialFile = files[activeFile];
+    const initialFile = files[activeFile] || { content: "", lang: "html" as SupportedLang };
     const state = EditorState.create({
       doc: initialFile.content,
       extensions: [
@@ -263,7 +368,7 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
         retroEditorTheme,
         languageCompartment.of(getLangExtension(initialFile.lang)),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
+          if (update.docChanged && files[activeFile]) {
             files[activeFile].content = update.state.doc.toString();
           }
         }),
@@ -284,7 +389,7 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
     if (filePath === activeFile) return;
 
     // Persist current file content before switching
-    if (editorView) {
+    if (editorView && files[activeFile]) {
       files[activeFile].content = editorView.state.doc.toString();
     }
 
@@ -301,7 +406,17 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
 
   // Preview State (Desktop or Mobile only)
   let viewportMode = $state<"desktop" | "mobile">("desktop");
-  let previewKey = $state(0);
+  let previewIframe = $state<HTMLIFrameElement | null>(null);
+
+  function refreshPreview() {
+    if (previewIframe) {
+      try {
+        previewIframe.contentWindow?.location.reload();
+      } catch {
+        previewIframe.src = activePreviewUrl;
+      }
+    }
+  }
 
   async function handleSendPrompt(e?: Event) {
     if (e) e.preventDefault();
@@ -333,7 +448,17 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     });
 
+    const assistantMsgIndex = messages.length;
+    messages.push({
+      role: "assistant",
+      content: "",
+      profile: activeProfile,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      steps: [],
+    });
+
     isThinking = true;
+    scrollToBottom();
 
     try {
       const res = await fetch("/api/studio/chat", {
@@ -346,21 +471,13 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
           prompt: text,
           projectSlug,
           profile: activeProfile,
+          conversationId,
           stream: true,
         }),
       });
 
       const contentType = res.headers.get("content-type") || "";
       if (contentType.includes("text/event-stream") && res.body) {
-        // Real-time SSE streaming from runner
-        const assistantMsgIndex = messages.length;
-        messages.push({
-          role: "assistant",
-          content: "",
-          profile: activeProfile,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        });
-
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -375,6 +492,9 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
           for (const part of parts) {
             const trimmed = part.trim();
             if (!trimmed) continue;
+            // Ignore keepalive comments
+            if (trimmed.startsWith(":")) continue;
+
             const dataMatch = trimmed.match(/data:\s*(.*)/);
             if (dataMatch) {
               try {
@@ -383,29 +503,56 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
                   promptQuota.remaining = 0;
                   promptQuota.allowed = false;
                 }
+                if (data.conversationId) {
+                  conversationId = data.conversationId;
+                }
                 if (data.error) {
                   messages[assistantMsgIndex].content += `\n⚠️ Erreur: ${data.error}\n`;
+                  scrollToBottom("auto");
                 }
                 if (data.text) {
                   messages[assistantMsgIndex].content += data.text;
+                  scrollToBottom("auto");
                 }
                 if (data.profileUsed) {
                   messages[assistantMsgIndex].profile = data.profileUsed;
                 }
-                if (data.message && !data.text) {
-                  // Transparent status message (e.g. quota auto failover)
-                  messages[assistantMsgIndex].content += `\n_${data.message}_\n\n`;
+                // Handle live thinking / tool execution steps
+                if (data.id !== undefined && data.name) {
+                  if (!messages[assistantMsgIndex].steps) {
+                    messages[assistantMsgIndex].steps = [];
+                  }
+                  const existing = messages[assistantMsgIndex].steps.find((s) => s.id === data.id);
+                  if (existing) {
+                    existing.state = data.state;
+                  } else {
+                    messages[assistantMsgIndex].steps.push({
+                      id: data.id,
+                      name: data.name,
+                      state: data.state || "running",
+                    });
+                  }
+                  scrollToBottom("auto");
+                } else if (data.id !== undefined && data.state === "completed") {
+                  const existing = messages[assistantMsgIndex].steps?.find((s) => s.id === data.id);
+                  if (existing) {
+                    existing.state = "completed";
+                  }
+                  scrollToBottom("auto");
                 }
               } catch (e) {}
             }
           }
         }
-        previewKey++;
+        scrollToBottom();
       } else {
         // Fallback standard JSON
         const resData = await res.json();
         if (resData.quotaRemaining !== undefined) {
           promptQuota.remaining = resData.quotaRemaining;
+        }
+        if (resData.conversationId) {
+          conversationId = resData.conversationId;
         }
         if (!resData.success && resData.quotaExceeded) {
           promptQuota.remaining = 0;
@@ -419,25 +566,30 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
             profile: resData.profileUsed || activeProfile,
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           });
-          previewKey++;
         } else {
           messages.push({
             role: "assistant",
             content: `⚠️ Note : ${resData.error || "Impossible d'exécuter la commande."}`,
-            profile: "secondary",
+            profile: resData.profileUsed || activeProfile,
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           });
         }
       }
     } catch (err: any) {
-      messages.push({
-        role: "assistant",
-        content: `Erreur de connexion avec l'agent Studio : ${err.message}`,
-        profile: "secondary",
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      });
+      if (assistantMsgIndex !== undefined && messages[assistantMsgIndex]) {
+        messages[assistantMsgIndex].content += `\n⚠️ Erreur de connexion avec l'agent : ${err.message}`;
+      } else {
+        messages.push({
+          role: "assistant",
+          content: `Erreur de connexion avec l'agent : ${err.message}`,
+          profile: activeProfile,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        });
+      }
     } finally {
       isThinking = false;
+      await loadTenantFiles();
+      refreshPreview();
     }
   }
 
@@ -454,7 +606,7 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
       const resData = await res.json();
       if (resData.success) {
         publishStatus = "✓ Site publié et actif sur Kubernetes !";
-        previewKey++;
+        refreshPreview();
       } else {
         publishStatus = `Erreur : ${resData.error}`;
       }
@@ -468,21 +620,40 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
     }
   }
 
-  function handleSaveCode() {
-    if (editorView) {
+  async function handleSaveCode() {
+    if (editorView && files[activeFile]) {
       files[activeFile].content = editorView.state.doc.toString();
     }
-    editorSaved = true;
-    previewKey++;
-    setTimeout(() => {
-      editorSaved = false;
-    }, 2500);
+
+    try {
+      const res = await fetch("/api/studio/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectSlug,
+          path: activeFile,
+          content: files[activeFile]?.content || "",
+        }),
+      });
+
+      if (res.ok) {
+        editorSaved = true;
+        refreshPreview();
+        setTimeout(() => {
+          editorSaved = false;
+        }, 2500);
+      }
+    } catch (err) {
+      console.error("Save code error:", err);
+    }
   }
 </script>
 
 <svelte:head>
   <title>Ether Studio · {tenant.brand_name || projectSlug}</title>
 </svelte:head>
+
+<svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
 <div class="h-screen flex flex-col bg-background text-foreground overflow-hidden grain-overlay">
   <!-- Studio Top Navigation -->
@@ -500,9 +671,9 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
       </div>
     </div>
 
-    <!-- Center: Panel Docking Controls & Status -->
-    <div class="flex items-center gap-3">
-      <div class="flex items-center rounded-full border border-black/10 bg-surface/90 p-0.5 text-xs font-mono shadow-retro-sm">
+    <!-- Center: Panel Docking Controls -->
+    <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 rounded-full border border-black/10 bg-surface/90 p-1 text-xs font-mono shadow-retro-sm">
         <button
           onclick={() => togglePanel("chat")}
           class="px-3 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
@@ -535,17 +706,12 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
           <span class="hidden sm:inline">Aperçu</span>
         </button>
       </div>
-
-      <div class="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 text-xs font-mono">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span>K8s Live</span>
-      </div>
     </div>
 
     <!-- Actions -->
     <div class="flex items-center gap-2.5">
       <a
-        href={liveUrl}
+        href={activePreviewUrl}
         target="_blank"
         rel="noopener"
         class="focus-ring px-3.5 py-1.5 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-foreground text-xs uppercase tracking-wider transition-all inline-flex items-center gap-1.5 font-medium cursor-pointer"
@@ -616,16 +782,105 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
             Assistant Studio
           </span>
           <div class="flex items-center gap-1.5">
-            <select
-              bind:value={activeProfile}
-              class="text-[10px] font-mono bg-surface border border-black/10 rounded px-2 py-0.5 text-foreground cursor-pointer outline-none hover:border-brand transition-colors"
-              title="Sélectionner le profil Google actif ou basculement automatique"
+            <!-- New Chat / Reset Conversation Button -->
+            <button
+              type="button"
+              onclick={handleClearChat}
+              class="text-[11px] font-mono bg-card hover:bg-surface border border-black/10 hover:border-black/20 rounded-md px-2 py-1 text-muted-foreground hover:text-foreground cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm"
+              title="Nouvelle conversation (réinitialise le contexte de discussion)"
             >
-              <option value="auto">⚡ Auto (Failover)</option>
-              {#each availableProfiles as prof}
-                <option value={prof}>Google : {prof}</option>
-              {/each}
-            </select>
+              <svg class="w-3 h-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              <span class="hidden xl:inline">Nouveau</span>
+            </button>
+
+            <!-- Custom Styled Agent Dropdown Menu -->
+            <div bind:this={profileMenuContainer} class="relative">
+              <button
+                type="button"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  profileMenuOpen = !profileMenuOpen;
+                }}
+                class="text-[11px] font-mono bg-card hover:bg-surface border border-black/10 hover:border-black/20 rounded-md px-2.5 py-1 text-foreground cursor-pointer outline-none transition-all flex items-center gap-1.5 shadow-retro-sm"
+                title="Sélectionner l'agent actif"
+                aria-expanded={profileMenuOpen}
+                aria-haspopup="listbox"
+              >
+                {#if activeProfile === 'auto'}
+                  <span class="text-amber-500 font-medium">⚡</span>
+                  <span class="font-medium">Auto</span>
+                {:else}
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span class="font-medium">{getProfileLabel(activeProfile)}</span>
+                {/if}
+                <svg
+                  class="w-3 h-3 text-muted-foreground transition-transform duration-200 {profileMenuOpen ? 'rotate-180' : ''}"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {#if profileMenuOpen}
+                <div
+                  class="absolute right-0 top-full mt-1.5 w-40 bg-card border border-black/10 rounded-lg shadow-retro p-1 text-xs font-mono z-50 divide-y divide-black/5"
+                  role="listbox"
+                >
+                  <div class="p-0.5">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={activeProfile === 'auto'}
+                      onclick={() => {
+                        activeProfile = 'auto';
+                        profileMenuOpen = false;
+                      }}
+                      class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                    >
+                      <div class="flex items-center gap-2">
+                        <span class="text-amber-500">⚡</span>
+                        <span>Auto</span>
+                      </div>
+                      {#if activeProfile === 'auto'}
+                        <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                      {/if}
+                    </button>
+                  </div>
+
+                  <div class="p-0.5 space-y-0.5">
+                    {#each availableProfiles as prof, idx}
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={activeProfile === prof.name}
+                        onclick={() => {
+                          activeProfile = prof.name;
+                          profileMenuOpen = false;
+                        }}
+                        class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                      >
+                        <div class="flex items-center gap-2">
+                          <span class="w-1.5 h-1.5 rounded-full {activeProfile === prof.name ? 'bg-emerald-500' : 'bg-black/20'}"></span>
+                          <span>{prof.label || `Agent ${idx + 1}`}</span>
+                        </div>
+                        {#if activeProfile === prof.name}
+                          <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                          </svg>
+                        {/if}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            </div>
+
             <button
               onclick={() => showChat = false}
               class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
@@ -639,52 +894,86 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
         </div>
 
         <!-- Messages Stream -->
-        <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue">
+        <div bind:this={chatContainer} class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue">
           {#each messages as msg}
             <div class="space-y-1 {msg.role === 'user' ? 'text-right' : ''}">
               <div class="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground {msg.role === 'user' ? 'justify-end' : ''}">
                 <span class="font-semibold text-foreground">{msg.role === 'user' ? 'Vous' : 'Ether Agent'}</span>
                 <span>·</span>
                 <span>{msg.time}</span>
-                {#if msg.profile}
-                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-black/5 uppercase">
-                    {msg.profile}
+                {#if msg.role === 'assistant' && msg.profile}
+                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-black/5 font-mono uppercase">
+                    {getProfileLabel(msg.profile)}
                   </span>
                 {/if}
               </div>
-              <div class="inline-block text-left p-3.5 rounded-2xl max-w-[90%] leading-relaxed {msg.role === 'user' ? 'bg-brand text-white shadow-retro-sm' : 'retro-card bg-card text-foreground'}">
-                <div class="whitespace-pre-wrap">{msg.content}</div>
+              <div class="inline-block text-left p-3.5 rounded-lg max-w-[90%] leading-relaxed {msg.role === 'user' ? 'bg-brand text-white shadow-retro-sm' : 'retro-card bg-card text-foreground'}">
+                {#if msg.role === 'assistant' && !msg.content && (!msg.steps || msg.steps.length === 0)}
+                  <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground font-mono">
+                    <div class="flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 0ms"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 150ms"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 300ms"></span>
+                    </div>
+                    <span class="text-[11px] text-muted-foreground">L'assistant analyse votre demande...</span>
+                  </div>
+                {/if}
+
+                {#if msg.role === 'assistant' && msg.steps && msg.steps.length > 0}
+                  <div class="mb-3 p-2.5 rounded-lg bg-black/[0.03] border border-black/5 text-[11px] font-mono space-y-1.5">
+                    <div class="flex items-center gap-2 text-muted-foreground font-medium">
+                      <span class="w-2 h-2 rounded-full {isThinking && msg === messages[messages.length-1] ? 'bg-brand animate-pulse' : 'bg-green-600'}"></span>
+                      <span>Actions en cours :</span>
+                    </div>
+                    <div class="space-y-1 pl-4">
+                      {#each msg.steps as step}
+                        <div class="flex items-center gap-2">
+                          {#if step.state === 'running'}
+                            <svg class="animate-spin h-3 w-3 text-brand" fill="none" viewBox="0 0 24 24">
+                              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                          {:else}
+                            <span class="text-green-600 font-bold">✓</span>
+                          {/if}
+                          <span class="{step.state === 'running' ? 'text-foreground font-medium' : 'text-muted-foreground'}">{step.name}</span>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+
+                {#if msg.role === 'user'}
+                  <div class="whitespace-pre-wrap">{msg.content}</div>
+                {:else if msg.content}
+                  <div class="prose prose-sm max-w-none text-foreground leading-relaxed prose-headings:font-display prose-headings:text-foreground prose-a:text-brand prose-code:text-foreground prose-code:bg-black/5 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                    {@html renderMarkdown(msg.content)}
+                  </div>
+                {/if}
               </div>
             </div>
           {/each}
-
-          {#if isThinking}
-            <div class="flex items-center gap-2 p-3 text-xs text-muted-foreground font-mono">
-              <div class="w-2 h-2 rounded-full bg-brand animate-ping"></div>
-              <span>L'agent modifie le code en direct...</span>
-            </div>
-          {/if}
         </div>
 
         <!-- Quick Suggestion Chips -->
         <div class="px-3 py-2 border-t border-black/5 bg-surface/30 flex items-center gap-1.5 overflow-x-auto text-[11px]">
           <button
-            onclick={() => { promptInput = "Ajoute une section Témoignages clients avec 3 cartes modernes"; }}
-            class="shrink-0 px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            onclick={() => { promptInput = "Ajoute une section Témoignages clients moderne avec 3 avis"; }}
+            class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
           >
             + Témoignages
           </button>
           <button
-            onclick={() => { promptInput = "Crée un formulaire de contact avec sauvegarde dans SQLite"; }}
-            class="shrink-0 px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            onclick={() => { promptInput = "Ajoute un formulaire de contact avec nom, email et message"; }}
+            class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
           >
-            + Formulaire SQLite
+            + Formulaire de contact
           </button>
           <button
-            onclick={() => { promptInput = "Ajoute un sélecteur de langue Fr / En avec réactivité Svelte 5"; }}
-            class="shrink-0 px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            onclick={() => { promptInput = "Ajoute une belle galerie d'images pour présenter nos réalisations"; }}
+            class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
           >
-            + Langues
+            + Galerie photos
           </button>
         </div>
 
@@ -703,12 +992,12 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
             bind:value={promptInput}
             placeholder={promptQuota.remaining > 0 ? "Demandez une modification à l'agent..." : "Quota quotidien atteint pour aujourd'hui"}
             disabled={isThinking || promptQuota.remaining <= 0}
-            class="flex-1 rounded-full border border-black/10 bg-card px-4 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
+            class="flex-1 rounded-lg border border-black/10 bg-card px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={!promptInput.trim() || isThinking || promptQuota.remaining <= 0}
-            class="focus-ring px-4 py-2 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40"
+            class="focus-ring px-4 py-2 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0"
           >
             Envoyer
           </button>
@@ -831,24 +1120,53 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
     >
       <!-- Preview Toolbar -->
       <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-3 text-xs font-mono shrink-0">
-        <!-- Viewport Switcher: ONLY Desktop or Mobile -->
-        <div class="flex items-center gap-1 bg-surface/80 p-0.5 rounded-lg border border-black/10">
-          <button
-            onclick={() => viewportMode = "desktop"}
-            class="px-2.5 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'desktop' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-            title="Vue Bureau"
-          >
-            <span>🖥</span>
-            <span class="text-[11px]">Bureau</span>
-          </button>
-          <button
-            onclick={() => viewportMode = "mobile"}
-            class="px-2.5 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'mobile' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-            title="Vue Mobile"
-          >
-            <span>📱</span>
-            <span class="text-[11px]">Mobile</span>
-          </button>
+        <!-- Viewport & Environment Switchers -->
+        <div class="flex items-center gap-2">
+          <!-- Viewport Switcher: ONLY Desktop or Mobile -->
+          <div class="flex items-center gap-1 bg-surface/80 p-0.5 rounded-lg border border-black/10">
+            <button
+              onclick={() => viewportMode = "desktop"}
+              class="px-2.5 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'desktop' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              title="Vue Bureau"
+            >
+              <span>🖥</span>
+              <span class="text-[11px]">Bureau</span>
+            </button>
+            <button
+              onclick={() => viewportMode = "mobile"}
+              class="px-2.5 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'mobile' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              title="Vue Mobile"
+            >
+              <span>📱</span>
+              <span class="text-[11px]">Mobile</span>
+            </button>
+          </div>
+
+          <!-- Environment Switcher: Local Dev vs Live K8s Cluster -->
+          <div class="flex items-center gap-0.5 bg-surface/80 p-0.5 rounded-lg border border-black/10 text-[11px]">
+            <button
+              onclick={() => {
+                previewTarget = "local";
+                refreshPreview();
+              }}
+              class="px-2 py-1 rounded flex items-center gap-1 transition-all cursor-pointer {previewTarget === 'local' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              title="Aperçu local immédiat sur le serveur Vite avec HMR"
+            >
+              <span>⚡</span>
+              <span class="text-[10px]">Local</span>
+            </button>
+            <button
+              onclick={() => {
+                previewTarget = "live";
+                refreshPreview();
+              }}
+              class="px-2 py-1 rounded flex items-center gap-1 transition-all cursor-pointer {previewTarget === 'live' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              title="Aperçu en ligne déployé sur le cluster Kubernetes ({projectSlug}.ether.paris)"
+            >
+              <span>🌐</span>
+              <span class="text-[10px]">Live K8s</span>
+            </button>
+          </div>
         </div>
 
         <!-- Actions -->
@@ -871,7 +1189,7 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
           </button>
 
           <button
-            onclick={() => previewKey++}
+            onclick={refreshPreview}
             class="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-black/5 cursor-pointer"
             title="Rafraîchir l'aperçu"
           >
@@ -881,7 +1199,7 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
           </button>
 
           <a
-            href={liveUrl}
+            href={activePreviewUrl}
             target="_blank"
             rel="noopener"
             class="text-[11px] text-brand hover:underline font-mono inline-flex items-center gap-1"
@@ -902,32 +1220,29 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
       </div>
 
       <!-- Iframe Container -->
-      <div class="flex-1 flex items-center justify-center p-3 overflow-hidden bg-black/5 w-full h-full min-w-0">
+      <div class="flex-1 flex items-center justify-center {viewportMode === 'desktop' ? 'p-0 bg-background' : 'p-4 bg-black/5'} overflow-hidden w-full h-full min-w-0">
         {#if viewportMode === 'desktop'}
-          <div class="w-full h-full bg-card rounded-xl shadow-retro border border-black/10 overflow-hidden flex flex-col">
-            {#key previewKey}
-              <iframe
-                src={liveUrl}
-                title="Aperçu en direct de {projectSlug}"
-                class="w-full h-full border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
-              ></iframe>
-            {/key}
+          <div class="w-full h-full bg-background overflow-hidden flex flex-col">
+            <iframe
+              bind:this={previewIframe}
+              src={activePreviewUrl}
+              title="Aperçu en direct de {projectSlug}"
+              class="w-full h-full border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
+            ></iframe>
           </div>
         {:else}
           <div
-            class="h-full max-h-[760px] w-[375px] max-w-full bg-card rounded-3xl shadow-retro border-4 border-black/20 overflow-hidden flex flex-col transition-all duration-300 relative"
+            class="h-full max-h-[760px] w-[375px] max-w-full bg-card rounded-2xl shadow-retro border-2 border-black/20 overflow-hidden flex flex-col transition-all duration-300 relative"
           >
             <!-- Mobile Phone Speaker Indicator -->
             <div class="h-4 bg-surface flex items-center justify-center border-b border-black/10 shrink-0">
               <div class="w-12 h-1 bg-black/20 rounded-full"></div>
             </div>
-            {#key previewKey}
-              <iframe
-                src={liveUrl}
-                title="Aperçu mobile de {projectSlug}"
-                class="w-full flex-1 border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
-              ></iframe>
-            {/key}
+            <iframe
+              src={activePreviewUrl}
+              title="Aperçu mobile de {projectSlug}"
+              class="w-full flex-1 border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
+            ></iframe>
           </div>
         {/if}
       </div>

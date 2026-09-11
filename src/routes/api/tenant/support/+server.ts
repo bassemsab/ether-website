@@ -13,7 +13,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const { tenantId, subject, message } = body;
 
     if (!message || !message.trim()) {
-      return json({ success: false, error: "Veuillez préciser votre demande." }, { status: 400 });
+      return json(
+        { success: false, error: "Veuillez préciser votre demande." },
+        { status: 400 },
+      );
     }
 
     let siteInfo = "Aucun site spécifique";
@@ -30,12 +33,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       name: `Client Ether · ${customerEmail}`,
       email: customerEmail,
       company: `Site : ${siteInfo}`,
-      message: `[Demande d'infrastructure personnalisée / Support]\nSujet : ${subject || 'Support'}\n\n${message}`,
+      message: `[Demande d'infrastructure personnalisée / Support]\nSujet : ${subject || "Support"}\n\n${message}`,
     });
 
     return json({
       success: true,
-      message: "Votre demande a bien été transmise à l'équipe d'infrastructure Ether. Nous vous répondrons sous 24h.",
+      message:
+        "Votre demande a bien été transmise à l'équipe d'infrastructure Ether. Nous vous répondrons sous 24h.",
     });
   } catch (err: any) {
     console.error("[api/tenant/support] Error:", err);

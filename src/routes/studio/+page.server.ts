@@ -1,9 +1,14 @@
 import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
-import { getTenantBySlug, checkTenantPromptLimit } from "$lib/server/db";
+import {
+  getTenantBySlug,
+  checkTenantPromptLimit,
+  getStudioChatHistory,
+} from "$lib/server/db";
 import { getRunnerProfiles } from "$lib/server/agent-bridge";
+import { listTenantFiles } from "$lib/server/tenant-files";
 
-export const load: PageServerLoad = async ({ url, locals }) => {
+export const load: PageServerLoad = async ({ url, locals, cookies }) => {
   if (!locals.user) {
     const returnUrl = url.pathname + url.search;
     throw redirect(302, `/login?redirect=${encodeURIComponent(returnUrl)}`);
@@ -25,58 +30,65 @@ export const load: PageServerLoad = async ({ url, locals }) => {
     status: "active",
   };
 
-  const brandName = tenantData.brand_name || tenantData.slug || projectSlug;
-  const subdomain = tenantData.subdomain || `${projectSlug}.ether.paris`;
-
   const plan = tenant?.plan || "demo";
   const promptQuota = checkTenantPromptLimit(projectSlug, plan);
 
-  let availableProfiles: string[] = ["primary", "secondary"];
+  const adminEmails = [
+    "bassem.bme@gmail.com",
+    "bassem1alsa@gmail.com",
+    process.env.ADMIN_EMAIL,
+    process.env.RESEND_CONTACT_EMAIL,
+  ]
+    .filter(Boolean)
+    .map((e) => e!.trim().toLowerCase());
+
+  const userEmail = (locals.user?.email || "").trim().toLowerCase();
+  const isAdmin =
+    adminEmails.includes(userEmail) ||
+    cookies.get("ether_admin_auth") === "true" ||
+    userEmail.endsWith("@ether.paris");
+
+  let rawProfiles: { name: string; email: string | null }[] = [
+    { name: "primary", email: "bassem1alsa@gmail.com" },
+    { name: "secondary", email: "bassem.bme@gmail.com" },
+  ];
   try {
     const runnerProfiles = await getRunnerProfiles();
     if (runnerProfiles && runnerProfiles.length > 0) {
-      availableProfiles = runnerProfiles.map((p) => p.name);
+      rawProfiles = runnerProfiles.map((p) => ({
+        name: p.name,
+        email: p.email,
+      }));
     }
   } catch (e) {}
 
-  // Initial code template preview for the code editor
-  const defaultPageCode = `<script lang="ts">
-  let count = $state(0);
-  const brandName = "${brandName}";
-</script>
+  const availableProfiles = rawProfiles.map((p, idx) => ({
+    name: p.name,
+    label: `Agent ${idx + 1}`,
+  }));
 
-<svelte:head>
-  <title>{brandName} — Site Officiel</title>
-</svelte:head>
+  // Real files loaded from tenant codebase directory on disk
+  const initialFiles = listTenantFiles(projectSlug);
 
-<main class="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6">
-  <div class="max-w-2xl w-full text-center space-y-6">
-    <span class="inline-block px-3 py-1 rounded-full border border-brand/20 bg-brand/5 text-brand text-xs font-mono">
-      ${subdomain}
-    </span>
-    <h1 class="font-display text-5xl text-foreground font-normal tracking-tight">
-      {brandName}
-    </h1>
-    <p class="text-muted-foreground text-sm leading-relaxed">
-      Propulsé par Ether Studio · SvelteKit 5 Runes & Bun Runtime
-    </p>
-    <div class="p-6 rounded-2xl bg-surface/80 border border-black/10 flex items-center justify-center gap-4">
-      <button onclick={() => count++} class="px-6 py-3 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-[0.2em]">
-        Compteur : {count}
-      </button>
-    </div>
-  </div>
-</main>`;
+  // Chat history and last active conversation ID from SQLite
+  const chatHistory = getStudioChatHistory(projectSlug);
+  const lastConversationId =
+    chatHistory.length > 0
+      ? chatHistory[chatHistory.length - 1].conversationId || null
+      : null;
 
   return {
     tenant: tenantData,
     projectSlug,
-    defaultCode: defaultPageCode,
     user: locals.user,
+    isAdmin,
     promptQuota: {
       ...promptQuota,
       plan,
     },
     availableProfiles,
+    chatHistory,
+    lastConversationId,
+    initialFiles,
   };
 };

@@ -80,6 +80,17 @@ export interface DomainOrderRecord {
   updated_at: string;
 }
 
+export interface StudioChatMessageRecord {
+  id: number;
+  tenant_slug: string;
+  conversation_id: string | null;
+  role: "user" | "assistant";
+  content: string;
+  profile: string | null;
+  steps_json: string | null;
+  created_at: string;
+}
+
 const DB_PATH = env.DB_PATH || "visitors.sqlite";
 let db: Database;
 
@@ -204,6 +215,25 @@ try {
     )
   `);
 
+  // Studio persistent chat history
+  db.run(`
+    CREATE TABLE IF NOT EXISTS studio_chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_slug TEXT NOT NULL,
+      conversation_id TEXT,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      profile TEXT,
+      steps_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try {
+    db.run(
+      "CREATE INDEX IF NOT EXISTS idx_studio_chat_tenant ON studio_chat_messages(tenant_slug)",
+    );
+  } catch {}
+
   // Safe migrations for existing SQLite schemas
   const safeAddColumn = (table: string, columnDef: string) => {
     try {
@@ -223,7 +253,9 @@ try {
   safeAddColumn("tenants", "user_id INTEGER");
   safeAddColumn("tenants", "slug TEXT");
   try {
-    db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug)");
+    db.run(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug)",
+    );
   } catch {}
   safeAddColumn("tenants", "subdomain TEXT");
   safeAddColumn("tenants", "custom_domain TEXT");
@@ -348,7 +380,7 @@ export async function getTenantByDomain(
   try {
     const cleanDomain = domain.toLowerCase().trim();
     const stmt = db.prepare(
-      `SELECT * FROM tenants WHERE LOWER(domain) = ? OR LOWER(subdomain) = ? OR LOWER(custom_domain) = ?`
+      `SELECT * FROM tenants WHERE LOWER(domain) = ? OR LOWER(subdomain) = ? OR LOWER(custom_domain) = ?`,
     );
     const result = stmt.get(cleanDomain, cleanDomain, cleanDomain);
     return result as TenantRecord | null;
@@ -373,9 +405,7 @@ export async function getTenantBySlug(
   }
 }
 
-export async function getTenantById(
-  id: number,
-): Promise<TenantRecord | null> {
+export async function getTenantById(id: number): Promise<TenantRecord | null> {
   if (!db) return null;
 
   try {
@@ -397,9 +427,10 @@ export async function updateTenantStatus(
 
   try {
     const setKeys = Object.keys(updates);
-    const setClause = setKeys.length > 0 
-      ? ", " + setKeys.map((key) => `${key} = ?`).join(", ")
-      : "";
+    const setClause =
+      setKeys.length > 0
+        ? ", " + setKeys.map((key) => `${key} = ?`).join(", ")
+        : "";
 
     const stmt = db.prepare(`
       UPDATE tenants
@@ -408,7 +439,12 @@ export async function updateTenantStatus(
       RETURNING *
     `);
 
-    const result = stmt.get(status, ...Object.values(updates), domainOrSlug, domainOrSlug);
+    const result = stmt.get(
+      status,
+      ...Object.values(updates),
+      domainOrSlug,
+      domainOrSlug,
+    );
     return result as TenantRecord | null;
   } catch (error) {
     console.error("Failed to update tenant:", error);
@@ -428,14 +464,24 @@ export async function getAllTenants(): Promise<TenantRecord[]> {
   }
 }
 
-export async function getTenantsByUserId(userId: number): Promise<TenantRecord[]> {
+export async function getTenantsByUserId(
+  userId: number,
+  userEmail?: string | null,
+): Promise<TenantRecord[]> {
   if (!db) return [];
 
   try {
+    const adminEmails = ["bassem.bme@gmail.com", "bassem1alsa@gmail.com"];
+    const normalizedEmail = (userEmail || "").trim().toLowerCase();
+    if (normalizedEmail && adminEmails.includes(normalizedEmail)) {
+      const stmt = db.prepare(`SELECT * FROM tenants ORDER BY created_at DESC`);
+      return stmt.all() as TenantRecord[];
+    }
+
     const stmt = db.prepare(
-      `SELECT * FROM tenants WHERE user_id = ? ORDER BY created_at DESC`,
+      `SELECT * FROM tenants WHERE user_id = ? OR email = ? ORDER BY created_at DESC`,
     );
-    return stmt.all(userId) as TenantRecord[];
+    return stmt.all(userId, normalizedEmail) as TenantRecord[];
   } catch (error) {
     console.error("Failed to get tenants by user:", error);
     return [];
@@ -443,7 +489,9 @@ export async function getTenantsByUserId(userId: number): Promise<TenantRecord[]
 }
 
 // User Helpers
-export async function getOrCreateUserByEmail(email: string): Promise<UserRecord | null> {
+export async function getOrCreateUserByEmail(
+  email: string,
+): Promise<UserRecord | null> {
   if (!db) return null;
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -452,7 +500,10 @@ export async function getOrCreateUserByEmail(email: string): Promise<UserRecord 
     let user = selectStmt.get(normalizedEmail) as UserRecord | null;
 
     if (!user) {
-      const username = normalizedEmail.split("@")[0].replace(/[^a-z0-9_-]/g, "-").slice(0, 32);
+      const username = normalizedEmail
+        .split("@")[0]
+        .replace(/[^a-z0-9_-]/g, "-")
+        .slice(0, 32);
       const insertStmt = db.prepare(`
         INSERT INTO users (email, github_id, github_username, github_access_token, last_login_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -462,10 +513,12 @@ export async function getOrCreateUserByEmail(email: string): Promise<UserRecord 
         normalizedEmail,
         `email:${normalizedEmail}`,
         username,
-        `otp:${Date.now()}`
+        `otp:${Date.now()}`,
       ) as UserRecord | null;
     } else {
-      db.prepare(`UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id);
+      db.prepare(
+        `UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      ).run(user.id);
     }
 
     return user;
@@ -482,11 +535,13 @@ export async function updateUserGitea(
 ): Promise<boolean> {
   if (!db) return false;
   try {
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE users 
       SET gitea_username = ?, gitea_token = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(giteaUsername, giteaToken, userId);
+    `,
+    ).run(giteaUsername, giteaToken, userId);
     return true;
   } catch (error) {
     console.error("Failed to update user Gitea info:", error);
@@ -547,7 +602,9 @@ export async function getUserById(id: number): Promise<UserRecord | null> {
   }
 }
 
-export async function getUserByGithubId(githubId: string): Promise<UserRecord | null> {
+export async function getUserByGithubId(
+  githubId: string,
+): Promise<UserRecord | null> {
   if (!db) return null;
 
   try {
@@ -651,7 +708,14 @@ export async function recordDomainOrder(
       RETURNING *
     `);
 
-    const result = stmt.get(tenantId, domain, provider, stripeSessionId, priceCents, currency);
+    const result = stmt.get(
+      tenantId,
+      domain,
+      provider,
+      stripeSessionId,
+      priceCents,
+      currency,
+    );
     return result as DomainOrderRecord | null;
   } catch (error) {
     console.error("Failed to record domain order:", error);
@@ -674,7 +738,11 @@ export async function updateDomainOrderStatus(
       RETURNING *
     `);
 
-    const result = stmt.get(status, stripeSubscriptionId || null, stripeSessionId);
+    const result = stmt.get(
+      status,
+      stripeSubscriptionId || null,
+      stripeSessionId,
+    );
     return result as DomainOrderRecord | null;
   } catch (error) {
     console.error("Failed to update domain order status:", error);
@@ -686,13 +754,14 @@ export async function updateDomainOrderStatus(
 export function getTenantDailyLimit(plan?: string | null): number {
   const normalized = (plan || "demo").toLowerCase().trim();
   if (normalized === "enterprise" || normalized === "unlimited") return 1000;
-  if (normalized === "pro" || normalized === "starter" || normalized === "paid") return 150;
+  if (normalized === "pro" || normalized === "starter" || normalized === "paid")
+    return 150;
   return 25; // demo / free
 }
 
 export function checkTenantPromptLimit(
   tenantSlug: string,
-  plan: string = "demo"
+  plan: string = "demo",
 ): { allowed: boolean; current: number; limit: number; remaining: number } {
   const limit = getTenantDailyLimit(plan);
   if (!db) {
@@ -702,7 +771,9 @@ export function checkTenantPromptLimit(
   try {
     const today = new Date().toISOString().slice(0, 10);
     const row = db
-      .prepare(`SELECT prompt_count FROM tenant_prompt_usage WHERE tenant_slug = ? AND date = ?`)
+      .prepare(
+        `SELECT prompt_count FROM tenant_prompt_usage WHERE tenant_slug = ? AND date = ?`,
+      )
       .get(tenantSlug, today) as { prompt_count: number } | undefined;
 
     const current = row?.prompt_count || 0;
@@ -730,10 +801,117 @@ export function incrementTenantPromptCount(tenantSlug: string): number {
       RETURNING prompt_count
     `);
 
-    const result = stmt.get(tenantSlug, today) as { prompt_count: number } | undefined;
+    const result = stmt.get(tenantSlug, today) as
+      | { prompt_count: number }
+      | undefined;
     return result?.prompt_count || 1;
   } catch (error) {
     console.error("Failed to increment tenant prompt count:", error);
     return 1;
+  }
+}
+
+// Studio Chat History Helpers
+export interface StudioChatMessageUI {
+  role: "user" | "assistant";
+  content: string;
+  profile: string;
+  time: string;
+  steps?: {
+    id: number | string;
+    name: string;
+    state: "running" | "completed";
+  }[];
+  conversationId?: string | null;
+}
+
+export function getStudioChatHistory(
+  tenantSlug: string,
+  limit = 50,
+): StudioChatMessageUI[] {
+  if (!db) return [];
+
+  try {
+    const rows = db
+      .prepare(
+        `SELECT * FROM studio_chat_messages WHERE tenant_slug = ? ORDER BY id ASC LIMIT ?`,
+      )
+      .all(tenantSlug, limit) as StudioChatMessageRecord[];
+
+    return rows.map((r) => {
+      let steps = undefined;
+      if (r.steps_json) {
+        try {
+          steps = JSON.parse(r.steps_json);
+        } catch {}
+      }
+
+      let time = "";
+      try {
+        const d = new Date(
+          r.created_at + (r.created_at.includes("Z") ? "" : "Z"),
+        );
+        time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } catch {
+        time = new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      return {
+        role: r.role,
+        content: r.content,
+        profile: r.profile || "primary",
+        time,
+        steps,
+        conversationId: r.conversation_id,
+      };
+    });
+  } catch (err) {
+    console.error("Failed to get studio chat history:", err);
+    return [];
+  }
+}
+
+export function saveStudioChatMessage(
+  tenantSlug: string,
+  role: "user" | "assistant",
+  content: string,
+  profile?: string | null,
+  conversationId?: string | null,
+  steps?: any[],
+): void {
+  if (!db) return;
+
+  try {
+    const stepsJson = steps && steps.length > 0 ? JSON.stringify(steps) : null;
+    db.prepare(
+      `INSERT INTO studio_chat_messages (tenant_slug, conversation_id, role, content, profile, steps_json)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(
+      tenantSlug,
+      conversationId || null,
+      role,
+      content,
+      profile || null,
+      stepsJson,
+    );
+  } catch (err) {
+    console.error("Failed to save studio chat message:", err);
+  }
+}
+
+export function clearStudioChatHistory(tenantSlug: string): boolean {
+  if (!db) return false;
+
+  try {
+    db.prepare(`DELETE FROM studio_chat_messages WHERE tenant_slug = ?`).run(
+      tenantSlug,
+    );
+    return true;
+  } catch (err) {
+    console.error("Failed to clear studio chat history:", err);
+    return false;
   }
 }

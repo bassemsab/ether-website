@@ -5,7 +5,7 @@ const BASE_URL = "https://api.github.com";
 export async function createRepositoryInUserAccount(
   accessToken: string,
   repoName: string,
-  description: string
+  description: string,
 ) {
   const response = await fetch(`${BASE_URL}/user/repos`, {
     method: "POST",
@@ -27,7 +27,7 @@ export async function createRepositoryInUserAccount(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(
-      `GitHub API error: ${error.message || response.statusText}`
+      `GitHub API error: ${error.message || response.statusText}`,
     );
   }
 
@@ -40,7 +40,7 @@ export async function createFileInUserRepo(
   repoName: string,
   path: string,
   content: string,
-  message: string
+  message: string,
 ) {
   const encodedContent = Buffer.from(content).toString("base64");
 
@@ -57,13 +57,13 @@ export async function createFileInUserRepo(
         message: message,
         content: encodedContent,
       }),
-    }
+    },
   );
 
   if (!response.ok) {
     const error = await response.json();
     throw new Error(
-      `GitHub API error: ${error.message || response.statusText}`
+      `GitHub API error: ${error.message || response.statusText}`,
     );
   }
 
@@ -74,7 +74,7 @@ export async function initializeTenantRepo(
   accessToken: string,
   domain: string,
   brandName: string,
-  githubUsername: string
+  githubUsername: string,
 ) {
   const repoName = domain.replace(/\./g, "-"); // Convert mybusiness.com to mybusiness-com
 
@@ -82,7 +82,7 @@ export async function initializeTenantRepo(
   const repo = await createRepositoryInUserAccount(
     accessToken,
     repoName,
-    `${brandName} - Website repository for ${domain}`
+    `${brandName} - Website repository for ${domain}`,
   );
 
   // Create README
@@ -92,7 +92,7 @@ export async function initializeTenantRepo(
     repoName,
     "README.md",
     generateReadme(brandName, domain),
-    "Initial commit: Add README"
+    "Initial commit: Add README",
   );
 
   // Create basic website template
@@ -102,7 +102,7 @@ export async function initializeTenantRepo(
     repoName,
     "index.html",
     generateHtmlTemplate(brandName, domain),
-    "Add initial website template"
+    "Add initial website template",
   );
 
   // Create Dockerfile
@@ -112,7 +112,7 @@ export async function initializeTenantRepo(
     repoName,
     "Dockerfile",
     generateDockerfile(),
-    "Add Dockerfile for containerization"
+    "Add Dockerfile for containerization",
   );
 
   // Create k8s deployment manifest
@@ -122,7 +122,7 @@ export async function initializeTenantRepo(
     repoName,
     "k8s/deployment.yaml",
     generateK8sManifest(domain),
-    "Add Kubernetes deployment configuration"
+    "Add Kubernetes deployment configuration",
   );
 
   // Create .github/workflows/deploy.yaml
@@ -132,7 +132,7 @@ export async function initializeTenantRepo(
     repoName,
     ".github/workflows/deploy.yaml",
     generateGitHubWorkflow(),
-    "Add GitHub Actions deployment workflow"
+    "Add GitHub Actions deployment workflow",
   );
 
   return repo;

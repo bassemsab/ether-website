@@ -1,5 +1,9 @@
 import { env } from "$env/dynamic/private";
-import { createOrUpdateUser, createSession, getUserByGithubId } from "$lib/server/db";
+import {
+  createOrUpdateUser,
+  createSession,
+  getUserByGithubId,
+} from "$lib/server/db";
 import { randomBytes } from "crypto";
 
 const GITHUB_CLIENT_ID = env.GITHUB_CLIENT_ID;
@@ -33,7 +37,9 @@ export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 /**
  * Resolves the shared cookie domain across all ether.paris subdomains (studio, tenant, main)
  */
-export function getSessionCookieDomain(host?: string | null): string | undefined {
+export function getSessionCookieDomain(
+  host?: string | null,
+): string | undefined {
   if (!host) {
     return process.env.NODE_ENV === "production" ? ".ether.paris" : undefined;
   }
@@ -59,7 +65,9 @@ export function getGitHubOAuthUrl(state: string): string {
   return `https://github.com/login/oauth/authorize?${params.toString()}`;
 }
 
-export async function exchangeCodeForToken(code: string): Promise<GitHubTokenResponse> {
+export async function exchangeCodeForToken(
+  code: string,
+): Promise<GitHubTokenResponse> {
   if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
     throw new Error("GitHub OAuth credentials not configured");
   }
@@ -80,13 +88,17 @@ export async function exchangeCodeForToken(code: string): Promise<GitHubTokenRes
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(`GitHub OAuth error: ${error.error_description || error.error}`);
+    throw new Error(
+      `GitHub OAuth error: ${error.error_description || error.error}`,
+    );
   }
 
   const data = await response.json();
 
   if (data.error) {
-    throw new Error(`GitHub OAuth error: ${data.error_description || data.error}`);
+    throw new Error(
+      `GitHub OAuth error: ${data.error_description || data.error}`,
+    );
   }
 
   return data;
@@ -107,7 +119,9 @@ export async function getGitHubUser(accessToken: string): Promise<GitHubUser> {
   return response.json();
 }
 
-export async function handleGitHubCallback(code: string): Promise<{ user: any; sessionToken: string }> {
+export async function handleGitHubCallback(
+  code: string,
+): Promise<{ user: any; sessionToken: string }> {
   // Exchange code for access token
   const tokenData = await exchangeCodeForToken(code);
 
@@ -121,7 +135,7 @@ export async function handleGitHubCallback(code: string): Promise<{ user: any; s
     githubUser.email,
     tokenData.access_token,
     tokenData.refresh_token || null,
-    githubUser.avatar_url
+    githubUser.avatar_url,
   );
 
   if (!user) {
@@ -142,7 +156,9 @@ export async function handleGitHubCallback(code: string): Promise<{ user: any; s
   return { user, sessionToken };
 }
 
-export async function refreshGitHubToken(refreshToken: string): Promise<string | null> {
+export async function refreshGitHubToken(
+  refreshToken: string,
+): Promise<string | null> {
   if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
     return null;
   }

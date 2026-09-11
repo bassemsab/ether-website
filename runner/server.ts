@@ -14,8 +14,57 @@ import {
 } from "./auth-helper";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
-const DATA_DIR = process.env.DATA_DIR || "/data";
-const MAX_CONCURRENT_TURNS = parseInt(process.env.MAX_CONCURRENT_TURNS || "3", 10);
+const DATA_DIR =
+  process.env.DATA_DIR ||
+  (process.platform === "darwin"
+    ? join(process.cwd(), ".local-data")
+    : "/data");
+const MAX_CONCURRENT_TURNS = parseInt(
+  process.env.MAX_CONCURRENT_TURNS || "3",
+  10,
+);
+
+function formatToolStep(toolName: string, params: any): string {
+  if (toolName === "write_to_file") {
+    const file = params?.TargetFile
+      ? params.TargetFile.split("/").pop()
+      : "fichier";
+    return `Création de ${file}`;
+  }
+  if (
+    toolName === "replace_file_content" ||
+    toolName === "multi_replace_file_content"
+  ) {
+    const file = params?.TargetFile
+      ? params.TargetFile.split("/").pop()
+      : "fichier";
+    return `Mise à jour de ${file}`;
+  }
+  if (toolName === "run_command") {
+    const cmd = (params?.CommandLine || "").trim();
+    if (cmd.includes("install") || cmd.includes("add"))
+      return "Installation des dépendances";
+    if (cmd.includes("build")) return "Vérification du code";
+    return "Configuration du projet";
+  }
+  if (
+    toolName === "view_file" ||
+    toolName === "read_resource" ||
+    toolName === "read_url_content"
+  ) {
+    const file = params?.AbsolutePath
+      ? params.AbsolutePath.split("/").pop()
+      : "fichier";
+    return `Lecture de ${file}`;
+  }
+  if (toolName === "list_dir" || toolName === "find_by_name") {
+    return "Exploration du projet";
+  }
+  if (toolName === "grep_search") {
+    return "Recherche dans le code";
+  }
+  return "Amélioration du site...";
+}
 
 // Ensure base directories exist
 mkdirSync(join(DATA_DIR, "profiles"), { recursive: true });
@@ -28,7 +77,10 @@ let globalActiveTurns = 0;
 /**
  * Executes a function within a per-tenant sequential lock, respecting global concurrency limit.
  */
-async function enqueueTenantTurn<T>(tenant: string, fn: () => Promise<T>): Promise<T> {
+async function enqueueTenantTurn<T>(
+  tenant: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   while (globalActiveTurns >= MAX_CONCURRENT_TURNS) {
     await new Promise((r) => setTimeout(r, 200));
   }
@@ -39,7 +91,10 @@ async function enqueueTenantTurn<T>(tenant: string, fn: () => Promise<T>): Promi
     releaseLock = resolve;
   });
 
-  tenantLocks.set(tenant, currentLock.then(() => nextLock));
+  tenantLocks.set(
+    tenant,
+    currentLock.then(() => nextLock),
+  );
 
   await currentLock;
   globalActiveTurns++;
@@ -106,8 +161,8 @@ function ensureTenantCodebase(tenantSlug: string): string {
           },
         },
         null,
-        2
-      )
+        2,
+      ),
     );
   }
 
@@ -143,14 +198,17 @@ const server = Bun.serve({
           profilesCount: profiles.length,
           profiles,
         },
-        { headers: corsHeaders }
+        { headers: corsHeaders },
       );
     }
 
     // List Profiles with Quota Telemetry
     if (path === "/profiles" && req.method === "GET") {
       const profiles = listStoredProfiles(DATA_DIR);
-      return Response.json({ success: true, profiles }, { headers: corsHeaders });
+      return Response.json(
+        { success: true, profiles },
+        { headers: corsHeaders },
+      );
     }
 
     // Create New Profile Slot (e.g. profile-3, profile-4)
@@ -161,9 +219,15 @@ const server = Bun.serve({
         createEmptyProfile(DATA_DIR, profile);
 
         const authUrl = generateAuthUrl(DATA_DIR, profile, body.clientId);
-        return Response.json({ success: true, profile, authUrl }, { headers: corsHeaders });
+        return Response.json(
+          { success: true, profile, authUrl },
+          { headers: corsHeaders },
+        );
       } catch (err: any) {
-        return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
       }
     }
 
@@ -173,9 +237,15 @@ const server = Bun.serve({
         const body = (await req.json()) as any;
         const profile = (body.profile || "primary").trim();
         const authUrl = generateAuthUrl(DATA_DIR, profile, body.clientId);
-        return Response.json({ success: true, profile, authUrl }, { headers: corsHeaders });
+        return Response.json(
+          { success: true, profile, authUrl },
+          { headers: corsHeaders },
+        );
       } catch (err: any) {
-        return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
       }
     }
 
@@ -187,10 +257,19 @@ const server = Bun.serve({
         const code = (body.code || "").trim();
 
         if (!code) {
-          return Response.json({ success: false, error: "Authorization code is required" }, { status: 400, headers: corsHeaders });
+          return Response.json(
+            { success: false, error: "Authorization code is required" },
+            { status: 400, headers: corsHeaders },
+          );
         }
 
-        const tokenPayload = await exchangeCodeForTokens(DATA_DIR, code, profile, body.clientId, body.clientSecret);
+        const tokenPayload = await exchangeCodeForTokens(
+          DATA_DIR,
+          code,
+          profile,
+          body.clientId,
+          body.clientSecret,
+        );
         const email = await fetchUserEmail(tokenPayload.access_token);
         saveProfile(DATA_DIR, profile, tokenPayload, email);
 
@@ -201,10 +280,13 @@ const server = Bun.serve({
             email,
             expiry: tokenPayload.expiry,
           },
-          { headers: corsHeaders }
+          { headers: corsHeaders },
         );
       } catch (err: any) {
-        return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
       }
     }
 
@@ -217,13 +299,26 @@ const server = Bun.serve({
         const email = body.email;
 
         if (!tokenData || !tokenData.access_token) {
-          return Response.json({ success: false, error: "Valid tokenData is required" }, { status: 400, headers: corsHeaders });
+          return Response.json(
+            { success: false, error: "Valid tokenData is required" },
+            { status: 400, headers: corsHeaders },
+          );
         }
 
         saveProfile(DATA_DIR, profile, tokenData, email);
-        return Response.json({ success: true, profile, message: `Profile ${profile} imported successfully` }, { headers: corsHeaders });
+        return Response.json(
+          {
+            success: true,
+            profile,
+            message: `Profile ${profile} imported successfully`,
+          },
+          { headers: corsHeaders },
+        );
       } catch (err: any) {
-        return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
       }
     }
 
@@ -235,10 +330,15 @@ const server = Bun.serve({
         const prompt = (body.prompt || "").trim();
         const requestedProfile = body.profile;
         const conversationId = body.conversationId;
-        const isStream = body.stream === true || req.headers.get("accept") === "text/event-stream";
+        const isStream =
+          body.stream === true ||
+          req.headers.get("accept") === "text/event-stream";
 
         if (!prompt) {
-          return Response.json({ success: false, error: "Prompt is required" }, { status: 400, headers: corsHeaders });
+          return Response.json(
+            { success: false, error: "Prompt is required" },
+            { status: 400, headers: corsHeaders },
+          );
         }
 
         const tenantCodeDir = ensureTenantCodebase(project);
@@ -265,31 +365,46 @@ const server = Bun.serve({
                     attemptCount++;
                     triedProfiles.push(activeProfile);
 
-                    sendEvent("status", {
-                      message: `Exécution sur le compte [${activeProfile}]...`,
-                      profile: activeProfile,
-                    });
-
                     // Prepare tenant sandbox with Google credentials
-                    let sandboxHome = join(DATA_DIR, "tenants", project, ".gemini-sandbox");
+                    let sandboxHome = join(
+                      DATA_DIR,
+                      "tenants",
+                      project,
+                      ".gemini-sandbox",
+                    );
                     try {
-                      sandboxHome = injectProfileIntoTenantSandbox(DATA_DIR, activeProfile, project);
+                      sandboxHome = injectProfileIntoTenantSandbox(
+                        DATA_DIR,
+                        activeProfile,
+                        project,
+                      );
                     } catch (e: any) {
-                      console.error(`[Runner] Sandbox injection error: ${e.message}`);
-                      mkdirSync(join(sandboxHome, ".gemini", "antigravity-cli"), { recursive: true });
+                      console.error(
+                        `[Runner] Sandbox injection error: ${e.message}`,
+                      );
+                      mkdirSync(
+                        join(sandboxHome, ".gemini", "antigravity-cli"),
+                        { recursive: true },
+                      );
                     }
 
                     const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
                     const hasAgy = existsSync(agyBin);
 
                     if (!hasAgy) {
-                      throw new Error("Antigravity CLI (agy) binary is not installed on runner");
+                      throw new Error(
+                        "Antigravity CLI (agy) binary is not installed on runner",
+                      );
                     }
 
                     const args = [
                       agyBin,
-                      "-p", prompt,
-                      "--add-dir", tenantCodeDir,
+                      "-p",
+                      prompt,
+                      "--add-dir",
+                      tenantCodeDir,
+                      "--output-format",
+                      "stream-json",
                       "--dangerously-skip-permissions",
                     ];
                     if (conversationId) {
@@ -307,16 +422,89 @@ const server = Bun.serve({
                       stderr: "pipe",
                     });
 
+                    // Send keepalive comment every 3s so browser / reverse proxy never drops connection
+                    const keepaliveInterval = setInterval(() => {
+                      try {
+                        controller.enqueue(
+                          new TextEncoder().encode(": keepalive\n\n"),
+                        );
+                      } catch (e) {}
+                    }, 3000);
+
                     const reader = proc.stdout.getReader();
                     const decoder = new TextDecoder();
                     let fullOutput = "";
+                    let lineBuffer = "";
+                    let capturedConvId = conversationId;
 
-                    while (true) {
-                      const { done, value } = await reader.read();
-                      if (done) break;
-                      const text = decoder.decode(value);
-                      fullOutput += text;
-                      sendEvent("chunk", { text });
+                    try {
+                      while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunkStr = decoder.decode(value);
+                        lineBuffer += chunkStr;
+                        const lines = lineBuffer.split("\n");
+                        lineBuffer = lines.pop() || "";
+
+                        for (const rawLine of lines) {
+                          const line = rawLine.trim();
+                          if (!line) continue;
+                          try {
+                            const parsed = JSON.parse(line);
+                            if (
+                              parsed.event === "init" &&
+                              parsed.conversation_id
+                            ) {
+                              capturedConvId = parsed.conversation_id;
+                            } else if (parsed.event === "step_update") {
+                              const su = parsed.step_update;
+                              if (
+                                su.step_type === "tool" &&
+                                su.state === "ACTIVE"
+                              ) {
+                                const toolName =
+                                  su.tool_name ||
+                                  su.tool_info?.name ||
+                                  "action";
+                                const friendlyMsg = formatToolStep(
+                                  toolName,
+                                  su.tool_info?.parameters,
+                                );
+                                sendEvent("step", {
+                                  id: su.step_index,
+                                  name: friendlyMsg,
+                                  state: "running",
+                                });
+                              } else if (
+                                su.step_type === "tool" &&
+                                (su.state === "DONE" || su.state === "ERROR")
+                              ) {
+                                sendEvent("step", {
+                                  id: su.step_index,
+                                  state: "completed",
+                                });
+                              } else if (
+                                su.step_type === "agent_response" &&
+                                su.text_delta
+                              ) {
+                                fullOutput += su.text_delta;
+                                sendEvent("chunk", { text: su.text_delta });
+                              }
+                            } else if (parsed.event === "result") {
+                              if (parsed.result?.response && !fullOutput) {
+                                fullOutput = parsed.result.response;
+                                sendEvent("chunk", { text: fullOutput });
+                              }
+                            }
+                          } catch {
+                            // Plain text or unexpected non-JSON output
+                            fullOutput += line + "\n";
+                            sendEvent("chunk", { text: line + "\n" });
+                          }
+                        }
+                      }
+                    } finally {
+                      clearInterval(keepaliveInterval);
                     }
 
                     const stderrText = await new Response(proc.stderr).text();
@@ -325,15 +513,17 @@ const server = Bun.serve({
                     const combinedOutput = `${fullOutput} ${stderrText}`;
 
                     if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
-                      console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
+                      console.warn(
+                        `[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`,
+                      );
                       markProfileThrottled(activeProfile);
 
-                      const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
+                      const nextProfile = getNextHealthyProfile(
+                        DATA_DIR,
+                        undefined,
+                        triedProfiles,
+                      );
                       if (nextProfile) {
-                        sendEvent("status", {
-                          message: `Quota atteint sur [${activeProfile}]. Basculement automatique sur [${nextProfile}]...`,
-                          profile: nextProfile,
-                        });
                         activeProfile = nextProfile;
                         continue; // Retry with next profile
                       }
@@ -343,13 +533,18 @@ const server = Bun.serve({
                     if (success) {
                       incrementProfileTurnCount(activeProfile);
                     } else if (!fullOutput && stderrText) {
-                      sendEvent("chunk", { text: `\n⚠️ Erreur: ${stderrText.trim()}` });
+                      sendEvent("chunk", {
+                        text: `\n⚠️ Erreur: ${stderrText.trim()}`,
+                      });
                     }
 
                     sendEvent("done", {
                       success,
                       profileUsed: activeProfile,
-                      conversationId: conversationId || `conv_${Date.now()}`,
+                      conversationId:
+                        capturedConvId ||
+                        conversationId ||
+                        `conv_${Date.now()}`,
                       exitCode: proc.exitCode,
                     });
                   }
@@ -381,25 +576,40 @@ const server = Bun.serve({
               attemptCount++;
               triedProfiles.push(activeProfile);
 
-              let sandboxHome = join(DATA_DIR, "tenants", project, ".gemini-sandbox");
+              let sandboxHome = join(
+                DATA_DIR,
+                "tenants",
+                project,
+                ".gemini-sandbox",
+              );
               try {
-                sandboxHome = injectProfileIntoTenantSandbox(DATA_DIR, activeProfile, project);
+                sandboxHome = injectProfileIntoTenantSandbox(
+                  DATA_DIR,
+                  activeProfile,
+                  project,
+                );
               } catch (e: any) {
                 console.error(`[Runner] Sandbox injection error: ${e.message}`);
-                mkdirSync(join(sandboxHome, ".gemini", "antigravity-cli"), { recursive: true });
+                mkdirSync(join(sandboxHome, ".gemini", "antigravity-cli"), {
+                  recursive: true,
+                });
               }
 
               const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
               const hasAgy = existsSync(agyBin);
 
               if (!hasAgy) {
-                throw new Error("Antigravity CLI (agy) binary is not installed on runner");
+                throw new Error(
+                  "Antigravity CLI (agy) binary is not installed on runner",
+                );
               }
 
               const args = [
                 agyBin,
-                "-p", prompt,
-                "--add-dir", tenantCodeDir,
+                "-p",
+                prompt,
+                "--add-dir",
+                tenantCodeDir,
                 "--dangerously-skip-permissions",
               ];
               if (conversationId) {
@@ -424,10 +634,16 @@ const server = Bun.serve({
               const combinedOutput = `${stdout} ${stderr}`;
 
               if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
-                console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
+                console.warn(
+                  `[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`,
+                );
                 markProfileThrottled(activeProfile);
 
-                const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
+                const nextProfile = getNextHealthyProfile(
+                  DATA_DIR,
+                  undefined,
+                  triedProfiles,
+                );
                 if (nextProfile) {
                   activeProfile = nextProfile;
                   continue; // Retry with next profile
@@ -450,7 +666,8 @@ const server = Bun.serve({
 
             return {
               success: false,
-              response: "All configured Google profiles have reached their quota limits.",
+              response:
+                "All configured Google profiles have reached their quota limits.",
               profileUsed: activeProfile,
               conversationId: conversationId || `conv_${Date.now()}`,
               exitCode: -1,
@@ -460,7 +677,10 @@ const server = Bun.serve({
           return Response.json(result, { headers: corsHeaders });
         }
       } catch (err: any) {
-        return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
       }
     }
 

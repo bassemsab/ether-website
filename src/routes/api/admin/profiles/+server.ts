@@ -34,7 +34,11 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 
     if (action === "create_profile") {
       const result = await createRunnerProfile(profile);
-      return json({ success: true, profile: result.profile, authUrl: result.authUrl });
+      return json({
+        success: true,
+        profile: result.profile,
+        authUrl: result.authUrl,
+      });
     }
 
     if (action === "start_auth") {
@@ -45,7 +49,10 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
     if (action === "finish_auth") {
       const code = (body.code || "").trim();
       if (!code) {
-        return json({ success: false, error: "Code d'autorisation requis" }, { status: 400 });
+        return json(
+          { success: false, error: "Code d'autorisation requis" },
+          { status: 400 },
+        );
       }
       const result = await finishProfileAuth(profile, code);
       return json({ success: true, profile, email: result.email });

@@ -115,6 +115,7 @@ The project includes a built-in MCP server for external tool integration:
 ## Domain Migration & Cloudflare Tooling
 
 For delegating domains from OVH to Cloudflare and setting up Cloudflare Email Routing (e.g. `contact@domain.com` -> Gmail):
+
 - Script: `scripts/ovh_to_cloudflare.py`
 - Documentation: `DOMAIN_MIGRATION_GUIDE.md`
 - Usage: `python3 scripts/ovh_to_cloudflare.py --domain <domain> --forward-to <email>`

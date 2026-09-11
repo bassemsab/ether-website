@@ -1,11 +1,17 @@
 import { env } from "$env/dynamic/private";
 import Stripe from "stripe";
-import { updateDomainOrderStatus, getTenantById, updateTenantStatus } from "./db";
+import {
+  updateDomainOrderStatus,
+  getTenantById,
+  updateTenantStatus,
+} from "./db";
 import { updateTenantCustomDomainIngress } from "./k8s-tenant";
 import { provisionBookedDomain } from "./domains";
 
-const STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY || "";
-const STRIPE_WEBHOOK_SECRET = env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || "";
+const STRIPE_SECRET_KEY =
+  env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY || "";
+const STRIPE_WEBHOOK_SECRET =
+  env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || "";
 
 export const stripe = STRIPE_SECRET_KEY
   ? new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-02-24.acacia" as any })
@@ -24,9 +30,13 @@ export interface CreateCheckoutParams {
 /**
  * Creates a Stripe Checkout Session for annual recurring domain subscription.
  */
-export async function createDomainCheckoutSession(params: CreateCheckoutParams): Promise<{ url: string; sessionId: string }> {
+export async function createDomainCheckoutSession(
+  params: CreateCheckoutParams,
+): Promise<{ url: string; sessionId: string }> {
   if (!stripe) {
-    console.warn("[Stripe] STRIPE_SECRET_KEY not set, generating mock checkout link for dev");
+    console.warn(
+      "[Stripe] STRIPE_SECRET_KEY not set, generating mock checkout link for dev",
+    );
     return {
       url: `${params.successUrl}&mock_session_id=mock_sub_${Date.now()}`,
       sessionId: `mock_sess_${Date.now()}`,
@@ -72,23 +82,37 @@ export async function createDomainCheckoutSession(params: CreateCheckoutParams):
 /**
  * Handles Stripe webhook events.
  */
-export async function handleStripeWebhookEvent(payload: string, signature: string): Promise<{ received: boolean; action?: string }> {
+export async function handleStripeWebhookEvent(
+  payload: string,
+  signature: string,
+): Promise<{ received: boolean; action?: string }> {
   if (!stripe || !STRIPE_WEBHOOK_SECRET) {
     return { received: true, action: "skipped_no_stripe_key" };
   }
 
-  const event = stripe.webhooks.constructEvent(payload, signature, STRIPE_WEBHOOK_SECRET);
+  const event = stripe.webhooks.constructEvent(
+    payload,
+    signature,
+    STRIPE_WEBHOOK_SECRET,
+  );
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const tenantIdStr = session.metadata?.tenant_id;
     const domain = session.metadata?.domain;
-    const provider = (session.metadata?.provider || "cloudflare") as "ovh" | "cloudflare";
-    const subscriptionId = typeof session.subscription === "string" ? session.subscription : undefined;
+    const provider = (session.metadata?.provider || "cloudflare") as
+      | "ovh"
+      | "cloudflare";
+    const subscriptionId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : undefined;
 
     if (tenantIdStr && domain) {
       const tenantId = parseInt(tenantIdStr, 10);
-      console.log(`[Stripe Webhook] Processing domain payment completed for ${domain} (tenant ${tenantId})`);
+      console.log(
+        `[Stripe Webhook] Processing domain payment completed for ${domain} (tenant ${tenantId})`,
+      );
 
       // 1. Update order status in DB
       await updateDomainOrderStatus(session.id, "active", subscriptionId);
@@ -108,7 +132,7 @@ export async function handleStripeWebhookEvent(payload: string, signature: strin
             tenant.slug,
             tenant.k8s_namespace,
             tenant.subdomain || `${tenant.slug}.ether.paris`,
-            domain
+            domain,
           );
         }
 

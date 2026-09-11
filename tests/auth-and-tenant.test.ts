@@ -1,6 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { generateCode, hashCode, createEmailLoginCode, verifyEmailCode } from "../src/lib/server/email-login-codes";
-import { getOrCreateUserByEmail, createTenantWebsite, getTenantBySlug } from "../src/lib/server/db";
+import {
+  generateCode,
+  hashCode,
+  createEmailLoginCode,
+  verifyEmailCode,
+} from "../src/lib/server/email-login-codes";
+import {
+  getOrCreateUserByEmail,
+  createTenantWebsite,
+  getTenantBySlug,
+} from "../src/lib/server/db";
 import { searchDomains } from "../src/lib/server/domains";
 import { checkEmailDomain } from "../src/lib/server/email-domain-check";
 
@@ -30,7 +39,9 @@ describe("Email Domain & Acceptability Check (AMI frontend model)", () => {
   });
 
   it("should reject domains without MX records", async () => {
-    const verdict = await checkEmailDomain("user@nonexistent-domain-fake-123456789.xyz");
+    const verdict = await checkEmailDomain(
+      "user@nonexistent-domain-fake-123456789.xyz",
+    );
     expect(verdict.ok).toBe(false);
     if (!verdict.ok) {
       expect(verdict.reason).toBe("no_mx");
@@ -74,7 +85,12 @@ describe("Tenant and Database Integration", () => {
     expect(user?.email).toBe(testEmail);
 
     const slug = `site-${Date.now()}`;
-    const tenant = await createTenantWebsite(user!.id, slug, "Test Brand", testEmail);
+    const tenant = await createTenantWebsite(
+      user!.id,
+      slug,
+      "Test Brand",
+      testEmail,
+    );
     expect(tenant).not.toBeNull();
     expect(tenant?.slug).toBe(slug);
     expect(tenant?.subdomain).toBe(`${slug}.ether.paris`);

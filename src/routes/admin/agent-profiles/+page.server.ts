@@ -1,5 +1,8 @@
 import type { PageServerLoad } from "./$types";
-import { getRunnerProfiles, type RunnerProfileInfo } from "$lib/server/agent-bridge";
+import {
+  getRunnerProfiles,
+  type RunnerProfileInfo,
+} from "$lib/server/agent-bridge";
 
 const COOKIE_NAME = "ether_admin_auth";
 

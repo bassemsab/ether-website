@@ -1,9 +1,30 @@
 import type { Handle } from "@sveltejs/kit";
-import { getSessionByToken, cleanupExpiredSessions, getTenantBySlug, getTenantByDomain } from "$lib/server/db";
-import { getSessionCookieDomain, SESSION_MAX_AGE_SECONDS } from "$lib/server/auth";
+import {
+  getSessionByToken,
+  cleanupExpiredSessions,
+  getTenantBySlug,
+  getTenantByDomain,
+} from "$lib/server/db";
+import {
+  getSessionCookieDomain,
+  SESSION_MAX_AGE_SECONDS,
+} from "$lib/server/auth";
 
 const RESERVED_SLUGS = new Set([
-  "api", "admin", "studio", "git", "mail", "smtp", "www", "app", "dev", "staging", "auth", "login", "dashboard", "logout"
+  "api",
+  "admin",
+  "studio",
+  "git",
+  "mail",
+  "smtp",
+  "www",
+  "app",
+  "dev",
+  "staging",
+  "auth",
+  "login",
+  "dashboard",
+  "logout",
 ]);
 
 // Clean up expired sessions periodically
@@ -37,10 +58,14 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   // Tenant Resolution:
-  // 1. Check pod environment variable TENANT_SLUG (when running in isolated tenant namespace)
-  // 2. Check host ending in .ether.paris with a non-reserved slug (e.g. tester.ether.paris)
-  // 3. Check custom domains (e.g. hidden-artist.fr)
-  let tenantSlug: string | null = process.env.TENANT_SLUG || null;
+  // 1. Check query parameter preview_tenant (for Studio local dev or iframe preview)
+  // 2. Check pod environment variable TENANT_SLUG (when running in isolated tenant namespace)
+  // 3. Check host ending in .ether.paris with a non-reserved slug (e.g. tester.ether.paris)
+  // 4. Check custom domains (e.g. hidden-artist.fr)
+  let tenantSlug: string | null =
+    event.url.searchParams.get("preview_tenant") ||
+    process.env.TENANT_SLUG ||
+    null;
   if (!tenantSlug && host.endsWith(".ether.paris")) {
     const candidate = host.replace(".ether.paris", "");
     if (!RESERVED_SLUGS.has(candidate) && candidate.length > 0) {

@@ -58,19 +58,23 @@ STALWART_ADMIN_PASSWORD=your-stalwart-admin-password
 ### 2. Required Permissions
 
 #### Cloudflare API Token
+
 - Zone:Read, Zone:Edit
 - DNS:Read, DNS:Edit
 
 #### GitHub Personal Access Token
+
 - repo (full control of private repositories)
 - workflow (update GitHub Action workflow files)
 
 #### AWS IAM User
+
 - ses:CreateEmailIdentity
 - ses:GetEmailIdentity
 - ses:VerifyDomainDkim
 
 #### Kubernetes
+
 The app must run inside the Kubernetes cluster with kubectl access to create ingress resources.
 
 ## Usage
@@ -109,6 +113,7 @@ curl https://ether.paris/api/tenant/onboard?domain=mybusiness.com \
 ## What Gets Created
 
 ### 1. GitHub Repository
+
 - Location: `https://github.com/ether-paris/{domain-name}`
 - Private repository
 - Contains:
@@ -118,22 +123,26 @@ curl https://ether.paris/api/tenant/onboard?domain=mybusiness.com \
   - .github/workflows/deploy.yaml for CI/CD
 
 ### 2. AWS SES
+
 - Domain identity created and pending verification
 - DKIM signing enabled
 - Domain verification token for DNS
 
 ### 3. Cloudflare DNS Records
+
 - `mail.{domain}` → A record to your server IP
 - `_amazonses.{domain}` → TXT record for SES verification
 - 3 CNAME records for DKIM signing
 
 ### 4. Stalwart Mail Server
+
 - Domain added to Stalwart
 - User account created: `{email-username}@{domain}`
 - Secure password generated
 - User has email-send and email-receive roles
 
 ### 5. Kubernetes Ingress
+
 - Ingress created in `mail-server` namespace
 - Host: `mail.{domain}`
 - SSL certificate auto-provisioned by cert-manager
@@ -188,21 +197,25 @@ CREATE TABLE tenants (
 ## Troubleshooting
 
 ### Domain not verified in SES
+
 - Check that DNS TXT record was created in Cloudflare
 - Wait up to 72 hours for DNS propagation
 - Check AWS SES console for verification status
 
 ### Ingress not working
+
 - Ensure cert-manager is running in the cluster
 - Check that external-dns is updating Cloudflare
 - Verify nginx-ingress controller is running
 
 ### Stalwart user can't login
+
 - Check that the domain was added to Stalwart
 - Verify the user was created with correct credentials
 - Check Stalwart logs for authentication errors
 
 ### GitHub repository not created
+
 - Verify GITHUB_TOKEN has repo permissions
 - Check that GITHUB_ORG exists and token has access
 - Ensure repo name doesn't conflict with existing repos

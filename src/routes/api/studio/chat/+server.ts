@@ -5,6 +5,7 @@ import {
   getTenantBySlug,
   checkTenantPromptLimit,
   incrementTenantPromptCount,
+  saveStudioChatMessage,
 } from "$lib/server/db";
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -47,7 +48,9 @@ export const POST: RequestHandler = async ({ request }) => {
           start(controller) {
             const sendEvent = (event: string, data: any) => {
               controller.enqueue(
-                new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+                new TextEncoder().encode(
+                  `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+                ),
               );
             };
             sendEvent("error", { message: errorMsg, quotaExceeded: true });
@@ -64,19 +67,111 @@ export const POST: RequestHandler = async ({ request }) => {
         });
       }
 
-      return json({ success: false, error: errorMsg, quotaExceeded: true }, { status: 429 });
+      return json(
+        { success: false, error: errorMsg, quotaExceeded: true },
+        { status: 429 },
+      );
     }
 
-    // 2. Increment prompt counter
+    // 2. Increment prompt counter and save user prompt to SQLite
     incrementTenantPromptCount(projectSlug);
+    saveStudioChatMessage(
+      projectSlug,
+      "user",
+      prompt,
+      preferredProfile || "auto",
+      conversationId,
+    );
 
     // 3. Dispatch prompt to agent runner daemon
     if (isStream || body.stream) {
-      return await streamAgyPrompt({
+      const runnerRes = await streamAgyPrompt({
         tenantSlug: projectSlug,
         userPrompt: prompt,
         conversationId,
         preferredProfile,
+      });
+
+      if (!runnerRes.body) {
+        return runnerRes;
+      }
+
+      // Intercept stream to save assistant response in SQLite upon completion
+      let assistantText = "";
+      let finalProfile = preferredProfile || "primary";
+      let finalConvId = conversationId;
+      const stepsMap = new Map<
+        string | number,
+        { id: string | number; name: string; state: "running" | "completed" }
+      >();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const transformStream = new TransformStream({
+        transform(chunk, controller) {
+          controller.enqueue(chunk);
+          try {
+            buffer += decoder.decode(chunk, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+
+            for (const part of parts) {
+              const trimmed = part.trim();
+              if (!trimmed || trimmed.startsWith(":")) continue;
+
+              const dataMatch = trimmed.match(/data:\s*(.*)/);
+              if (dataMatch) {
+                const parsed = JSON.parse(dataMatch[1]);
+                if (parsed.text) {
+                  assistantText += parsed.text;
+                }
+                if (parsed.profileUsed) {
+                  finalProfile = parsed.profileUsed;
+                }
+                if (parsed.conversationId) {
+                  finalConvId = parsed.conversationId;
+                }
+                if (parsed.id !== undefined && parsed.name) {
+                  const existing = stepsMap.get(parsed.id);
+                  if (existing) {
+                    existing.state = parsed.state;
+                  } else {
+                    stepsMap.set(parsed.id, {
+                      id: parsed.id,
+                      name: parsed.name,
+                      state: parsed.state || "running",
+                    });
+                  }
+                } else if (
+                  parsed.id !== undefined &&
+                  parsed.state === "completed"
+                ) {
+                  const existing = stepsMap.get(parsed.id);
+                  if (existing) {
+                    existing.state = "completed";
+                  }
+                }
+              }
+            }
+          } catch {}
+        },
+        flush() {
+          // Persist assistant message in SQLite
+          if (assistantText.trim() || stepsMap.size > 0) {
+            saveStudioChatMessage(
+              projectSlug,
+              "assistant",
+              assistantText.trim() || "Modifications effectuées.",
+              finalProfile,
+              finalConvId,
+              Array.from(stepsMap.values()),
+            );
+          }
+        },
+      });
+
+      return new Response(runnerRes.body.pipeThrough(transformStream), {
+        headers: runnerRes.headers,
       });
     }
 
@@ -86,6 +181,15 @@ export const POST: RequestHandler = async ({ request }) => {
       conversationId,
       preferredProfile,
     });
+
+    // Save assistant response to SQLite
+    saveStudioChatMessage(
+      projectSlug,
+      "assistant",
+      result.output,
+      result.profileUsed,
+      result.conversationId,
+    );
 
     return json({
       success: true,

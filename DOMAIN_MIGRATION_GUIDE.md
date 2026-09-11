@@ -9,27 +9,34 @@ This guide describes how to automatically delegate a domain registered on OVH to
 Ensure the following credentials exist in your `~/.secrets.zsh` and `~/.ovh.conf`:
 
 ### Cloudflare API Token
+
 Needs custom permissions on your Cloudflare account:
+
 - **Zone** > **Zone** > **Edit**
 - **Zone** > **DNS** > **Edit**
 - **Account** > **Email Routing Addresses** > **Edit**
 - **Zone** > **Email Routing Rules** > **Edit**
 
 Stored in `~/.secrets.zsh`:
+
 ```bash
 export CLOUDFLARE_API_TOKEN="your_cloudflare_api_token"
 ```
 
 ### OVH API Keys
+
 Generate API keys from the [OVH API Token Generator](https://www.ovh.com/auth/api/createToken?GET=/domain/*&POST=/domain/*&PUT=/domain/*&DELETE=/domain/*).
 
 Stored in `~/.secrets.zsh`:
+
 ```bash
 export OVH_APPLICATION_KEY="your_application_key"
 export OVH_APPLICATION_SECRET="your_application_secret"
 export OVH_CONSUMER_KEY="your_consumer_key"
 ```
+
 And in `~/.ovh.conf`:
+
 ```ini
 [default]
 endpoint=ovh-eu
@@ -45,6 +52,7 @@ consumer_key=your_consumer_key
 The CLI script is located in `scripts/ovh_to_cloudflare.py`.
 
 ### Full Migration & Email Setup
+
 ```bash
 python3 scripts/ovh_to_cloudflare.py \
   --domain mydomain.fr \
@@ -54,6 +62,7 @@ python3 scripts/ovh_to_cloudflare.py \
 ```
 
 ### What It Does Automatically:
+
 1. **Cloudflare Zone**: Checks or creates the zone on Cloudflare and fetches assigned nameservers (e.g., `autumn.ns.cloudflare.com`, `matteo.ns.cloudflare.com`).
 2. **Registry NS Validation**: Verifies that Cloudflare nameservers are actively answering NS queries for the domain (required by AFNIC `.fr` registry rules).
 3. **OVH Nameserver Update**: Calls the OVH API `POST /domain/{domain}/nameServers/update` to delegate the domain to Cloudflare.
@@ -68,6 +77,7 @@ python3 scripts/ovh_to_cloudflare.py \
    - Once verified, creates the rule `contact@mydomain.fr` ➔ `myemail@gmail.com`.
 
 ### Check Status
+
 ```bash
 python3 scripts/ovh_to_cloudflare.py --domain mydomain.fr --forward-to myemail@gmail.com --status-only
 ```
