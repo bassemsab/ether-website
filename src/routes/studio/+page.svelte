@@ -47,14 +47,9 @@
 
   const tenant = $derived(data.tenant);
   const projectSlug = $derived(data.projectSlug || "tester");
-  const liveClusterUrl = $derived(
+  const liveUrl = $derived(
     tenant.custom_domain ? `https://${tenant.custom_domain}` : `https://${projectSlug}.ether.paris`
   );
-  const localPreviewUrl = $derived(`/?preview_tenant=${projectSlug}`);
-
-  let isLocal = $state(false);
-  let previewTarget = $state<"local" | "live">("local");
-  const activePreviewUrl = $derived(previewTarget === "local" ? localPreviewUrl : liveClusterUrl);
 
   const isAdmin = $derived(Boolean(data.isAdmin));
 
@@ -352,11 +347,6 @@
   });
 
   onMount(() => {
-    if (typeof window !== "undefined") {
-      isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-      previewTarget = isLocal ? "local" : "live";
-    }
-
     if (!editorContainer) return;
 
     const initialFile = files[activeFile] || { content: "", lang: "html" as SupportedLang };
@@ -413,7 +403,7 @@
       try {
         previewIframe.contentWindow?.location.reload();
       } catch {
-        previewIframe.src = activePreviewUrl;
+        previewIframe.src = liveUrl;
       }
     }
   }
@@ -711,7 +701,7 @@
     <!-- Actions -->
     <div class="flex items-center gap-2.5">
       <a
-        href={activePreviewUrl}
+        href={liveUrl}
         target="_blank"
         rel="noopener"
         class="focus-ring px-3.5 py-1.5 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-foreground text-xs uppercase tracking-wider transition-all inline-flex items-center gap-1.5 font-medium cursor-pointer"
@@ -1141,32 +1131,6 @@
               <span class="text-[11px]">Mobile</span>
             </button>
           </div>
-
-          <!-- Environment Switcher: Local Dev vs Live K8s Cluster -->
-          <div class="flex items-center gap-0.5 bg-surface/80 p-0.5 rounded-lg border border-black/10 text-[11px]">
-            <button
-              onclick={() => {
-                previewTarget = "local";
-                refreshPreview();
-              }}
-              class="px-2 py-1 rounded flex items-center gap-1 transition-all cursor-pointer {previewTarget === 'local' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-              title="Aperçu local immédiat sur le serveur Vite avec HMR"
-            >
-              <span>⚡</span>
-              <span class="text-[10px]">Local</span>
-            </button>
-            <button
-              onclick={() => {
-                previewTarget = "live";
-                refreshPreview();
-              }}
-              class="px-2 py-1 rounded flex items-center gap-1 transition-all cursor-pointer {previewTarget === 'live' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-              title="Aperçu en ligne déployé sur le cluster Kubernetes ({projectSlug}.ether.paris)"
-            >
-              <span>🌐</span>
-              <span class="text-[10px]">Live K8s</span>
-            </button>
-          </div>
         </div>
 
         <!-- Actions -->
@@ -1199,7 +1163,7 @@
           </button>
 
           <a
-            href={activePreviewUrl}
+            href={liveUrl}
             target="_blank"
             rel="noopener"
             class="text-[11px] text-brand hover:underline font-mono inline-flex items-center gap-1"
@@ -1225,7 +1189,7 @@
           <div class="w-full h-full bg-background overflow-hidden flex flex-col">
             <iframe
               bind:this={previewIframe}
-              src={activePreviewUrl}
+              src={liveUrl}
               title="Aperçu en direct de {projectSlug}"
               class="w-full h-full border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
             ></iframe>
@@ -1239,7 +1203,7 @@
               <div class="w-12 h-1 bg-black/20 rounded-full"></div>
             </div>
             <iframe
-              src={activePreviewUrl}
+              src={liveUrl}
               title="Aperçu mobile de {projectSlug}"
               class="w-full flex-1 border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
             ></iframe>
