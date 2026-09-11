@@ -38,10 +38,35 @@ const profileThrottleMap = new Map<string, number>();
 const profileTurnsMap = new Map<string, number>();
 const pendingAuthMap = new Map<string, PendingAuth>();
 
-// Google Antigravity official OAuth Client ID
-export const DEFAULT_CLIENT_ID =
-  process.env.GOOGLE_OAUTH_CLIENT_ID ||
-  "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
+/**
+ * Resolves Antigravity OAuth client credentials dynamically from environment
+ * or directly from the installed agy binary.
+ */
+export function getAgyOAuthCredentials(): { clientId: string; clientSecret: string } {
+  let envCid = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  let envSec = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (envCid && envSec) {
+    return { clientId: envCid, clientSecret: envSec };
+  }
+
+  const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
+  if (existsSync(agyBin)) {
+    try {
+      const buf = readFileSync(agyBin);
+      const str = buf.toString("binary");
+      const cidMatch = str.match(/(1071006060591-[a-z0-9_]+\.apps\.googleusercontent\.com)/);
+      const secMatch = str.match(/(GOCSPX-[A-Za-z0-9_-]{28})/);
+      if (cidMatch && !envCid) envCid = cidMatch[1];
+      if (secMatch && !envSec) envSec = secMatch[1];
+    } catch (e) {}
+  }
+
+  return {
+    clientId: envCid || "",
+    clientSecret: envSec || "",
+  };
+}
+
 export const DEFAULT_REDIRECT_URI = "https://antigravity.google/oauth-callback";
 
 // Google Scopes required by Antigravity CLI
@@ -133,8 +158,10 @@ export function getNextHealthyProfile(
 export function generateAuthUrl(
   dataDir: string = "/data",
   profile: string = "primary",
-  clientId: string = DEFAULT_CLIENT_ID
+  clientId?: string
 ): string {
+  const creds = getAgyOAuthCredentials();
+  const effectiveClientId = clientId || creds.clientId;
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
 
@@ -155,7 +182,7 @@ export function generateAuthUrl(
 
   const params = new URLSearchParams({
     access_type: "offline",
-    client_id: clientId,
+    client_id: effectiveClientId,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
     prompt: "consent",
@@ -175,8 +202,13 @@ export async function exchangeCodeForTokens(
   dataDir: string = "/data",
   code: string = "",
   profile: string = "primary",
-  clientId: string = DEFAULT_CLIENT_ID
+  clientId?: string,
+  clientSecret?: string
 ): Promise<TokenPayload> {
+  const creds = getAgyOAuthCredentials();
+  const effectiveClientId = clientId || creds.clientId;
+  const effectiveClientSecret = clientSecret || creds.clientSecret;
+
   let codeVerifier: string | undefined = pendingAuthMap.get(profile)?.codeVerifier;
 
   // If not in memory, try reading from disk
@@ -191,7 +223,8 @@ export async function exchangeCodeForTokens(
   }
 
   const bodyParams: Record<string, string> = {
-    client_id: clientId,
+    client_id: effectiveClientId,
+    client_secret: effectiveClientSecret,
     code,
     grant_type: "authorization_code",
     redirect_uri: DEFAULT_REDIRECT_URI,
@@ -234,10 +267,16 @@ export async function exchangeCodeForTokens(
  */
 export async function refreshAccessToken(
   refreshToken: string,
-  clientId: string = DEFAULT_CLIENT_ID
+  clientId?: string,
+  clientSecret?: string
 ): Promise<TokenPayload> {
+  const creds = getAgyOAuthCredentials();
+  const effectiveClientId = clientId || creds.clientId;
+  const effectiveClientSecret = clientSecret || creds.clientSecret;
+
   const bodyParams: Record<string, string> = {
-    client_id: clientId,
+    client_id: effectiveClientId,
+    client_secret: effectiveClientSecret,
     refresh_token: refreshToken,
     grant_type: "refresh_token",
   };

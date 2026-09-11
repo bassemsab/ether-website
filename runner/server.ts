@@ -190,7 +190,7 @@ const server = Bun.serve({
           return Response.json({ success: false, error: "Authorization code is required" }, { status: 400, headers: corsHeaders });
         }
 
-        const tokenPayload = await exchangeCodeForTokens(DATA_DIR, code, profile, body.clientId);
+        const tokenPayload = await exchangeCodeForTokens(DATA_DIR, code, profile, body.clientId, body.clientSecret);
         const email = await fetchUserEmail(tokenPayload.access_token);
         saveProfile(DATA_DIR, profile, tokenPayload, email);
 
