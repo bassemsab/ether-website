@@ -61,7 +61,9 @@ jobs:
           no-cache: true
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/agy-runner:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/agy-runner:${{ github.sha }}
             ${{ env.REGISTRY }}/bassemsab/agy-runner:latest
+            ${{ env.REGISTRY }}/bassemsab/agy-runner:${{ github.sha }}
 
       - name: Set up Kubeconfig
         run: |
@@ -75,9 +77,11 @@ jobs:
           kubectl apply -f k8s/studio/
           kubectl set image deployment/ether-website ether-website=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n ether
           kubectl set env deployment/ether-website -n ether APP_RELEASE=${{ github.sha }}
+          kubectl set image deployment/agent-runner agy-runner=${{ env.REGISTRY }}/bassemsab/agy-runner:${{ github.sha }} -n ether
 
       - name: Trigger Rollout Restart
         run: |
           kubectl rollout restart deployment ether-website -n ether
           kubectl rollout status deployment ether-website -n ether
-          kubectl rollout restart deployment agent-runner -n ether || true
+          kubectl rollout restart deployment agent-runner -n ether
+          kubectl rollout status deployment agent-runner -n ether

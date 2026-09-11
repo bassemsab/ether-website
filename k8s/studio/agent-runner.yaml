@@ -20,7 +20,7 @@ spec:
       containers:
         - name: agy-runner
           image: ghcr.io/bassemsab/agy-runner:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: PORT
               value: "8080"
