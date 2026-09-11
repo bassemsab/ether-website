@@ -159,6 +159,129 @@ function formatToolStep(toolName: string, params: any, su?: any): string {
 mkdirSync(join(DATA_DIR, "profiles"), { recursive: true });
 mkdirSync(join(DATA_DIR, "tenants"), { recursive: true });
 
+/**
+ * Sanitizes a tenant slug to a safe, valid Linux username (max 24 chars).
+ */
+export function getTenantUsername(tenantSlug: string): string {
+  const sanitized = tenantSlug.toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 20);
+  return `tenant_${sanitized}`;
+}
+
+/**
+ * Checks whether runner is executing as root on Linux.
+ */
+export function isLinuxRoot(): boolean {
+  return process.platform === "linux" && typeof process.getuid === "function" && process.getuid() === 0;
+}
+
+/**
+ * Restricts base directories immediately at startup.
+ */
+if (isLinuxRoot()) {
+  try {
+    const profilesDir = join(DATA_DIR, "profiles");
+    if (existsSync(profilesDir)) {
+      Bun.spawnSync(["chmod", "700", profilesDir]);
+      Bun.spawnSync(["chown", "-R", "root:root", profilesDir]);
+    }
+    const dbFile = join(DATA_DIR, "app.db");
+    if (existsSync(dbFile)) {
+      Bun.spawnSync(["chmod", "600", dbFile]);
+      Bun.spawnSync(["chown", "root:root", dbFile]);
+    }
+  } catch (err: any) {
+    console.warn(`[Security] Startup permission lock warning: ${err.message}`);
+  }
+}
+
+/**
+ * Ensures a dedicated unprivileged Linux system user exists for this tenant,
+ * and restricts directory permissions with chmod 700 so that:
+ * 1. The tenant user owns and can only access /data/tenants/<tenantSlug>
+ * 2. The tenant user CANNOT read /data/profiles, other tenants, or database files
+ * 3. Shared binaries (/usr/local/bin/agy, bun, git) remain 100% accessible
+ */
+export function ensureTenantSystemUser(tenantSlug: string): string {
+  const username = getTenantUsername(tenantSlug);
+
+  if (isLinuxRoot()) {
+    try {
+      const checkUser = Bun.spawnSync(["id", "-u", username]);
+      if (checkUser.exitCode !== 0) {
+        console.log(`[Security] Provisioning isolated Linux user: ${username}`);
+        Bun.spawnSync(["useradd", "-m", "-s", "/bin/bash", username]);
+      }
+
+      // Lock down profiles to root:root (mode 700)
+      const profilesDir = join(DATA_DIR, "profiles");
+      if (existsSync(profilesDir)) {
+        Bun.spawnSync(["chmod", "700", profilesDir]);
+        Bun.spawnSync(["chown", "-R", "root:root", profilesDir]);
+      }
+
+      // Lock down app.db to root:root (mode 600)
+      const dbFile = join(DATA_DIR, "app.db");
+      if (existsSync(dbFile)) {
+        Bun.spawnSync(["chmod", "600", dbFile]);
+        Bun.spawnSync(["chown", "root:root", dbFile]);
+      }
+
+      // Confine tenant directory to tenant user (mode 700)
+      const tenantDir = join(DATA_DIR, "tenants", tenantSlug);
+      if (existsSync(tenantDir)) {
+        Bun.spawnSync(["chmod", "700", tenantDir]);
+        Bun.spawnSync(["chown", "-R", `${username}:${username}`, tenantDir]);
+      }
+    } catch (err: any) {
+      console.error(`[Security] ensureTenantSystemUser error: ${err.message}`);
+    }
+  }
+
+  return username;
+}
+
+/**
+ * Ensures an isolated tmux session is running for this tenant.
+ * Uses a dedicated tmux UNIX socket inside the tenant directory (/data/tenants/<slug>/tmux.sock),
+ * mode 0700, accessible only by this tenant user and root.
+ */
+export function ensureTenantTmuxSession(tenantSlug: string): {
+  active: boolean;
+  socketPath: string;
+  sessionName: string;
+} {
+  const username = ensureTenantSystemUser(tenantSlug);
+  const tenantDir = join(DATA_DIR, "tenants", tenantSlug);
+  const socketPath = join(tenantDir, "tmux.sock");
+  const codeDir = join(tenantDir, "code");
+  const sessionName = "studio";
+
+  const hasTmux = Boolean(Bun.which("tmux") || existsSync("/usr/bin/tmux"));
+  if (!hasTmux) {
+    return { active: false, socketPath, sessionName };
+  }
+
+  try {
+    const isRoot = isLinuxRoot();
+    const checkCmd = isRoot
+      ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "has-session", "-t", sessionName]
+      : ["tmux", "-S", socketPath, "has-session", "-t", sessionName];
+
+    const checkProc = Bun.spawnSync(checkCmd);
+    if (checkProc.exitCode !== 0) {
+      const startCmd = isRoot
+        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "new-session", "-d", "-s", sessionName, "-c", codeDir]
+        : ["tmux", "-S", socketPath, "new-session", "-d", "-s", sessionName, "-c", codeDir];
+
+      Bun.spawnSync(startCmd);
+    }
+    return { active: true, socketPath, sessionName };
+  } catch (err: any) {
+    console.warn(`[Tmux] ensureTenantTmuxSession error: ${err.message}`);
+    return { active: false, socketPath, sessionName };
+  }
+}
+
 // Tenant queue tracking
 const tenantLocks = new Map<string, Promise<any>>();
 let globalActiveTurns = 0;
@@ -372,6 +495,7 @@ function ensureTenantCodebase(
     );
   }
 
+  ensureTenantSystemUser(tenantSlug);
   return codeDir;
 }
 
@@ -393,11 +517,17 @@ async function getOrLaunchTenantDevServer(slug: string): Promise<number> {
   }
 
   const codeDir = ensureTenantCodebase(slug);
+  const tenantUser = ensureTenantSystemUser(slug);
+  const isRoot = isLinuxRoot();
   const port = nextAvailablePort++;
 
-  // Spawn vite dev server
+  // Spawn vite dev server under unprivileged tenant user
+  const spawnCmd = isRoot
+    ? ["runuser", "-u", tenantUser, "--", "bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)]
+    : ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)];
+
   const proc = Bun.spawn(
-    ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)],
+    spawnCmd,
     {
       cwd: codeDir,
       env: {
@@ -444,11 +574,16 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
   }
 
   const codeDir = ensureTenantCodebase(slug);
+  const tenantUser = ensureTenantSystemUser(slug);
+  const isRoot = isLinuxRoot();
   const port = nextAvailableProdPort++;
 
   const buildIndex = join(codeDir, "build", "index.js");
   if (!existsSync(buildIndex)) {
-    const buildProc = Bun.spawn(["bun", "run", "build"], {
+    const buildCmd = isRoot
+      ? ["runuser", "-u", tenantUser, "--", "bun", "run", "build"]
+      : ["bun", "run", "build"];
+    const buildProc = Bun.spawn(buildCmd, {
       cwd: codeDir,
       stdout: "pipe",
       stderr: "pipe",
@@ -457,27 +592,47 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
   }
 
   const proc = existsSync(buildIndex)
-    ? Bun.spawn(["bun", "./build/index.js"], {
-        cwd: codeDir,
-        env: {
-          ...process.env,
-          PORT: String(port),
-          HOST: "0.0.0.0",
+    ? Bun.spawn(
+        isRoot
+          ? ["runuser", "-u", tenantUser, "--", "bun", "./build/index.js"]
+          : ["bun", "./build/index.js"],
+        {
+          cwd: codeDir,
+          env: {
+            ...process.env,
+            PORT: String(port),
+            HOST: "0.0.0.0",
+          },
+          stdout: "inherit",
+          stderr: "inherit",
         },
-        stdout: "inherit",
-        stderr: "inherit",
-      })
+      )
     : Bun.spawn(
-        [
-          "bun",
-          "x",
-          "vite",
-          "dev",
-          "--host",
-          "0.0.0.0",
-          "--port",
-          String(port),
-        ],
+        isRoot
+          ? [
+              "runuser",
+              "-u",
+              tenantUser,
+              "--",
+              "bun",
+              "x",
+              "vite",
+              "dev",
+              "--host",
+              "0.0.0.0",
+              "--port",
+              String(port),
+            ]
+          : [
+              "bun",
+              "x",
+              "vite",
+              "dev",
+              "--host",
+              "0.0.0.0",
+              "--port",
+              String(port),
+            ],
         {
           cwd: codeDir,
           env: {
@@ -700,6 +855,11 @@ const server = Bun.serve({
           mkdirSync(dirname(fullPath), { recursive: true });
           writeFileSync(fullPath, content, "utf-8");
 
+          if (isLinuxRoot()) {
+            const tenantUser = ensureTenantSystemUser(tenantSlug);
+            Bun.spawnSync(["chown", `${tenantUser}:${tenantUser}`, fullPath]);
+          }
+
           return Response.json(
             { success: true, projectSlug: tenantSlug, path: relPath },
             { headers: corsHeaders },
@@ -718,6 +878,8 @@ const server = Bun.serve({
     if (gitPushMatch && req.method === "POST") {
       const tenantSlug = gitPushMatch[1];
       const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
+      const tenantUser = ensureTenantSystemUser(tenantSlug);
+      const isRoot = isLinuxRoot();
 
       if (!existsSync(codeDir) || !existsSync(join(codeDir, ".git"))) {
         return Response.json(
@@ -732,31 +894,30 @@ const server = Bun.serve({
           body.message ||
           `Mise à jour via Ether Studio - ${new Date().toISOString()}`;
 
-        // Stage all files (respecting .gitignore)
-        Bun.spawnSync(["git", "add", "-A"], { cwd: codeDir });
+        const runGit = (gitArgs: string[]) => {
+          const cmd = isRoot
+            ? ["runuser", "-u", tenantUser, "--", "git", ...gitArgs]
+            : ["git", ...gitArgs];
+          return Bun.spawnSync(cmd, { cwd: codeDir });
+        };
 
-        const statusProc = Bun.spawnSync(["git", "status", "--porcelain"], {
-          cwd: codeDir,
-        });
+        // Stage all files (respecting .gitignore)
+        runGit(["add", "-A"]);
+
+        const statusProc = runGit(["status", "--porcelain"]);
         const statusStr = statusProc.stdout ? statusProc.stdout.toString() : "";
         const hasChanges = statusStr.trim().length > 0;
 
         let commitOutput = "No changes to commit";
         if (hasChanges) {
-          const commitProc = Bun.spawnSync(
-            ["git", "commit", "-m", commitMsg],
-            { cwd: codeDir },
-          );
+          const commitProc = runGit(["commit", "-m", commitMsg]);
           commitOutput =
             (commitProc.stdout ? commitProc.stdout.toString() : "") +
             (commitProc.stderr ? commitProc.stderr.toString() : "");
         }
 
         // Push to origin main
-        const pushProc = Bun.spawnSync(
-          ["git", "push", "origin", "main"],
-          { cwd: codeDir },
-        );
+        const pushProc = runGit(["push", "origin", "main"]);
         const pushOutput =
           (pushProc.stdout ? pushProc.stdout.toString() : "") +
           (pushProc.stderr ? pushProc.stderr.toString() : "");
@@ -784,9 +945,15 @@ const server = Bun.serve({
     if (buildMatch && req.method === "POST") {
       const tenantSlug = buildMatch[1];
       const codeDir = ensureTenantCodebase(tenantSlug);
+      const tenantUser = ensureTenantSystemUser(tenantSlug);
+      const isRoot = isLinuxRoot();
 
       try {
-        const buildProc = Bun.spawn(["bun", "run", "build"], {
+        const buildCmd = isRoot
+          ? ["runuser", "-u", tenantUser, "--", "bun", "run", "build"]
+          : ["bun", "run", "build"];
+
+        const buildProc = Bun.spawn(buildCmd, {
           cwd: codeDir,
           env: {
             ...process.env,
@@ -828,6 +995,68 @@ const server = Bun.serve({
         );
       }
     }
+
+    // Tmux Session Endpoints for Isolated Shell / Inspection
+    const tmuxStatusMatch = path.match(/^\/tmux\/status\/([a-zA-Z0-9_-]+)$/);
+    if (tmuxStatusMatch && req.method === "GET") {
+      const tenantSlug = tmuxStatusMatch[1];
+      const info = ensureTenantTmuxSession(tenantSlug);
+      return Response.json({ success: true, tenant: tenantSlug, ...info }, { headers: corsHeaders });
+    }
+
+    const tmuxCaptureMatch = path.match(/^\/tmux\/capture\/([a-zA-Z0-9_-]+)$/);
+    if (tmuxCaptureMatch && req.method === "GET") {
+      const tenantSlug = tmuxCaptureMatch[1];
+      const username = ensureTenantSystemUser(tenantSlug);
+      const socketPath = join(DATA_DIR, "tenants", tenantSlug, "tmux.sock");
+      ensureTenantTmuxSession(tenantSlug);
+
+      const isRoot = isLinuxRoot();
+      const captureCmd = isRoot
+        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"]
+        : ["tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"];
+
+      const proc = Bun.spawnSync(captureCmd);
+      const output = proc.stdout ? proc.stdout.toString() : "";
+      return Response.json({ success: true, tenant: tenantSlug, output }, { headers: corsHeaders });
+    }
+
+    const tmuxExecMatch = path.match(/^\/tmux\/exec\/([a-zA-Z0-9_-]+)$/);
+    if (tmuxExecMatch && req.method === "POST") {
+      const tenantSlug = tmuxExecMatch[1];
+      const username = ensureTenantSystemUser(tenantSlug);
+      const socketPath = join(DATA_DIR, "tenants", tenantSlug, "tmux.sock");
+      ensureTenantTmuxSession(tenantSlug);
+
+      const body = (await req.json().catch(() => ({}))) as any;
+      const command = (body.command || "").trim();
+
+      if (!command) {
+        return Response.json({ success: false, error: "Command required" }, { status: 400, headers: corsHeaders });
+      }
+
+      const isRoot = isLinuxRoot();
+      const sendCmd = isRoot
+        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "send-keys", "-t", "studio", command, "C-m"]
+        : ["tmux", "-S", socketPath, "send-keys", "-t", "studio", command, "C-m"];
+
+      const sendProc = Bun.spawnSync(sendCmd);
+      await new Promise((r) => setTimeout(r, 400));
+
+      const captureCmd = isRoot
+        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"]
+        : ["tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"];
+
+      const capProc = Bun.spawnSync(captureCmd);
+      const output = capProc.stdout ? capProc.stdout.toString() : "";
+
+      return Response.json({
+        success: sendProc.exitCode === 0,
+        tenant: tenantSlug,
+        output,
+      }, { headers: corsHeaders });
+    }
+
     if (path === "/health" && req.method === "GET") {
       const profiles = listStoredProfiles(DATA_DIR);
       return Response.json(
@@ -838,6 +1067,10 @@ const server = Bun.serve({
           maxConcurrent: MAX_CONCURRENT_TURNS,
           profilesCount: profiles.length,
           profiles,
+          isolation: {
+            linuxUid: isLinuxRoot(),
+            tmux: Boolean(Bun.which("tmux") || existsSync("/usr/bin/tmux")),
+          },
         },
         { headers: corsHeaders },
       );
@@ -1109,6 +1342,16 @@ const server = Bun.serve({
                       );
                     }
 
+                    const tenantUser = ensureTenantSystemUser(project);
+                    try {
+                      ensureTenantTmuxSession(project);
+                    } catch {}
+
+                    if (isLinuxRoot()) {
+                      Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, join(DATA_DIR, "tenants", project)]);
+                      Bun.spawnSync(["chmod", "700", join(DATA_DIR, "tenants", project)]);
+                    }
+
                     const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
                     const hasAgy = existsSync(agyBin);
 
@@ -1118,7 +1361,7 @@ const server = Bun.serve({
                       );
                     }
 
-                    const args = [
+                    const agyArgs = [
                       agyBin,
                       "-p",
                       effectivePrompt,
@@ -1129,10 +1372,23 @@ const server = Bun.serve({
                       "--dangerously-skip-permissions",
                     ];
                     if (conversationId) {
-                      args.push("--conversation", conversationId);
+                      agyArgs.push("--conversation", conversationId);
                     }
 
-                    const proc = Bun.spawn(args, {
+                    const spawnCmd = isLinuxRoot()
+                      ? [
+                          "runuser",
+                          "-u",
+                          tenantUser,
+                          "--",
+                          "env",
+                          `HOME=${sandboxHome}`,
+                          `AGY_PROFILE=${activeProfile}`,
+                          ...agyArgs,
+                        ]
+                      : agyArgs;
+
+                    const proc = Bun.spawn(spawnCmd, {
                       cwd: tenantCodeDir,
                       env: {
                         ...process.env,
@@ -1318,6 +1574,16 @@ const server = Bun.serve({
                 });
               }
 
+              const tenantUser = ensureTenantSystemUser(project);
+              try {
+                ensureTenantTmuxSession(project);
+              } catch {}
+
+              if (isLinuxRoot()) {
+                Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, join(DATA_DIR, "tenants", project)]);
+                Bun.spawnSync(["chmod", "700", join(DATA_DIR, "tenants", project)]);
+              }
+
               const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
               const hasAgy = existsSync(agyBin);
 
@@ -1327,7 +1593,7 @@ const server = Bun.serve({
                 );
               }
 
-              const args = [
+              const agyArgs = [
                 agyBin,
                 "-p",
                 effectivePrompt,
@@ -1336,10 +1602,23 @@ const server = Bun.serve({
                 "--dangerously-skip-permissions",
               ];
               if (conversationId) {
-                args.push("--conversation", conversationId);
+                agyArgs.push("--conversation", conversationId);
               }
 
-              const proc = Bun.spawn(args, {
+              const spawnCmd = isLinuxRoot()
+                ? [
+                    "runuser",
+                    "-u",
+                    tenantUser,
+                    "--",
+                    "env",
+                    `HOME=${sandboxHome}`,
+                    `AGY_PROFILE=${activeProfile}`,
+                    ...agyArgs,
+                  ]
+                : agyArgs;
+
+              const proc = Bun.spawn(spawnCmd, {
                 cwd: tenantCodeDir,
                 env: {
                   ...process.env,

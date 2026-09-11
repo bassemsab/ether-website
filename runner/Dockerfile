@@ -2,12 +2,13 @@ FROM oven/bun:1
 
 WORKDIR /app
 
-# Install git, curl, ca-certificates, procps
+# Install git, curl, ca-certificates, procps, tmux
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     ca-certificates \
     procps \
+    tmux \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Antigravity CLI flat native build into /usr/local/bin
