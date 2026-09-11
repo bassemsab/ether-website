@@ -421,6 +421,8 @@ const server = Bun.serve({
           headers: corsHeaders,
         });
       }
+    }
+
     // Tenant Production Server Reverse Proxy (for Published Sites)
     const prodMatch = path.match(/^\/prod\/([a-zA-Z0-9_-]+)(\/.*)?$/);
     if (prodMatch) {
