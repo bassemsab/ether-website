@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-runner
+  namespace: ether
+  labels:
+    app: agent-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-runner
+  template:
+    metadata:
+      labels:
+        app: agent-runner
+    spec:
+      containers:
+        - name: agy-runner
+          image: ghcr.io/bassemsab/agy-runner:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "8080"
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ether-website-secrets
+                  key: GOOGLE_API_KEY
+                  optional: true
+            - name: DEEPSEEK_PLATFORM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ether-website-secrets
+                  key: DEEPSEEK_PLATFORM_TOKEN
+                  optional: true
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2048Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-runner
+  namespace: ether
+spec:
+  selector:
+    app: agent-runner
+  ports:
+    - port: 8080
+      targetPort: 8080

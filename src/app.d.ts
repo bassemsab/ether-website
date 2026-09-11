@@ -4,11 +4,14 @@ declare global {
   namespace App {
     interface User {
       id: number;
-      github_id: string;
-      github_username: string;
-      github_email: string | null;
-      github_access_token: string;
-      avatar_url: string | null;
+      email?: string | null;
+      github_id?: string | null;
+      github_username?: string | null;
+      github_email?: string | null;
+      github_access_token?: string | null;
+      avatar_url?: string | null;
+      gitea_username?: string | null;
+      gitea_token?: string | null;
     }
 
     interface Locals {

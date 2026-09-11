@@ -228,3 +228,72 @@ export async function sendContactEmail(payload: ContactPayload) {
     throw smtpErr;
   }
 }
+
+export async function sendOtpEmail(email: string, code: string) {
+  const from = process.env.RESEND_FROM_EMAIL || "Ether <noreply@ether.paris>";
+  const subject = `Votre code de connexion Ether : ${code}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Code de connexion Ether</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; color: #f3f4f6; padding: 24px; margin: 0; }
+        .container { max-width: 500px; background-color: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 32px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .logo { font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: 0.1em; }
+        .code-box { background-color: #1f2937; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0; }
+        .code { font-family: monospace; font-size: 36px; font-weight: 700; letter-spacing: 0.25em; color: #60a5fa; }
+        .footer { font-size: 12px; color: #6b7280; text-align: center; margin-top: 24px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">ETHER</div>
+          <p style="color: #9ca3af; font-size: 14px; margin-top: 8px;">Studio & Hébergement de Sites Web</p>
+        </div>
+        <p>Bonjour,</p>
+        <p>Voici votre code de vérification à 6 chiffres pour accéder à votre espace de gestion et studio Ether :</p>
+        <div class="code-box">
+          <div class="code">${code}</div>
+        </div>
+        <p style="font-size: 13px; color: #9ca3af;">Ce code expire dans 10 minutes. Si vous n'avez pas demandé ce code, vous pouvez ignorer cet email en toute sécurité.</p>
+        <div class="footer">
+          © Ether · Plateforme Web & Studio IA · Paris
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  // Prefer internal SMTP
+  try {
+    await sendSmtpEmail({
+      from,
+      to: email,
+      subject,
+      html,
+    });
+    console.log(`[sendOtpEmail] Sent OTP to ${email} via SMTP`);
+    return;
+  } catch (smtpErr) {
+    console.warn("[sendOtpEmail] SMTP send failed, falling back to Resend:", smtpErr);
+    const resendToken = process.env.RESEND_EMAIL_TOKEN;
+    if (resendToken) {
+      const resend = new Resend(resendToken);
+      const { data, error } = await resend.emails.send({
+        from,
+        to: email,
+        subject,
+        html,
+      });
+      if (error) throw new Error(`Resend send failed: ${error.message}`);
+      return data;
+    }
+    throw smtpErr;
+  }
+}
+

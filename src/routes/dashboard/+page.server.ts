@@ -19,6 +19,9 @@ export const load: PageServerLoad = async ({ cookies }) => {
   // Get user info and tenants
   const user = {
     id: session.user_id,
+    email: session.email || session.github_email || "user@ether.paris",
+    gitea_username: session.gitea_username || null,
+    gitea_token: session.gitea_token || null,
     github_id: session.github_id,
     github_username: session.github_username,
     github_email: session.github_email,

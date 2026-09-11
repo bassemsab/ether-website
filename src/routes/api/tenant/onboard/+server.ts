@@ -77,7 +77,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       email,
       brandName,
       user.id,
-      user.github_username,
+      user.github_username || user.email || "user",
     ).catch((error) => {
       console.error(`Onboarding failed for ${domain}:`, error);
       updateTenantStatus(domain, "failed", { error_message: error.message });

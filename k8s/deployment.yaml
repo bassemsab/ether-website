@@ -15,6 +15,7 @@ spec:
       labels:
         app: ether-website
     spec:
+      serviceAccountName: ether-website-sa
       nodeSelector:
         role: worker
       imagePullSecrets:

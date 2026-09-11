@@ -22,11 +22,14 @@ export const handle: Handle = async ({ event, resolve }) => {
       // Attach user to locals
       event.locals.user = {
         id: session.user_id,
-        github_id: session.github_id,
-        github_username: session.github_username,
-        github_email: session.github_email,
-        github_access_token: session.github_access_token,
-        avatar_url: session.avatar_url,
+        email: session.email || session.github_email || null,
+        gitea_username: session.gitea_username || null,
+        gitea_token: session.gitea_token || null,
+        github_id: session.github_id || null,
+        github_username: session.github_username || null,
+        github_email: session.github_email || null,
+        github_access_token: session.github_access_token || null,
+        avatar_url: session.avatar_url || null,
       };
     } else {
       // Invalid session, clear cookie

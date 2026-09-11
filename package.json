@@ -48,6 +48,7 @@
     "codemirror": "^6.0.2",
     "lucide-svelte": "^0.378.0",
     "resend": "^6.8.0",
+    "stripe": "^22.6.2",
     "tailwind-merge": "^2.3.0",
     "zod": "^3.23.8"
   },
