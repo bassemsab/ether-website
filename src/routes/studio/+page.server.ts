@@ -67,8 +67,24 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
     label: `Agent ${idx + 1}`,
   }));
 
-  // Real files loaded from tenant codebase directory on disk
-  const initialFiles = listTenantFiles(projectSlug);
+  // Real files loaded from tenant codebase (from runner API or local fallback)
+  let initialFiles = listTenantFiles(projectSlug);
+  try {
+    const runnerUrl =
+      process.env.RUNNER_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "http://agent-runner:8080"
+        : "http://localhost:8085");
+    const filesRes = await fetch(`${runnerUrl}/files/${projectSlug}`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (filesRes.ok) {
+      const filesJson = await filesRes.json();
+      if (filesJson.success && filesJson.files && Object.keys(filesJson.files).length > 0) {
+        initialFiles = filesJson.files;
+      }
+    }
+  } catch {}
 
   // Chat history and last active conversation ID from SQLite
   const chatHistory = getStudioChatHistory(projectSlug);

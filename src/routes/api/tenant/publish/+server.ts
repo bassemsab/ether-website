@@ -31,7 +31,26 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     const tenantSlug = tenant.slug || `tenant-${tenant.id}`;
 
-    // 1. Ensure tenant resources (Namespace, PVC, NetworkPolicy, Deployment, Service, Ingress) are applied
+    const runnerUrl =
+      process.env.RUNNER_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "http://agent-runner:8080"
+        : "http://localhost:8085");
+
+    // 1. Trigger production build in runner (bun run build)
+    try {
+      const buildRes = await fetch(`${runnerUrl}/build/${tenantSlug}`, {
+        method: "POST",
+        signal: AbortSignal.timeout(60000),
+      });
+      if (!buildRes.ok) {
+        console.warn(`[publish] runner build returned ${buildRes.status}`);
+      }
+    } catch (buildErr: any) {
+      console.warn(`[publish] runner build error for ${tenantSlug}:`, buildErr.message);
+    }
+
+    // 2. Ensure tenant resources (Namespace, PVC, NetworkPolicy, Deployment, Service, Ingress) are applied
     await applyTenantK8s({
       slug: tenantSlug,
       brandName: tenant.brand_name || tenantSlug,
@@ -40,7 +59,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       namespace,
     });
 
-    // 2. Rollout restart the production deployment
+    // 3. Rollout restart the production deployment
     try {
       const proc = Bun.spawn({
         cmd: [

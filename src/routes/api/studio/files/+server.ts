@@ -4,6 +4,23 @@ import { listTenantFiles, saveTenantFile } from "$lib/server/tenant-files";
 
 export const GET: RequestHandler = async ({ url }) => {
   const projectSlug = (url.searchParams.get("project") || "tester").trim();
+  const runnerUrl =
+    process.env.RUNNER_API_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "http://agent-runner:8080"
+      : "http://localhost:8085");
+
+  try {
+    const res = await fetch(`${runnerUrl}/files/${projectSlug}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const jsonRes = await res.json();
+      if (jsonRes.success && jsonRes.files) {
+        return json(jsonRes);
+      }
+    }
+  } catch {}
 
   try {
     const files = listTenantFiles(projectSlug);
@@ -30,6 +47,24 @@ export const POST: RequestHandler = async ({ request }) => {
         { status: 400 },
       );
     }
+
+    const runnerUrl =
+      process.env.RUNNER_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "http://agent-runner:8080"
+        : "http://localhost:8085");
+
+    try {
+      const res = await fetch(`${runnerUrl}/files/${projectSlug}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: filePath, content }),
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        return json(await res.json());
+      }
+    } catch {}
 
     saveTenantFile(projectSlug, filePath, content);
 

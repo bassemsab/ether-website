@@ -1,5 +1,12 @@
-import { existsSync, mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
+import {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from "fs";
+import { join, relative, dirname } from "path";
 import {
   listStoredProfiles,
   generateAuthUrl,
@@ -139,7 +146,7 @@ function isQuotaError(output: string): boolean {
 }
 
 /**
- * Prepares the tenant codebase directory if empty.
+ * Prepares the tenant codebase directory with full SvelteKit project structure if empty.
  */
 function ensureTenantCodebase(tenantSlug: string): string {
   const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
@@ -158,11 +165,72 @@ function ensureTenantCodebase(tenantSlug: string): string {
             "@sveltejs/kit": "^2.0.0",
             svelte: "^5.0.0",
             tailwindcss: "^3.4.3",
+            "svelte-adapter-bun": "^1.0.1",
+          },
+          type: "module",
+          scripts: {
+            dev: "vite dev",
+            build: "vite build",
+            preview: "vite preview",
           },
         },
         null,
         2,
       ),
+    );
+  }
+
+  const svelteConfig = join(codeDir, "svelte.config.js");
+  if (!existsSync(svelteConfig)) {
+    writeFileSync(
+      svelteConfig,
+      `import adapter from "svelte-adapter-bun";\n\n/** @type {import("@sveltejs/kit").Config} */\nconst config = {\n  kit: {\n    adapter: adapter()\n  }\n};\n\nexport default config;\n`,
+    );
+  }
+
+  const viteConfig = join(codeDir, "vite.config.js");
+  if (!existsSync(viteConfig)) {
+    writeFileSync(
+      viteConfig,
+      `import { sveltekit } from "@sveltejs/kit/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({\n  plugins: [sveltekit()]\n});\n`,
+    );
+  }
+
+  const srcDir = join(codeDir, "src");
+  mkdirSync(srcDir, { recursive: true });
+
+  const appHtml = join(srcDir, "app.html");
+  if (!existsSync(appHtml)) {
+    writeFileSync(
+      appHtml,
+      `<!doctype html>\n<html lang="fr">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    %sveltekit.head%\n  </head>\n  <body data-sveltekit-preload-data="hover">\n    <div style="display: contents">%sveltekit.body%</div>\n  </body>\n</html>\n`,
+    );
+  }
+
+  const appCss = join(srcDir, "app.css");
+  if (!existsSync(appCss)) {
+    writeFileSync(
+      appCss,
+      `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n`,
+    );
+  }
+
+  const routesDir = join(srcDir, "routes");
+  mkdirSync(routesDir, { recursive: true });
+
+  const layoutSvelte = join(routesDir, "+layout.svelte");
+  if (!existsSync(layoutSvelte)) {
+    writeFileSync(
+      layoutSvelte,
+      `<script lang="ts">\n  import "../app.css";\n  let { children } = $props();\n</script>\n\n{@render children()}\n`,
+    );
+  }
+
+  const pageSvelte = join(routesDir, "+page.svelte");
+  if (!existsSync(pageSvelte)) {
+    writeFileSync(
+      pageSvelte,
+      `<script lang="ts">\n  let count = $state(0);\n</script>\n\n<svelte:head>\n  <title>${tenantSlug} — Site Officiel</title>\n</svelte:head>\n\n<main class="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6">\n  <div class="max-w-2xl w-full text-center space-y-6">\n    <h1 class="text-4xl font-bold">Bienvenue sur ${tenantSlug}</h1>\n    <p class="text-muted-foreground">Site propulsé par Ether Studio et Svelte 5</p>\n    <button onclick={() => count++} class="px-4 py-2 rounded bg-brand text-white font-medium cursor-pointer">\n      Compteur : {count}\n    </button>\n  </div>\n</main>\n`,
     );
   }
 
@@ -212,6 +280,76 @@ async function getOrLaunchTenantDevServer(slug: string): Promise<number> {
   tenantDevServers.set(slug, instance);
 
   // Poll for ready state
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      const ping = await fetch(`http://127.0.0.1:${port}`);
+      if (ping.status < 500) {
+        instance.ready = true;
+        break;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  return port;
+}
+
+// Production Server Management for Published Tenants
+const tenantProdServers = new Map<string, DevServerInstance>();
+let nextAvailableProdPort = 5400;
+
+async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
+  const existing = tenantProdServers.get(slug);
+  if (existing && !existing.proc.killed) {
+    existing.lastActive = Date.now();
+    return existing.port;
+  }
+
+  const codeDir = ensureTenantCodebase(slug);
+  const port = nextAvailableProdPort++;
+
+  const buildIndex = join(codeDir, "build", "index.js");
+  if (!existsSync(buildIndex)) {
+    const buildProc = Bun.spawn(["bun", "run", "build"], {
+      cwd: codeDir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    await buildProc.exited;
+  }
+
+  const proc = existsSync(buildIndex)
+    ? Bun.spawn(["bun", "./build/index.js"], {
+        cwd: codeDir,
+        env: {
+          ...process.env,
+          PORT: String(port),
+          HOST: "0.0.0.0",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+    : Bun.spawn(
+        ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)],
+        {
+          cwd: codeDir,
+          env: {
+            ...process.env,
+            PORT: String(port),
+          },
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+
+  const instance: DevServerInstance = {
+    proc,
+    port,
+    ready: false,
+    lastActive: Date.now(),
+  };
+  tenantProdServers.set(slug, instance);
+
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
       const ping = await fetch(`http://127.0.0.1:${port}`);
@@ -283,9 +421,184 @@ const server = Bun.serve({
           headers: corsHeaders,
         });
       }
+    // Tenant Production Server Reverse Proxy (for Published Sites)
+    const prodMatch = path.match(/^\/prod\/([a-zA-Z0-9_-]+)(\/.*)?$/);
+    if (prodMatch) {
+      const tenantSlug = prodMatch[1];
+      const subPath = (prodMatch[2] || "/") + url.search;
+
+      try {
+        const prodPort = await getOrLaunchTenantProdServer(tenantSlug);
+        const targetUrl = `http://127.0.0.1:${prodPort}${subPath}`;
+
+        const reqHeaders = new Headers(req.headers);
+        reqHeaders.set("host", `127.0.0.1:${prodPort}`);
+
+        const bodyData =
+          req.method !== "GET" && req.method !== "HEAD"
+            ? await req.blob()
+            : undefined;
+
+        const proxyRes = await fetch(targetUrl, {
+          method: req.method,
+          headers: reqHeaders,
+          body: bodyData,
+        });
+
+        const resHeaders = new Headers(proxyRes.headers);
+        resHeaders.set("Access-Control-Allow-Origin", "*");
+        resHeaders.delete("X-Frame-Options");
+        resHeaders.delete("Content-Security-Policy");
+
+        return new Response(proxyRes.body, {
+          status: proxyRes.status,
+          statusText: proxyRes.statusText,
+          headers: resHeaders,
+        });
+      } catch (err: any) {
+        return new Response(`Production server proxy error: ${err.message}`, {
+          status: 502,
+          headers: corsHeaders,
+        });
+      }
     }
 
-    // Health Check
+    // Tenant Files Listing & Saving Endpoint (Single source of truth)
+    const filesMatch = path.match(/^\/files\/([a-zA-Z0-9_-]+)$/);
+    if (filesMatch) {
+      const tenantSlug = filesMatch[1];
+      const codeDir = ensureTenantCodebase(tenantSlug);
+
+      if (req.method === "GET") {
+        const files: Record<string, any> = {};
+        const ignoredDirs = new Set([
+          "node_modules",
+          ".svelte-kit",
+          ".git",
+          ".gemini",
+          ".gemini-sandbox",
+          "dist",
+          "build",
+        ]);
+        const ignoredFiles = new Set(["bun.lock", ".DS_Store", "thumbs.db"]);
+
+        function scan(dir: string) {
+          if (!existsSync(dir)) return;
+          for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const fullPath = join(dir, entry.name);
+            if (entry.isDirectory()) {
+              if (!ignoredDirs.has(entry.name) && !entry.name.startsWith(".")) {
+                scan(fullPath);
+              }
+            } else if (entry.isFile()) {
+              if (ignoredFiles.has(entry.name) || entry.name.startsWith(".")) continue;
+              const rel = relative(codeDir, fullPath).replace(/\\/g, "/");
+              let lang = "html";
+              if (rel.endsWith(".ts") || rel.endsWith(".js") || rel.endsWith(".mjs")) lang = "typescript";
+              else if (rel.endsWith(".json")) lang = "json";
+
+              try {
+                const stat = statSync(fullPath);
+                if (stat.size <= 500 * 1024) {
+                  files[rel] = {
+                    name: entry.name,
+                    path: rel,
+                    lang,
+                    content: readFileSync(fullPath, "utf-8"),
+                    size: stat.size,
+                  };
+                }
+              } catch {}
+            }
+          }
+        }
+        scan(codeDir);
+
+        return Response.json(
+          { success: true, projectSlug: tenantSlug, files },
+          { headers: corsHeaders },
+        );
+      }
+
+      if (req.method === "POST") {
+        try {
+          const body = await req.json();
+          const relPath = (body.path || "").trim().replace(/^\/+/, "");
+          const content = typeof body.content === "string" ? body.content : "";
+
+          if (!relPath) {
+            return Response.json(
+              { success: false, error: "Chemin de fichier requis" },
+              { status: 400, headers: corsHeaders },
+            );
+          }
+
+          const fullPath = join(codeDir, relPath);
+          mkdirSync(dirname(fullPath), { recursive: true });
+          writeFileSync(fullPath, content, "utf-8");
+
+          return Response.json(
+            { success: true, projectSlug: tenantSlug, path: relPath },
+            { headers: corsHeaders },
+          );
+        } catch (err: any) {
+          return Response.json(
+            { success: false, error: err.message },
+            { status: 500, headers: corsHeaders },
+          );
+        }
+      }
+    }
+
+    // Tenant Production Build Endpoint (Triggered when user clicks "Publier")
+    const buildMatch = path.match(/^\/build\/([a-zA-Z0-9_-]+)$/);
+    if (buildMatch && req.method === "POST") {
+      const tenantSlug = buildMatch[1];
+      const codeDir = ensureTenantCodebase(tenantSlug);
+
+      try {
+        const buildProc = Bun.spawn(["bun", "run", "build"], {
+          cwd: codeDir,
+          env: {
+            ...process.env,
+            NODE_ENV: "production",
+          },
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+
+        const [stdout, stderr] = await Promise.all([
+          new Response(buildProc.stdout).text(),
+          new Response(buildProc.stderr).text(),
+        ]);
+        const exitCode = await buildProc.exited;
+
+        // If a production server is currently running, restart it to load the new build
+        const existingProd = tenantProdServers.get(tenantSlug);
+        if (existingProd && !existingProd.proc.killed) {
+          try {
+            existingProd.proc.kill();
+          } catch {}
+          tenantProdServers.delete(tenantSlug);
+          await getOrLaunchTenantProdServer(tenantSlug);
+        }
+
+        return Response.json(
+          {
+            success: exitCode === 0,
+            exitCode,
+            stdout,
+            stderr,
+          },
+          { headers: corsHeaders },
+        );
+      } catch (err: any) {
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
+      }
+    }
     if (path === "/health" && req.method === "GET") {
       const profiles = listStoredProfiles(DATA_DIR);
       return Response.json(

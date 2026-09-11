@@ -182,6 +182,47 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
+  // Production Tenant Site Proxy (for published sites, e.g. tester.ether.paris)
+  if (
+    !isPreview &&
+    tenantSlug &&
+    !event.locals.isStudio &&
+    !event.url.pathname.startsWith("/api/")
+  ) {
+    const runnerUrl =
+      process.env.RUNNER_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "http://agent-runner:8080"
+        : "http://localhost:8085");
+
+    try {
+      const prodPath = `/prod/${tenantSlug}${event.url.pathname}${event.url.search}`;
+      const proxyUrl = `${runnerUrl}${prodPath}`;
+      const forwardHeaders = new Headers(event.request.headers);
+      forwardHeaders.set("x-forwarded-host", rawHost);
+
+      const prodRes = await fetch(proxyUrl, {
+        method: event.request.method,
+        headers: forwardHeaders,
+        body:
+          event.request.method !== "GET" && event.request.method !== "HEAD"
+            ? await event.request.blob()
+            : undefined,
+        signal: AbortSignal.timeout(4000),
+      });
+
+      if (prodRes.ok || (prodRes.status >= 300 && prodRes.status < 500)) {
+        return new Response(prodRes.body, {
+          status: prodRes.status,
+          statusText: prodRes.statusText,
+          headers: prodRes.headers,
+        });
+      }
+    } catch {
+      // Fall through to standard resolve(event)
+    }
+  }
+
   // Get session from cookie or Authorization header
   const authHeader = event.request.headers.get("authorization");
   const bearerToken = authHeader?.startsWith("Bearer ")
