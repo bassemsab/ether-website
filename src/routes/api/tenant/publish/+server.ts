@@ -47,7 +47,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         console.warn(`[publish] runner build returned ${buildRes.status}`);
       }
     } catch (buildErr: any) {
-      console.warn(`[publish] runner build error for ${tenantSlug}:`, buildErr.message);
+      console.warn(
+        `[publish] runner build error for ${tenantSlug}:`,
+        buildErr.message,
+      );
     }
 
     // 2. Ensure tenant resources (Namespace, PVC, NetworkPolicy, Deployment, Service, Ingress) are applied

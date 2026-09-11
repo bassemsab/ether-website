@@ -88,6 +88,7 @@ export interface StudioChatMessageRecord {
   content: string;
   profile: string | null;
   steps_json: string | null;
+  image_url: string | null;
   created_at: string;
 }
 
@@ -264,6 +265,7 @@ try {
   safeAddColumn("tenants", "git_access_token TEXT");
   safeAddColumn("tenants", "stripe_subscription_id TEXT");
   safeAddColumn("tenants", "plan TEXT DEFAULT 'free'");
+  safeAddColumn("studio_chat_messages", "image_url TEXT");
 } catch (error) {
   console.error(`❌ Failed to initialize bun:sqlite at ${DB_PATH}:`, error);
 }
@@ -823,6 +825,7 @@ export interface StudioChatMessageUI {
     state: "running" | "completed";
   }[];
   conversationId?: string | null;
+  imageUrl?: string | null;
 }
 
 export function getStudioChatHistory(
@@ -866,6 +869,7 @@ export function getStudioChatHistory(
         time,
         steps,
         conversationId: r.conversation_id,
+        imageUrl: r.image_url || undefined,
       };
     });
   } catch (err) {
@@ -881,14 +885,15 @@ export function saveStudioChatMessage(
   profile?: string | null,
   conversationId?: string | null,
   steps?: any[],
+  imageUrl?: string | null,
 ): void {
   if (!db) return;
 
   try {
     const stepsJson = steps && steps.length > 0 ? JSON.stringify(steps) : null;
     db.prepare(
-      `INSERT INTO studio_chat_messages (tenant_slug, conversation_id, role, content, profile, steps_json)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO studio_chat_messages (tenant_slug, conversation_id, role, content, profile, steps_json, image_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       tenantSlug,
       conversationId || null,
@@ -896,6 +901,7 @@ export function saveStudioChatMessage(
       content,
       profile || null,
       stepsJson,
+      imageUrl || null,
     );
   } catch (err) {
     console.error("Failed to save studio chat message:", err);

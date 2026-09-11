@@ -88,4 +88,25 @@ describe("Studio Chat History Persistence", () => {
     const afterClear = getStudioChatHistory(testTenant);
     expect(afterClear.length).toBe(0);
   });
+
+  it("should persist and retrieve attached image URLs in chat history", () => {
+    clearStudioChatHistory(testTenant);
+
+    saveStudioChatMessage(
+      testTenant,
+      "user",
+      "Voici la maquette à intégrer",
+      "auto",
+      "conv_img",
+      undefined,
+      "/uploads/mockup_123.png",
+    );
+
+    const history = getStudioChatHistory(testTenant);
+    expect(history.length).toBe(1);
+    expect(history[0].role).toBe("user");
+    expect(history[0].imageUrl).toBe("/uploads/mockup_123.png");
+
+    clearStudioChatHistory(testTenant);
+  });
 });

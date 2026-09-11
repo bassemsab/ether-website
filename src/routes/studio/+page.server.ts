@@ -80,7 +80,11 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
     });
     if (filesRes.ok) {
       const filesJson = await filesRes.json();
-      if (filesJson.success && filesJson.files && Object.keys(filesJson.files).length > 0) {
+      if (
+        filesJson.success &&
+        filesJson.files &&
+        Object.keys(filesJson.files).length > 0
+      ) {
         initialFiles = filesJson.files;
       }
     }

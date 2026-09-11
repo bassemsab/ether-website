@@ -27,13 +27,21 @@ export const POST: RequestHandler = async ({ request }) => {
     const isStream = request.headers.get("accept") === "text/event-stream";
     const body = await request.json();
     const prompt = (body.prompt || "").trim();
+    const image = body.image; // Optional image attachment { name, type, base64, dataUrl }
     const projectSlug = (body.projectSlug || "tester").trim();
     const conversationId = body.conversationId;
     const preferredProfile = body.profile === "auto" ? undefined : body.profile;
 
-    if (!prompt) {
-      return json({ success: false, error: "Prompt requis" }, { status: 400 });
+    if (!prompt && !image) {
+      return json(
+        { success: false, error: "Prompt ou image requis" },
+        { status: 400 },
+      );
     }
+
+    const effectivePrompt =
+      prompt ||
+      "Voici une image jointe. Intègre-la dans le site ou adapte le design en fonction.";
 
     // 1. Tenant Fair-Use Quota Check
     const tenant = await getTenantBySlug(projectSlug);
@@ -78,18 +86,27 @@ export const POST: RequestHandler = async ({ request }) => {
     saveStudioChatMessage(
       projectSlug,
       "user",
-      prompt,
+      effectivePrompt,
       preferredProfile || "auto",
       conversationId,
+      undefined,
+      image?.dataUrl || (image?.name ? `/uploads/${image.name}` : null),
     );
 
     // 3. Dispatch prompt to agent runner daemon
     if (isStream || body.stream) {
       const runnerRes = await streamAgyPrompt({
         tenantSlug: projectSlug,
-        userPrompt: prompt,
+        userPrompt: effectivePrompt,
         conversationId,
         preferredProfile,
+        image: image
+          ? {
+              name: image.name,
+              type: image.type,
+              base64: image.base64,
+            }
+          : undefined,
       });
 
       if (!runnerRes.body) {
@@ -177,9 +194,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
     const result = await dispatchAgyPrompt({
       tenantSlug: projectSlug,
-      userPrompt: prompt,
+      userPrompt: effectivePrompt,
       conversationId,
       preferredProfile,
+      image: image
+        ? {
+            name: image.name,
+            type: image.type,
+            base64: image.base64,
+          }
+        : undefined,
     });
 
     // Save assistant response to SQLite

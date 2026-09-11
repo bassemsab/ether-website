@@ -41,7 +41,11 @@ function formatToolStep(toolName: string, params: any, su?: any): string {
     su?.tool_summary;
   if (explicitSummary && typeof explicitSummary === "string") {
     const clean = explicitSummary.trim();
-    if (clean.length > 0 && clean.length < 60 && !clean.toLowerCase().includes("generic")) {
+    if (
+      clean.length > 0 &&
+      clean.length < 60 &&
+      !clean.toLowerCase().includes("generic")
+    ) {
       return clean;
     }
   }
@@ -82,17 +86,29 @@ function formatToolStep(toolName: string, params: any, su?: any): string {
     if (cmd.startsWith("curl") || cmd.includes("http")) {
       return "Test HTTP de la page";
     }
-    if (cmd.startsWith("sqlite") || cmd.includes(".sqlite") || cmd.includes("app.db")) {
+    if (
+      cmd.startsWith("sqlite") ||
+      cmd.includes(".sqlite") ||
+      cmd.includes("app.db")
+    ) {
       return "Initialisation de la base SQLite";
     }
     if (cmd.startsWith("ls") || cmd.startsWith("find")) {
       return "Exploration des dossiers";
     }
-    if (cmd.startsWith("cat") || cmd.startsWith("head") || cmd.startsWith("tail")) {
+    if (
+      cmd.startsWith("cat") ||
+      cmd.startsWith("head") ||
+      cmd.startsWith("tail")
+    ) {
       const file = cmd.split(/\s+/).pop()?.split("/").pop();
       return file ? `Consultation de ${file}` : "Consultation des fichiers";
     }
-    if (cmd.startsWith("mkdir") || cmd.startsWith("cp") || cmd.startsWith("mv")) {
+    if (
+      cmd.startsWith("mkdir") ||
+      cmd.startsWith("cp") ||
+      cmd.startsWith("mv")
+    ) {
       return "Organisation de l'arborescence";
     }
     if (cmd.startsWith("git")) {
@@ -122,7 +138,9 @@ function formatToolStep(toolName: string, params: any, su?: any): string {
 
   if (toolName === "find_by_name") {
     const pattern = params?.Pattern || "";
-    return pattern ? `Recherche de fichier "${pattern}"` : "Recherche de fichiers";
+    return pattern
+      ? `Recherche de fichier "${pattern}"`
+      : "Recherche de fichiers";
   }
 
   if (toolName === "grep_search") {
@@ -394,7 +412,16 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
         stderr: "inherit",
       })
     : Bun.spawn(
-        ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)],
+        [
+          "bun",
+          "x",
+          "vite",
+          "dev",
+          "--host",
+          "0.0.0.0",
+          "--port",
+          String(port),
+        ],
         {
           cwd: codeDir,
           env: {
@@ -557,10 +584,16 @@ const server = Bun.serve({
                 scan(fullPath);
               }
             } else if (entry.isFile()) {
-              if (ignoredFiles.has(entry.name) || entry.name.startsWith(".")) continue;
+              if (ignoredFiles.has(entry.name) || entry.name.startsWith("."))
+                continue;
               const rel = relative(codeDir, fullPath).replace(/\\/g, "/");
               let lang = "html";
-              if (rel.endsWith(".ts") || rel.endsWith(".js") || rel.endsWith(".mjs")) lang = "typescript";
+              if (
+                rel.endsWith(".ts") ||
+                rel.endsWith(".js") ||
+                rel.endsWith(".mjs")
+              )
+                lang = "typescript";
               else if (rel.endsWith(".json")) lang = "json";
 
               try {
@@ -806,21 +839,85 @@ const server = Bun.serve({
         const body = (await req.json()) as any;
         const project = (body.project || "tester").trim();
         const prompt = (body.prompt || "").trim();
+        const image = body.image as
+          | { name: string; type: string; base64: string }
+          | undefined;
         const requestedProfile = body.profile;
         const conversationId = body.conversationId;
         const isStream =
           body.stream === true ||
           req.headers.get("accept") === "text/event-stream";
 
-        if (!prompt) {
+        if (!prompt && !image) {
           return Response.json(
-            { success: false, error: "Prompt is required" },
+            { success: false, error: "Prompt or image is required" },
             { status: 400, headers: corsHeaders },
           );
         }
 
         const tenantCodeDir = ensureTenantCodebase(project);
         const triedProfiles: string[] = [];
+
+        // If an image was attached, decode and save it into static/uploads/
+        let savedImagePath = "";
+        let savedImageUrl = "";
+        if (image && image.base64) {
+          try {
+            const uploadsDir = join(tenantCodeDir, "static", "uploads");
+            mkdirSync(uploadsDir, { recursive: true });
+
+            let ext = "png";
+            if (image.name && image.name.includes(".")) {
+              ext =
+                image.name
+                  .split(".")
+                  .pop()!
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]/g, "") || "png";
+            } else if (image.type) {
+              const sub = image.type.split("/")[1];
+              if (sub)
+                ext = sub.replace("jpeg", "jpg").replace(/[^a-z0-9]/g, "");
+            }
+
+            const cleanBase = (
+              image.name ? image.name.replace(/\.[^/.]+$/, "") : "image"
+            )
+              .toLowerCase()
+              .replace(/[^a-z0-9_-]/g, "_")
+              .slice(0, 30);
+            const fileName = `${cleanBase || "upload"}_${Date.now()}.${ext}`;
+            const targetFile = join(uploadsDir, fileName);
+
+            const cleanBase64 = image.base64.replace(/^data:[^;]+;base64,/, "");
+            const buffer = Buffer.from(cleanBase64, "base64");
+            writeFileSync(targetFile, buffer);
+
+            savedImagePath = targetFile;
+            savedImageUrl = `/uploads/${fileName}`;
+            console.log(
+              `[Runner] Saved uploaded image to ${targetFile} (Public URL: ${savedImageUrl})`,
+            );
+          } catch (imgErr: any) {
+            console.error(
+              `[Runner] Failed to save attached image: ${imgErr.message}`,
+            );
+          }
+        }
+
+        let effectivePrompt = prompt;
+        if (savedImagePath) {
+          const imageInstructions = [
+            `[User Attached Image]`,
+            `File Path on disk: ${savedImagePath}`,
+            `Web Public Path: ${savedImageUrl}`,
+            `Instructions: The user attached an image for this task. You can inspect this image file directly using the view_file tool with "${savedImagePath}". If you need to display or reference this image on the website (e.g. in Svelte components or HTML), reference it via its public URL path "${savedImageUrl}" (e.g. <img src="${savedImageUrl}" alt="..." />).`,
+            prompt
+              ? `\nUser Message: ${prompt}`
+              : `\nUser Message: Please inspect and incorporate or act on this attached image.`,
+          ].join("\n");
+          effectivePrompt = imageInstructions;
+        }
 
         // Execute turn within per-tenant sequential queue
         if (isStream) {
@@ -878,7 +975,7 @@ const server = Bun.serve({
                     const args = [
                       agyBin,
                       "-p",
-                      prompt,
+                      effectivePrompt,
                       "--add-dir",
                       tenantCodeDir,
                       "--output-format",
@@ -1025,6 +1122,7 @@ const server = Bun.serve({
                         conversationId ||
                         `conv_${Date.now()}`,
                       exitCode: proc.exitCode,
+                      savedImageUrl: savedImageUrl || undefined,
                     });
                   }
                 });
@@ -1086,7 +1184,7 @@ const server = Bun.serve({
               const args = [
                 agyBin,
                 "-p",
-                prompt,
+                effectivePrompt,
                 "--add-dir",
                 tenantCodeDir,
                 "--dangerously-skip-permissions",
@@ -1140,6 +1238,7 @@ const server = Bun.serve({
                 profileUsed: activeProfile,
                 conversationId: conversationId || `conv_${Date.now()}`,
                 exitCode: proc.exitCode,
+                savedImageUrl: savedImageUrl || undefined,
               };
             }
 

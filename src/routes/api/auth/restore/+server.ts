@@ -17,7 +17,10 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
 
     const session = await getSessionByToken(token);
     if (!session) {
-      return json({ success: false, error: "Session expirée ou invalide" }, { status: 401 });
+      return json(
+        { success: false, error: "Session expirée ou invalide" },
+        { status: 401 },
+      );
     }
 
     const host =

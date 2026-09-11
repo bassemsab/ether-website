@@ -74,7 +74,11 @@ export const handle: Handle = async ({ event, resolve }) => {
     isPreview = true;
   }
 
-  if (!tenantSlug && host.startsWith("preview-") && host.endsWith(".ether.paris")) {
+  if (
+    !tenantSlug &&
+    host.startsWith("preview-") &&
+    host.endsWith(".ether.paris")
+  ) {
     const candidate = host.slice(8).replace(".ether.paris", "");
     if (candidate.length > 0 && !RESERVED_SLUGS.has(candidate)) {
       tenantSlug = candidate;

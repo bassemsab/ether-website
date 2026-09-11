@@ -21,12 +21,19 @@ Technical Engineering Rules:
 4. Always preserve existing project configuration files (package.json, svelte.config.js, vite.config.ts).
 `;
 
+export interface AttachedImagePayload {
+  name: string;
+  type: string;
+  base64: string;
+}
+
 export interface AgentTurnPayload {
   tenantSlug: string;
   userPrompt: string;
   conversationId?: string;
   preferredProfile?: string;
   workspacePath?: string;
+  image?: AttachedImagePayload;
 }
 
 export interface AgentTurnResult {
@@ -73,6 +80,7 @@ export async function dispatchAgyPrompt(
         prompt: fullPrompt,
         conversationId: payload.conversationId,
         profile: targetProfile,
+        image: payload.image,
       }),
       signal: controller.signal,
     });
@@ -118,6 +126,7 @@ export async function streamAgyPrompt(
         conversationId: payload.conversationId,
         profile: targetProfile,
         stream: true,
+        image: payload.image,
       }),
     });
 

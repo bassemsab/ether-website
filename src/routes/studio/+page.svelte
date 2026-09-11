@@ -90,6 +90,16 @@
     profile: string;
     time: string;
     steps?: ChatStep[];
+    imageUrl?: string | null;
+  }
+
+  interface AttachedImageState {
+    file: File;
+    name: string;
+    size: number;
+    type: string;
+    dataUrl: string;
+    base64: string;
   }
 
   let { data }: Props = $props();
@@ -193,6 +203,93 @@
   );
   let publishLoading = $state(false);
   let publishStatus = $state<string | null>(null);
+
+  // Attached Image & Multimodal Chat State
+  let attachedImage = $state<AttachedImageState | null>(null);
+  let fileInputRef = $state<HTMLInputElement | null>(null);
+  let isDraggingOver = $state(false);
+  let previewImageModal = $state<string | null>(null);
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + " o";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " Ko";
+    return (bytes / (1024 * 1024)).toFixed(1) + " Mo";
+  }
+
+  function processSelectedImage(file: File) {
+    if (!file.type.startsWith("image/")) {
+      alert("Veuillez sélectionner un fichier image valide (PNG, JPG, WebP, SVG, GIF).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("L'image est trop volumineuse (maximum 5 Mo).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      const base64 = dataUrl.split(",")[1] || "";
+      attachedImage = {
+        file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        dataUrl,
+        base64,
+      };
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleFileInputChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      processSelectedImage(input.files[0]);
+    }
+    input.value = "";
+  }
+
+  function removeAttachedImage() {
+    attachedImage = null;
+    if (fileInputRef) fileInputRef.value = "";
+  }
+
+  function handleChatPaste(e: ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) {
+          processSelectedImage(file);
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    if (e.dataTransfer?.types.includes("Files")) {
+      isDraggingOver = true;
+    }
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    e.preventDefault();
+    isDraggingOver = false;
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    isDraggingOver = false;
+    const files = e.dataTransfer?.files;
+    if (files && files[0] && files[0].type.startsWith("image/")) {
+      processSelectedImage(files[0]);
+    }
+  }
 
   // Chat scroll container
   let chatContainer = $state<HTMLDivElement | null>(null);
@@ -721,7 +818,8 @@
   async function handleSendPrompt(e?: Event) {
     if (e) e.preventDefault();
     const text = promptInput.trim();
-    if (!text || isThinking) return;
+    const currentAttachedImage = attachedImage;
+    if ((!text && !currentAttachedImage) || isThinking) return;
 
     if (promptQuota.remaining <= 0) {
       messages.push({
@@ -741,9 +839,13 @@
     }
 
     promptInput = "";
+    attachedImage = null;
+    if (fileInputRef) fileInputRef.value = "";
+
     messages.push({
       role: "user",
       content: text,
+      imageUrl: currentAttachedImage ? currentAttachedImage.dataUrl : null,
       profile: activeProfile,
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     });
@@ -769,6 +871,13 @@
         },
         body: JSON.stringify({
           prompt: text,
+          image: currentAttachedImage
+            ? {
+                name: currentAttachedImage.name,
+                type: currentAttachedImage.type,
+                base64: currentAttachedImage.base64,
+              }
+            : undefined,
           projectSlug,
           profile: activeProfile,
           conversationId,
@@ -817,6 +926,9 @@
                 if (data.profileUsed) {
                   messages[assistantMsgIndex].profile = data.profileUsed;
                 }
+                if (data.savedImageUrl && messages[assistantMsgIndex - 1]) {
+                  messages[assistantMsgIndex - 1].imageUrl = data.savedImageUrl;
+                }
                 // Handle live thinking / tool execution steps
                 if (data.id !== undefined && data.name) {
                   if (!messages[assistantMsgIndex].steps) {
@@ -857,6 +969,10 @@
         if (!resData.success && resData.quotaExceeded) {
           promptQuota.remaining = 0;
           promptQuota.allowed = false;
+        }
+
+        if (resData.savedImageUrl && messages[assistantMsgIndex - 1]) {
+          messages[assistantMsgIndex - 1].imageUrl = resData.savedImageUrl;
         }
 
         if (resData.success) {
@@ -1197,8 +1313,24 @@
         <div
           bind:this={chatContainer}
           onclick={handleChatContainerClick}
-          class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue"
+          class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue relative"
+          ondragover={handleDragOver}
+          ondragleave={handleDragLeave}
+          ondrop={handleDrop}
+          role="region"
+          aria-label="Zone de discussion et dépôt d'images"
         >
+          {#if isDraggingOver}
+            <div class="absolute inset-0 z-20 bg-brand/10 border-2 border-dashed border-brand backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none rounded-lg m-2">
+              <div class="p-3 bg-card rounded-xl shadow-retro border border-black/10 flex items-center gap-2 text-brand font-medium text-xs">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Déposez votre image ici</span>
+              </div>
+            </div>
+          {/if}
+
           {#each messages as msg}
             <div class="space-y-1 {msg.role === 'user' ? 'text-right' : ''}">
               <div class="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground {msg.role === 'user' ? 'justify-end' : ''}">
@@ -1212,6 +1344,26 @@
                 {/if}
               </div>
               <div class="inline-block text-left p-3.5 rounded-lg max-w-[90%] leading-relaxed {msg.role === 'user' ? 'bg-brand text-white shadow-retro-sm' : 'retro-card bg-card text-foreground'}">
+                {#if msg.imageUrl}
+                  <div class="mb-2">
+                    <button
+                      type="button"
+                      class="cursor-pointer group relative block overflow-hidden rounded-lg border border-black/10 max-w-[260px] max-h-[180px] bg-black/5 hover:opacity-95 transition-all text-left shadow-sm"
+                      onclick={() => previewImageModal = msg.imageUrl || null}
+                      title="Cliquer pour agrandir"
+                    >
+                      <img
+                        src={msg.imageUrl}
+                        alt="Image jointe"
+                        class="object-cover w-full h-full max-h-[180px] rounded-lg transition-transform duration-200 group-hover:scale-105"
+                      />
+                      <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <span class="bg-black/80 text-white text-[10px] px-2.5 py-1 rounded font-mono shadow">🔍 Agrandir</span>
+                      </div>
+                    </button>
+                  </div>
+                {/if}
+
                 {#if msg.role === 'assistant' && !msg.content && (!msg.steps || msg.steps.length === 0)}
                   <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground font-mono">
                     <div class="flex items-center gap-1">
@@ -1264,7 +1416,9 @@
                 {/if}
 
                 {#if msg.role === 'user'}
-                  <div class="whitespace-pre-wrap">{msg.content}</div>
+                  {#if msg.content}
+                    <div class="whitespace-pre-wrap">{msg.content}</div>
+                  {/if}
                 {:else if msg.content}
                   <div class="prose prose-sm max-w-none text-foreground leading-relaxed prose-headings:font-display prose-headings:text-foreground prose-a:text-brand prose-code:text-foreground prose-code:bg-black/5 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
                     {@html renderMarkdown(msg.content)}
@@ -1305,18 +1459,69 @@
           </div>
         {/if}
 
-        <!-- Prompt Input -->
-        <form onsubmit={handleSendPrompt} class="p-3 border-t border-black/10 bg-surface/80 flex items-center gap-2">
+        <!-- Attached Image Preview Chip -->
+        {#if attachedImage}
+          <div class="px-3 py-2 border-t border-black/10 bg-surface/60 flex items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="relative w-10 h-10 rounded-lg border border-black/15 overflow-hidden bg-black/5 shrink-0 shadow-sm">
+                <img src={attachedImage.dataUrl} alt={attachedImage.name} class="w-full h-full object-cover" />
+              </div>
+              <div class="min-w-0">
+                <div class="text-[11px] font-medium text-foreground truncate max-w-[190px]">{attachedImage.name}</div>
+                <div class="text-[10px] text-muted-foreground font-mono">{formatFileSize(attachedImage.size)}</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onclick={removeAttachedImage}
+              class="p-1 rounded hover:bg-black/10 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Supprimer l'image"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        {/if}
+
+        <!-- Prompt Input Form -->
+        <form
+          onsubmit={handleSendPrompt}
+          class="p-3 border-t border-black/10 bg-surface/80 flex items-center gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
+        >
+          <!-- Hidden file input -->
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+            class="hidden"
+            bind:this={fileInputRef}
+            onchange={handleFileInputChange}
+          />
+
+          <!-- Attachment button -->
+          <button
+            type="button"
+            onclick={() => fileInputRef?.click()}
+            disabled={isThinking || promptQuota.remaining <= 0}
+            class="p-2 rounded-lg border border-black/10 bg-card hover:bg-black/5 text-muted-foreground hover:text-foreground transition-all cursor-pointer disabled:opacity-40 shrink-0"
+            title="Joindre une image (PNG, JPG, WebP, SVG, max 5Mo)"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
+          </button>
+
           <input
             type="text"
             bind:value={promptInput}
-            placeholder={promptQuota.remaining > 0 ? "Demandez une modification à l'agent..." : "Quota quotidien atteint pour aujourd'hui"}
+            onpaste={handleChatPaste}
+            placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint pour aujourd'hui")}
             disabled={isThinking || promptQuota.remaining <= 0}
             class="flex-1 rounded-lg border border-black/10 bg-card px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={!promptInput.trim() || isThinking || promptQuota.remaining <= 0}
+            disabled={(!promptInput.trim() && !attachedImage) || isThinking || promptQuota.remaining <= 0}
             class="focus-ring px-4 py-2 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0"
           >
             Envoyer
@@ -1738,3 +1943,32 @@
     </div>
   </div>
 </div>
+
+{#if previewImageModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+    onclick={() => previewImageModal = null}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
+    <div class="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
+      <button
+        type="button"
+        class="absolute -top-10 right-0 text-white hover:text-white/80 p-2 text-xs font-mono cursor-pointer flex items-center gap-1.5 bg-black/40 hover:bg-black/60 rounded-md px-3 transition-colors"
+        onclick={() => previewImageModal = null}
+      >
+        <span>✕</span> Fermer
+      </button>
+      <img
+        src={previewImageModal}
+        alt="Image agrandie"
+        class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain border border-white/20 cursor-default"
+        onclick={(e) => e.stopPropagation()}
+      />
+    </div>
+  </div>
+{/if}
+
