@@ -5,6 +5,7 @@
     "": {
       "name": "ether-website-svelte",
       "dependencies": {
+        "@codemirror/lang-css": "^6.3.1",
         "@codemirror/lang-html": "^6.4.12",
         "@codemirror/lang-javascript": "^6.2.5",
         "@codemirror/lang-sql": "^6.10.0",

@@ -165,7 +165,7 @@ export const handle: Handle = async ({ event, resolve }) => {
           event.request.method !== "GET" && event.request.method !== "HEAD"
             ? await event.request.blob()
             : undefined,
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (devRes.ok || (devRes.status >= 300 && devRes.status < 500)) {
@@ -209,7 +209,7 @@ export const handle: Handle = async ({ event, resolve }) => {
           event.request.method !== "GET" && event.request.method !== "HEAD"
             ? await event.request.blob()
             : undefined,
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (prodRes.ok || (prodRes.status >= 300 && prodRes.status < 500)) {

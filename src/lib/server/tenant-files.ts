@@ -8,7 +8,7 @@ import {
 } from "fs";
 import { join, normalize, relative, resolve } from "path";
 
-export type SupportedEditorLang = "html" | "typescript" | "json";
+export type SupportedEditorLang = "html" | "typescript" | "json" | "css";
 
 export interface TenantFileSummary {
   name: string;
@@ -61,6 +61,7 @@ export function detectFileLang(filename: string): SupportedEditorLang {
   if (lower.endsWith(".ts")) return "typescript";
   if (lower.endsWith(".json")) return "json";
   if (lower.endsWith(".js") || lower.endsWith(".mjs")) return "typescript";
+  if (lower.endsWith(".css")) return "css";
   return "html";
 }
 

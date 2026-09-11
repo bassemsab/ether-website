@@ -256,7 +256,7 @@ function ensureTenantCodebase(tenantSlug: string): string {
   if (!existsSync(viteConfig)) {
     writeFileSync(
       viteConfig,
-      `import { sveltekit } from "@sveltejs/kit/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({\n  plugins: [sveltekit()]\n});\n`,
+      `import { sveltekit } from "@sveltejs/kit/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({\n  plugins: [sveltekit()],\n  server: {\n    hmr: false\n  }\n});\n`,
     );
   }
 
@@ -330,8 +330,8 @@ async function getOrLaunchTenantDevServer(slug: string): Promise<number> {
         ...process.env,
         PORT: String(port),
       },
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: "inherit",
+      stderr: "inherit",
     },
   );
 
@@ -390,8 +390,8 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
           PORT: String(port),
           HOST: "0.0.0.0",
         },
-        stdout: "pipe",
-        stderr: "pipe",
+        stdout: "inherit",
+        stderr: "inherit",
       })
     : Bun.spawn(
         ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)],
@@ -401,8 +401,8 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
             ...process.env,
             PORT: String(port),
           },
-          stdout: "pipe",
-          stderr: "pipe",
+          stdout: "inherit",
+          stderr: "inherit",
         },
       );
 

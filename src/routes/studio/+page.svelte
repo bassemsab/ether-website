@@ -9,6 +9,7 @@
   import { keymap } from "@codemirror/view";
   import { html } from "@codemirror/lang-html";
   import { javascript } from "@codemirror/lang-javascript";
+  import { css } from "@codemirror/lang-css";
   import { EditorState, Compartment } from "@codemirror/state";
   import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 
@@ -296,7 +297,7 @@
   }
 
   // Multi-file Code Editor State
-  type SupportedLang = "html" | "typescript" | "json";
+  type SupportedLang = "html" | "typescript" | "json" | "css";
   interface FileItem {
     name: string;
     path: string;
@@ -567,6 +568,8 @@
       return javascript({ typescript: true });
     } else if (lang === "json") {
       return javascript();
+    } else if (lang === "css") {
+      return css();
     }
     return html();
   }
@@ -709,7 +712,8 @@
       try {
         previewIframe.contentWindow?.location.reload();
       } catch {
-        previewIframe.src = previewUrl;
+        const sep = previewUrl.includes("?") ? "&" : "?";
+        previewIframe.src = `${previewUrl}${sep}_t=${Date.now()}`;
       }
     }
   }
