@@ -70,15 +70,7 @@
         <a href="#contact" class="hover:text-foreground transition-colors">Contact</a>
       </nav>
 
-      <div class="flex items-center gap-2">
-        <a
-          href="https://studio.ether.paris/?project={tenant.slug}"
-          class="focus-ring px-4 py-1.5 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-foreground text-xs uppercase tracking-[0.15em] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-retro-sm font-medium"
-        >
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Studio</span>
-        </a>
-      </div>
+
     </div>
   </header>
 
