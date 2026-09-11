@@ -448,7 +448,7 @@
       height: "100%",
       fontSize: "12px",
       fontFamily: "'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-      backgroundColor: "transparent",
+      backgroundColor: "hsl(var(--card))",
       color: "#1E1B39",
     },
     ".cm-content": {
@@ -461,18 +461,24 @@
       borderLeftWidth: "2px",
     },
     ".cm-gutters": {
-      backgroundColor: "transparent",
-      color: "#A8A29E",
-      border: "none",
-      paddingRight: "12px",
+      backgroundColor: "#F2EFE8",
+      color: "#99938B",
+      borderRight: "1px solid rgba(30, 27, 57, 0.12)",
+      borderLeft: "none",
+      borderTop: "none",
+      borderBottom: "none",
+      paddingRight: "6px",
       userSelect: "none",
+      zIndex: "5",
     },
     ".cm-lineNumbers .cm-gutterElement": {
-      paddingLeft: "12px",
-      minWidth: "28px",
+      paddingLeft: "10px",
+      paddingRight: "8px",
+      minWidth: "32px",
+      textAlign: "right",
     },
     ".cm-activeLineGutter": {
-      backgroundColor: "rgba(30, 27, 57, 0.06)",
+      backgroundColor: "rgba(30, 27, 57, 0.08)",
       color: "#1E1B39",
       fontWeight: "bold",
     },
@@ -1330,7 +1336,7 @@
         {/if}
 
         <!-- CodeMirror Editor Container -->
-        <div class="flex-1 overflow-hidden bg-surface/20 relative" bind:this={editorContainer}>
+        <div class="flex-1 overflow-hidden bg-card relative" bind:this={editorContainer}>
           {#if editorSaved}
             <div class="absolute bottom-3 right-3 bg-foreground text-background text-[11px] font-mono px-3 py-1.5 rounded-full shadow-retro z-20 pointer-events-none flex items-center gap-1.5">
               <span>✓ Sauvegardé</span>
