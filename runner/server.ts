@@ -11,6 +11,7 @@ import {
   markProfileThrottled,
   getNextHealthyProfile,
   incrementProfileTurnCount,
+  getProfileApiKey,
 } from "./auth-helper";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
@@ -288,7 +289,13 @@ const server = Bun.serve({
                     const hasAgy = existsSync(agyBin);
 
                     if (hasAgy) {
-                      const args = [agyBin, "-p", prompt, "--dangerously-skip-permissions"];
+                      const apiKey = getProfileApiKey(DATA_DIR, activeProfile);
+                      const args = [
+                        agyBin,
+                        "-p", prompt,
+                        "--add-dir", tenantCodeDir,
+                        "--dangerously-skip-permissions",
+                      ];
                       if (conversationId) {
                         args.push("--conversation", conversationId);
                       }
@@ -299,6 +306,8 @@ const server = Bun.serve({
                           ...process.env,
                           HOME: sandboxHome,
                           AGY_PROFILE: activeProfile,
+                          GEMINI_API_KEY: apiKey,
+                          GOOGLE_API_KEY: apiKey,
                         },
                         stdout: "pipe",
                         stderr: "pipe",
@@ -399,7 +408,13 @@ const server = Bun.serve({
               const hasAgy = existsSync(agyBin);
 
               if (hasAgy) {
-                const args = [agyBin, "-p", prompt, "--dangerously-skip-permissions"];
+                const apiKey = getProfileApiKey(DATA_DIR, activeProfile);
+                const args = [
+                  agyBin,
+                  "-p", prompt,
+                  "--add-dir", tenantCodeDir,
+                  "--dangerously-skip-permissions",
+                ];
                 if (conversationId) {
                   args.push("--conversation", conversationId);
                 }
@@ -410,6 +425,8 @@ const server = Bun.serve({
                     ...process.env,
                     HOME: sandboxHome,
                     AGY_PROFILE: activeProfile,
+                    GEMINI_API_KEY: apiKey,
+                    GOOGLE_API_KEY: apiKey,
                   },
                   stdout: "pipe",
                   stderr: "pipe",

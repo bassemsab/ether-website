@@ -380,8 +380,22 @@ export function saveProfile(
 }
 
 /**
+ * Gets the API key for a profile (profile-specific api_key.txt or fallback from env).
+ */
+export function getProfileApiKey(dataDir: string, profileName: string): string | undefined {
+  const keyPath = join(dataDir, "profiles", profileName, "api_key.txt");
+  if (existsSync(keyPath)) {
+    try {
+      const key = readFileSync(keyPath, "utf-8").trim();
+      if (key) return key;
+    } catch (e) {}
+  }
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+}
+
+/**
  * Copies Google profile credentials into a tenant sandbox (~/.gemini)
- * so agy runs authenticated without modifying the original profile.
+ * and configures modelProvider: gemini so agy runs autonomously.
  */
 export function injectProfileIntoTenantSandbox(
   dataDir: string,
@@ -389,28 +403,40 @@ export function injectProfileIntoTenantSandbox(
   tenantSlug: string
 ): string {
   const profileDir = join(dataDir, "profiles", profileName);
-  if (!existsSync(profileDir)) {
-    throw new Error(`Google profile "${profileName}" not found in ${dataDir}/profiles`);
-  }
 
   // Tenant sandbox directory acts as HOME for agy
   const tenantDir = join(dataDir, "tenants", tenantSlug);
   const sandboxGeminiDir = join(tenantDir, ".gemini-sandbox", ".gemini");
-  mkdirSync(sandboxGeminiDir, { recursive: true });
+  const cliDir = join(sandboxGeminiDir, "antigravity-cli");
+  mkdirSync(cliDir, { recursive: true });
 
-  // Files to mirror into the sandbox
-  const filesToCopy = [
-    "jetski-standalone-oauth-token",
-    "google_accounts.json",
-    "settings.json",
-    "installation_id",
-  ];
+  // Ensure CLI settings.json has modelProvider: gemini
+  const cliSettingsFile = join(cliDir, "settings.json");
+  let cliSettings: Record<string, any> = { modelProvider: "gemini" };
+  if (existsSync(cliSettingsFile)) {
+    try {
+      cliSettings = JSON.parse(readFileSync(cliSettingsFile, "utf-8"));
+      cliSettings.modelProvider = "gemini";
+    } catch (e) {}
+  }
+  writeFileSync(cliSettingsFile, JSON.stringify(cliSettings, null, 2));
 
-  for (const file of filesToCopy) {
-    const src = join(profileDir, file);
-    const dest = join(sandboxGeminiDir, file);
-    if (existsSync(src)) {
-      writeFileSync(dest, readFileSync(src));
+  // Files to mirror into the sandbox if profile exists
+  if (existsSync(profileDir)) {
+    const filesToCopy = [
+      "jetski-standalone-oauth-token",
+      "google_accounts.json",
+      "settings.json",
+      "installation_id",
+      "api_key.txt",
+    ];
+
+    for (const file of filesToCopy) {
+      const src = join(profileDir, file);
+      const dest = join(sandboxGeminiDir, file);
+      if (existsSync(src)) {
+        writeFileSync(dest, readFileSync(src));
+      }
     }
   }
 
