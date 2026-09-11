@@ -37,7 +37,31 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         ? "http://agent-runner:8080"
         : "http://localhost:8085");
 
-    // 1. Trigger production build in runner (bun run build)
+    // 1. Commit and push all changes to Gitea repository
+    try {
+      const gitRes = await fetch(
+        `${runnerUrl}/git/commit-and-push/${tenantSlug}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: `Publication via Ether Studio - ${new Date().toLocaleString("fr-FR")}`,
+          }),
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+      if (gitRes.ok) {
+        const gitData = await gitRes.json();
+        console.log(`[publish] git commit-and-push for ${tenantSlug}:`, gitData);
+      }
+    } catch (gitErr: any) {
+      console.warn(
+        `[publish] git commit-and-push note for ${tenantSlug}:`,
+        gitErr.message,
+      );
+    }
+
+    // 2. Trigger production build in runner (bun run build)
     try {
       const buildRes = await fetch(`${runnerUrl}/build/${tenantSlug}`, {
         method: "POST",

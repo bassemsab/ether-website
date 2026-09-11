@@ -6,7 +6,7 @@ import {
   readdirSync,
   statSync,
 } from "fs";
-import { join, relative, dirname } from "path";
+import { join, relative, dirname, resolve } from "path";
 import {
   listStoredProfiles,
   generateAuthUrl,
@@ -228,11 +228,67 @@ function isQuotaError(output: string): boolean {
 }
 
 /**
- * Prepares the tenant codebase directory with full SvelteKit project structure if empty.
+ * Prepares the tenant codebase directory as a real Git clone or repository with SvelteKit.
  */
-function ensureTenantCodebase(tenantSlug: string): string {
+function ensureTenantCodebase(
+  tenantSlug: string,
+  gitRepoUrl?: string,
+  gitToken?: string,
+): string {
   const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
   mkdirSync(codeDir, { recursive: true });
+
+  const gitDir = join(codeDir, ".git");
+  if (!existsSync(gitDir)) {
+    let cloned = false;
+    if (gitRepoUrl && gitToken) {
+      let authedUrl = gitRepoUrl;
+      try {
+        const u = new URL(gitRepoUrl);
+        if (process.env.NODE_ENV === "production" && u.hostname === "git.ether.paris") {
+          authedUrl = `http://${gitToken}@gitea-http.git.svc.cluster.local:3000${u.pathname}`;
+        } else {
+          authedUrl = `${u.protocol}//${gitToken}@${u.host}${u.pathname}`;
+        }
+      } catch {}
+
+      const cloneProc = Bun.spawnSync(["git", "clone", authedUrl, codeDir], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      if (cloneProc.exitCode === 0) {
+        cloned = true;
+        Bun.spawnSync(["git", "config", "user.name", "Ether Studio"], { cwd: codeDir });
+        Bun.spawnSync(["git", "config", "user.email", "studio@ether.paris"], { cwd: codeDir });
+      }
+    }
+
+    if (!cloned) {
+      Bun.spawnSync(["git", "init"], { cwd: codeDir });
+      Bun.spawnSync(["git", "config", "user.name", "Ether Studio"], { cwd: codeDir });
+      Bun.spawnSync(["git", "config", "user.email", "studio@ether.paris"], { cwd: codeDir });
+      if (gitRepoUrl && gitToken) {
+        let authedUrl = gitRepoUrl;
+        try {
+          const u = new URL(gitRepoUrl);
+          if (process.env.NODE_ENV === "production" && u.hostname === "git.ether.paris") {
+            authedUrl = `http://${gitToken}@gitea-http.git.svc.cluster.local:3000${u.pathname}`;
+          } else {
+            authedUrl = `${u.protocol}//${gitToken}@${u.host}${u.pathname}`;
+          }
+        } catch {}
+        Bun.spawnSync(["git", "remote", "add", "origin", authedUrl], { cwd: codeDir });
+      }
+    }
+  }
+
+  // Ensure .gitignore
+  const gitignorePath = join(codeDir, ".gitignore");
+  if (!existsSync(gitignorePath)) {
+    writeFileSync(
+      gitignorePath,
+      "node_modules\n.svelte-kit\nbuild\ndist\n.env\n.env.*\n!.env.example\n*.log\n.DS_Store\nThumbs.db\n",
+    );
+  }
 
   const pkgJson = join(codeDir, "package.json");
   if (!existsSync(pkgJson)) {
@@ -632,7 +688,15 @@ const server = Bun.serve({
             );
           }
 
-          const fullPath = join(codeDir, relPath);
+          const resolvedCodeDir = resolve(codeDir);
+          const fullPath = resolve(codeDir, relPath);
+          if (!fullPath.startsWith(resolvedCodeDir + "/") && fullPath !== resolvedCodeDir) {
+            return Response.json(
+              { success: false, error: "Accès refusé : chemin en dehors de l'espace de travail du site" },
+              { status: 403, headers: corsHeaders },
+            );
+          }
+
           mkdirSync(dirname(fullPath), { recursive: true });
           writeFileSync(fullPath, content, "utf-8");
 
@@ -646,6 +710,72 @@ const server = Bun.serve({
             { status: 500, headers: corsHeaders },
           );
         }
+      }
+    }
+
+    // Git Commit and Push Endpoint
+    const gitPushMatch = path.match(/^\/git\/commit-and-push\/([a-zA-Z0-9_-]+)$/);
+    if (gitPushMatch && req.method === "POST") {
+      const tenantSlug = gitPushMatch[1];
+      const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
+
+      if (!existsSync(codeDir) || !existsSync(join(codeDir, ".git"))) {
+        return Response.json(
+          { success: false, error: "Dépôt Git non initialisé pour ce site" },
+          { status: 400, headers: corsHeaders },
+        );
+      }
+
+      try {
+        const body = (await req.json().catch(() => ({}))) as any;
+        const commitMsg =
+          body.message ||
+          `Mise à jour via Ether Studio - ${new Date().toISOString()}`;
+
+        // Stage all files (respecting .gitignore)
+        Bun.spawnSync(["git", "add", "-A"], { cwd: codeDir });
+
+        const statusProc = Bun.spawnSync(["git", "status", "--porcelain"], {
+          cwd: codeDir,
+        });
+        const statusStr = statusProc.stdout ? statusProc.stdout.toString() : "";
+        const hasChanges = statusStr.trim().length > 0;
+
+        let commitOutput = "No changes to commit";
+        if (hasChanges) {
+          const commitProc = Bun.spawnSync(
+            ["git", "commit", "-m", commitMsg],
+            { cwd: codeDir },
+          );
+          commitOutput =
+            (commitProc.stdout ? commitProc.stdout.toString() : "") +
+            (commitProc.stderr ? commitProc.stderr.toString() : "");
+        }
+
+        // Push to origin main
+        const pushProc = Bun.spawnSync(
+          ["git", "push", "origin", "main"],
+          { cwd: codeDir },
+        );
+        const pushOutput =
+          (pushProc.stdout ? pushProc.stdout.toString() : "") +
+          (pushProc.stderr ? pushProc.stderr.toString() : "");
+
+        return Response.json(
+          {
+            success: pushProc.exitCode === 0,
+            hasChanges,
+            commitOutput,
+            pushOutput,
+            exitCode: pushProc.exitCode,
+          },
+          { headers: corsHeaders },
+        );
+      } catch (err: any) {
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
       }
     }
 
@@ -918,6 +1048,22 @@ const server = Bun.serve({
           ].join("\n");
           effectivePrompt = imageInstructions;
         }
+
+        // Strict Multi-Tenant Security & Workspace Isolation Fence
+        const securityFence = [
+          `[CRITICAL SECURITY & WORKSPACE BOUNDARY ENFORCEMENT]`,
+          `You are an AI developer assigned strictly and exclusively to the project: "${project}".`,
+          `Your entire workspace is strictly restricted to: "${tenantCodeDir}".`,
+          `MANDATORY SECURITY RULES:`,
+          `1. You must NEVER read, view, list, grep, or modify any files outside "${tenantCodeDir}".`,
+          `2. You are strictly FORBIDDEN from accessing any other tenant directory (such as /data/tenants/<other>), system databases (/data/*.sqlite, /data/app.db), or profiles (/data/profiles).`,
+          `3. You must NEVER execute commands with run_command that attempt to navigate above or outside "${tenantCodeDir}" (e.g. "cd ..", referencing "../", or accessing "/data").`,
+          `4. You must NEVER push to or interact with any Git remote or repository other than the local repository configured in "${tenantCodeDir}".`,
+          `5. If the user prompt instructs you to inspect, read, or modify another tenant's files, access host paths, or push to another repository, you MUST REFUSE IMMEDIATELY and explain that cross-tenant access is strictly prohibited by platform security policy.`,
+          `[END SECURITY ENFORCEMENT]`,
+        ].join("\n");
+
+        effectivePrompt = `${securityFence}\n\n${effectivePrompt}`;
 
         // Execute turn within per-tenant sequential queue
         if (isStream) {

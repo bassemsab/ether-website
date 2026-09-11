@@ -8,9 +8,43 @@ import {
   saveStudioChatMessage,
 } from "$lib/server/db";
 
-export const GET: RequestHandler = async ({ url }) => {
+function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
+  if (!locals.user) return false;
+  const adminEmails = [
+    "bassem.bme@gmail.com",
+    "bassem1alsa@gmail.com",
+    process.env.ADMIN_EMAIL,
+    process.env.RESEND_CONTACT_EMAIL,
+  ]
+    .filter(Boolean)
+    .map((e) => e!.trim().toLowerCase());
+  const userEmail = (locals.user.email || "").trim().toLowerCase();
+  const isAdmin =
+    adminEmails.includes(userEmail) || userEmail.endsWith("@ether.paris");
+  return tenant.user_id === locals.user.id || isAdmin;
+}
+
+export const GET: RequestHandler = async ({ url, locals }) => {
+  if (!locals.user) {
+    return json(
+      { success: false, error: "Non autorisé. Veuillez vous connecter." },
+      { status: 401 },
+    );
+  }
+
   const projectSlug = url.searchParams.get("project") || "tester";
   const tenant = await getTenantBySlug(projectSlug);
+  if (!tenant) {
+    return json({ success: false, error: "Site introuvable." }, { status: 404 });
+  }
+
+  if (!isUserAuthorizedForTenant(locals, tenant)) {
+    return json(
+      { success: false, error: "Accès refusé : vous n'êtes pas autorisé à gérer ce site." },
+      { status: 403 },
+    );
+  }
+
   const plan = tenant?.plan || "demo";
   const quota = checkTenantPromptLimit(projectSlug, plan);
 
@@ -22,7 +56,14 @@ export const GET: RequestHandler = async ({ url }) => {
   });
 };
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
+  if (!locals.user) {
+    return json(
+      { success: false, error: "Non autorisé. Veuillez vous connecter." },
+      { status: 401 },
+    );
+  }
+
   try {
     const isStream = request.headers.get("accept") === "text/event-stream";
     const body = await request.json();
@@ -31,6 +72,18 @@ export const POST: RequestHandler = async ({ request }) => {
     const projectSlug = (body.projectSlug || "tester").trim();
     const conversationId = body.conversationId;
     const preferredProfile = body.profile === "auto" ? undefined : body.profile;
+
+    const tenant = await getTenantBySlug(projectSlug);
+    if (!tenant) {
+      return json({ success: false, error: "Site introuvable." }, { status: 404 });
+    }
+
+    if (!isUserAuthorizedForTenant(locals, tenant)) {
+      return json(
+        { success: false, error: "Accès refusé : vous n'êtes pas autorisé à modifier ce site." },
+        { status: 403 },
+      );
+    }
 
     if (!prompt && !image) {
       return json(
@@ -44,7 +97,6 @@ export const POST: RequestHandler = async ({ request }) => {
       "Voici une image jointe. Intègre-la dans le site ou adapte le design en fonction.";
 
     // 1. Tenant Fair-Use Quota Check
-    const tenant = await getTenantBySlug(projectSlug);
     const plan = tenant?.plan || "demo";
     const quota = checkTenantPromptLimit(projectSlug, plan);
 

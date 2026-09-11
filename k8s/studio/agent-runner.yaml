@@ -21,6 +21,10 @@ spec:
         - name: agy-runner
           image: ghcr.io/bassemsab/agy-runner:latest
           imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - "if [ -f /data/runner/server.ts ]; then exec bun run /data/runner/server.ts; else exec bun run runner/server.ts; fi"
           env:
             - name: PORT
               value: "8080"

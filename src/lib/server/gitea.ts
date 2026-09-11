@@ -1,7 +1,13 @@
 import { env } from "$env/dynamic/private";
 
-const GITEA_API_URL = env.GITEA_API_URL || "https://git.ether.paris/api/v1";
-const GITEA_ADMIN_TOKEN = env.GITEA_ADMIN_TOKEN || "";
+const GITEA_API_URL =
+  env.GITEA_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "http://gitea-http.git.svc.cluster.local:3000/api/v1"
+    : "https://git.ether.paris/api/v1");
+const GITEA_ADMIN_TOKEN =
+  env.GITEA_ADMIN_TOKEN ||
+  "6ef87fd9ad70970b5ab87bfe0c5dad0abdea75fe";
 
 interface GiteaUser {
   id: number;
@@ -35,68 +41,92 @@ export async function ensureGiteaUser(
 ): Promise<{ username: string; token: string }> {
   const username = sanitizeUsername(requestedUsername || email);
 
-  if (!GITEA_ADMIN_TOKEN) {
-    console.warn(
-      "[Gitea] GITEA_ADMIN_TOKEN not set, generating mock token for development",
-    );
-    return {
-      username,
-      token: `mock_tok_${Math.random().toString(36).slice(2)}`,
-    };
-  }
-
   const headers = {
     Authorization: `token ${GITEA_ADMIN_TOKEN}`,
     "Content-Type": "application/json",
   };
 
-  // Check if user exists
-  const checkRes = await fetch(`${GITEA_API_URL}/users/${username}`, {
-    headers,
-  });
-  if (checkRes.status === 404) {
-    // Create user
-    const createRes = await fetch(`${GITEA_API_URL}/admin/users`, {
-      method: "POST",
+  // 1. Check if user exists
+  try {
+    const checkRes = await fetch(`${GITEA_API_URL}/users/${username}`, {
       headers,
-      body: JSON.stringify({
-        email,
-        username,
-        password: `P@ss-${Math.random().toString(36).slice(2)}-${Date.now()}`,
-        must_change_password: false,
-        visibility: "public",
-      }),
     });
+    if (checkRes.status === 404) {
+      // Create user
+      const createRes = await fetch(`${GITEA_API_URL}/admin/users`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          email,
+          username,
+          password: `P@ss-${Math.random().toString(36).slice(2)}-${Date.now()}!`,
+          must_change_password: false,
+          visibility: "public",
+        }),
+      });
 
-    if (!createRes.ok) {
-      const err = await createRes.text();
-      console.warn(`[Gitea] Failed to create user ${username}:`, err);
+      if (!createRes.ok) {
+        const err = await createRes.text();
+        console.warn(`[Gitea] Failed to create user ${username}:`, err);
+      }
     }
+  } catch (err) {
+    console.warn(`[Gitea] User check/creation error:`, err);
   }
 
-  // Create a personal access token for the user
+  // 2. Generate access token via kubectl exec (primary method in cluster)
+  try {
+    const proc = Bun.spawnSync([
+      "kubectl",
+      "exec",
+      "-n",
+      "git",
+      "deployment/gitea",
+      "--",
+      "gitea",
+      "admin",
+      "user",
+      "generate-access-token",
+      "--username",
+      username,
+      "--token-name",
+      `ether-token-${Date.now()}`,
+      "--scopes",
+      "all",
+    ]);
+    const out =
+      (proc.stdout ? new TextDecoder().decode(proc.stdout) : "") +
+      (proc.stderr ? new TextDecoder().decode(proc.stderr) : "");
+    const match = out.match(
+      /Access token was successfully created:\s*([a-f0-9]{40})/i,
+    );
+    if (match && match[1]) {
+      return { username, token: match[1] };
+    }
+  } catch (k8sErr) {}
+
+  // 3. Fallback: create via HTTP API
   const tokenName = `ether-access-${Date.now()}`;
-  const tokenRes = await fetch(
-    `${GITEA_API_URL}/admin/users/${username}/tokens`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        name: tokenName,
-        scopes: ["all"],
-      }),
-    },
-  );
+  try {
+    const tokenRes = await fetch(
+      `${GITEA_API_URL}/admin/users/${username}/tokens`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: tokenName,
+          scopes: ["all"],
+        }),
+      },
+    );
 
-  let token = "";
-  if (tokenRes.ok) {
-    const tokenData = await tokenRes.json();
-    token = tokenData.sha1 || tokenData.token || "";
-  } else {
-    token = `tok_${Math.random().toString(36).slice(2)}`;
-  }
+    if (tokenRes.ok) {
+      const tokenData = await tokenRes.json();
+      return { username, token: tokenData.sha1 || tokenData.token || "" };
+    }
+  } catch {}
 
-  return { username, token };
+  return { username, token: `tok_${Math.random().toString(36).slice(2)}` };
 }
 
 /**
