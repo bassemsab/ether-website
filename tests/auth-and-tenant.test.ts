@@ -2,6 +2,41 @@ import { describe, expect, it } from "bun:test";
 import { generateCode, hashCode, createEmailLoginCode, verifyEmailCode } from "../src/lib/server/email-login-codes";
 import { getOrCreateUserByEmail, createTenantWebsite, getTenantBySlug } from "../src/lib/server/db";
 import { searchDomains } from "../src/lib/server/domains";
+import { checkEmailDomain } from "../src/lib/server/email-domain-check";
+
+describe("Email Domain & Acceptability Check (AMI frontend model)", () => {
+  it("should accept valid email domains with MX records", async () => {
+    const verdict = await checkEmailDomain("contact@ether.paris");
+    expect(verdict.ok).toBe(true);
+    if (verdict.ok) {
+      expect(verdict.email).toBe("contact@ether.paris");
+    }
+  });
+
+  it("should reject disposable and temporary email domains", async () => {
+    const verdict = await checkEmailDomain("spammer@mailinator.com");
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) {
+      expect(verdict.reason).toBe("disposable");
+    }
+  });
+
+  it("should reject malformed email strings", async () => {
+    const verdict = await checkEmailDomain("not-an-email");
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) {
+      expect(verdict.reason).toBe("malformed");
+    }
+  });
+
+  it("should reject domains without MX records", async () => {
+    const verdict = await checkEmailDomain("user@nonexistent-domain-fake-123456789.xyz");
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) {
+      expect(verdict.reason).toBe("no_mx");
+    }
+  });
+});
 
 describe("Email OTP Authentication", () => {
   it("should generate a 6-digit code and produce correct SHA-256 hash", () => {
