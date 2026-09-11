@@ -52,6 +52,17 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Build and push Runner Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: runner/Dockerfile
+          push: true
+          no-cache: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/agy-runner:latest
+            ${{ env.REGISTRY }}/bassemsab/agy-runner:latest
+
       - name: Set up Kubeconfig
         run: |
           mkdir -p ~/.kube
@@ -61,6 +72,7 @@ jobs:
       - name: Apply K8s Configs
         run: |
           kubectl apply -f k8s/
+          kubectl apply -f k8s/studio/
           kubectl set image deployment/ether-website ether-website=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n ether
           kubectl set env deployment/ether-website -n ether APP_RELEASE=${{ github.sha }}
 
@@ -68,3 +80,4 @@ jobs:
         run: |
           kubectl rollout restart deployment ether-website -n ether
           kubectl rollout status deployment ether-website -n ether
+          kubectl rollout restart deployment agent-runner -n ether || true

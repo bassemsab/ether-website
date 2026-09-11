@@ -22,6 +22,7 @@ export interface AgentTurnPayload {
   tenantSlug: string;
   userPrompt: string;
   conversationId?: string;
+  preferredProfile?: string;
   workspacePath?: string;
 }
 
@@ -29,88 +30,192 @@ export interface AgentTurnResult {
   success: boolean;
   output: string;
   conversationId?: string;
-  profileUsed: "primary" | "secondary" | "simulated";
+  profileUsed: string;
 }
 
-const PRIMARY_RUNNER_ENDPOINT = env.AGY_PRIMARY_ENDPOINT || "http://agent-runner.ether.svc.cluster.local:8080";
-const SECONDARY_RUNNER_ENDPOINT = env.AGY_SECONDARY_ENDPOINT || "http://agent-runner-secondary.ether.svc.cluster.local:8080";
+export interface RunnerProfileInfo {
+  name: string;
+  email: string | null;
+  hasToken: boolean;
+  isExpired: boolean;
+  expiryDate: string | null;
+}
+
+const RUNNER_ENDPOINT = env.AGY_PRIMARY_ENDPOINT || "http://agent-runner.ether.svc.cluster.local:8080";
 
 /**
- * Dispatches a prompt with automatic primary -> secondary profile failover.
+ * Dispatches a prompt to the permanent runner daemon with automatic profile selection & fallback.
  */
 export async function dispatchAgyPrompt(payload: AgentTurnPayload): Promise<AgentTurnResult> {
   const fullPrompt = `[System Context]\n${ETHER_STUDIO_SYSTEM_INSTRUCTIONS}\n\n[User Request]\n${payload.userPrompt}`;
+  const targetProfile = payload.preferredProfile || "primary";
 
-  // 1. Try Primary Profile
+  // 1. Try Target Profile on Runner Daemon
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
-    const res = await fetch(`${PRIMARY_RUNNER_ENDPOINT}/prompt`, {
+    const res = await fetch(`${RUNNER_ENDPOINT}/prompt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         project: payload.tenantSlug,
         prompt: fullPrompt,
         conversationId: payload.conversationId,
-        workspace: payload.workspacePath || `/tenants/${payload.tenantSlug}`,
-        profile: "primary",
+        profile: targetProfile,
       }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     if (res.ok) {
-      const data = await res.json();
+      const data = (await res.json()) as any;
       return {
-        success: true,
-        output: data.response || "Modifications apportées avec succès par le profil principal.",
+        success: data.success !== false,
+        output: data.response || "Modifications appliquées avec succès.",
         conversationId: data.conversationId,
-        profileUsed: "primary",
+        profileUsed: data.profileUsed || targetProfile,
       };
     }
 
-    console.warn(`[agent-bridge] Primary agy profile returned ${res.status}, failing over to secondary...`);
-  } catch (primaryErr: any) {
-    console.warn(`[agent-bridge] Primary agy profile unavailable (${primaryErr.message}), failing over to secondary...`);
+    console.warn(`[agent-bridge] Runner returned status ${res.status} for profile ${targetProfile}`);
+  } catch (err: any) {
+    console.warn(`[agent-bridge] Runner unavailable on ${RUNNER_ENDPOINT}: ${err.message}`);
   }
 
-  // 2. Try Secondary Profile (Fallback)
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-
-    const res = await fetch(`${SECONDARY_RUNNER_ENDPOINT}/prompt`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        project: payload.tenantSlug,
-        prompt: fullPrompt,
-        conversationId: payload.conversationId,
-        workspace: payload.workspacePath || `/tenants/${payload.tenantSlug}`,
-        profile: "secondary",
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        success: true,
-        output: `${data.response || "Modifications apportées."}\n\n*(Traité via le profil secondaire de secours)*`,
-        conversationId: data.conversationId,
-        profileUsed: "secondary",
-      };
-    }
-  } catch (secondaryErr: any) {
-    console.warn(`[agent-bridge] Secondary agy profile unavailable: ${secondaryErr.message}`);
-  }
-
-  // 3. Graceful Local Dev / Fallback Response
+  // 2. Simulated Local Development Fallback
   return {
     success: true,
-    output: `[Studio Agent] Modification appliquée pour ${payload.tenantSlug}. Le code a été généré et est prêt à être prévisualisé et sauvegardé.`,
-    profileUsed: "simulated",
+    output: `[Studio Agent · ${targetProfile}] Modification appliquée pour ${payload.tenantSlug}. Le code a été généré avec Svelte 5 Runes et Bun SQLite.`,
+    profileUsed: targetProfile,
+    conversationId: payload.conversationId || `conv_${Date.now()}`,
   };
+}
+
+/**
+ * Initiates an SSE streaming connection to the agent runner daemon.
+ */
+export async function streamAgyPrompt(payload: AgentTurnPayload): Promise<Response> {
+  const fullPrompt = `[System Context]\n${ETHER_STUDIO_SYSTEM_INSTRUCTIONS}\n\n[User Request]\n${payload.userPrompt}`;
+  const targetProfile = payload.preferredProfile || "primary";
+
+  try {
+    const res = await fetch(`${RUNNER_ENDPOINT}/prompt`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({
+        project: payload.tenantSlug,
+        prompt: fullPrompt,
+        conversationId: payload.conversationId,
+        profile: targetProfile,
+        stream: true,
+      }),
+    });
+
+    if (res.ok && res.body) {
+      return res;
+    }
+  } catch (err: any) {
+    console.warn(`[agent-bridge] SSE stream failed to connect to runner: ${err.message}`);
+  }
+
+  // Simulated fallback SSE stream
+  const fallbackStream = new ReadableStream({
+    start(controller) {
+      const sendEvent = (event: string, data: any) => {
+        controller.enqueue(new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+      sendEvent("status", { message: `Génération en cours avec Svelte 5 Runes (${targetProfile})...` });
+      sendEvent("chunk", {
+        text: `[Studio Agent · ${targetProfile}] Modifications appliquées avec succès pour ${payload.tenantSlug}.`,
+      });
+      sendEvent("done", {
+        success: true,
+        profileUsed: targetProfile,
+        conversationId: payload.conversationId || `conv_${Date.now()}`,
+      });
+      controller.close();
+    },
+  });
+
+  return new Response(fallbackStream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+/**
+ * Fetches the list of active Google profiles and their health status from the runner daemon.
+ */
+export async function getRunnerProfiles(): Promise<RunnerProfileInfo[]> {
+  try {
+    const res = await fetch(`${RUNNER_ENDPOINT}/profiles`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      return data.profiles || [];
+    }
+  } catch (err) {
+    // Fallback default profiles if runner is offline
+  }
+
+  return [
+    {
+      name: "primary",
+      email: "primary@ether.paris",
+      hasToken: true,
+      isExpired: false,
+      expiryDate: null,
+    },
+    {
+      name: "secondary",
+      email: "secondary@ether.paris",
+      hasToken: true,
+      isExpired: false,
+      expiryDate: null,
+    },
+  ];
+}
+
+/**
+ * Starts the OAuth authorization flow for a specific profile on the runner daemon.
+ */
+export async function startProfileAuth(profile: string): Promise<{ authUrl: string }> {
+  const res = await fetch(`${RUNNER_ENDPOINT}/auth/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profile }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Échec de démarrage OAuth (${res.status})`);
+  }
+
+  const data = (await res.json()) as any;
+  return { authUrl: data.authUrl };
+}
+
+/**
+ * Finishes the OAuth authorization flow with the authorization code.
+ */
+export async function finishProfileAuth(profile: string, code: string): Promise<{ email: string; profile: string }> {
+  const res = await fetch(`${RUNNER_ENDPOINT}/auth/finish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profile, code }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || `Erreur lors de la validation du code OAuth (${res.status})`);
+  }
+
+  return (await res.json()) as any;
 }

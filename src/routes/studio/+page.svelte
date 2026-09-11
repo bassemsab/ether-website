@@ -317,30 +317,77 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
     try {
       const res = await fetch("/api/studio/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
         body: JSON.stringify({
           prompt: text,
           projectSlug,
+          profile: activeProfile,
+          stream: true,
         }),
       });
 
-      const resData = await res.json();
-      if (resData.success) {
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("text/event-stream") && res.body) {
+        // Real-time SSE streaming from runner
+        const assistantMsgIndex = messages.length;
         messages.push({
           role: "assistant",
-          content: resData.response,
-          profile: resData.profileUsed || "primary",
+          content: "",
+          profile: activeProfile,
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         });
-        // Auto-refresh live preview
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+
+          for (const part of parts) {
+            const trimmed = part.trim();
+            if (!trimmed) continue;
+            const dataMatch = trimmed.match(/data:\s*(.*)/);
+            if (dataMatch) {
+              try {
+                const data = JSON.parse(dataMatch[1]);
+                if (data.text) {
+                  messages[assistantMsgIndex].content += data.text;
+                }
+                if (data.profileUsed) {
+                  messages[assistantMsgIndex].profile = data.profileUsed;
+                }
+              } catch (e) {}
+            }
+          }
+        }
         previewKey++;
       } else {
-        messages.push({
-          role: "assistant",
-          content: `⚠️ Note : ${resData.error || "Impossible d'exécuter la commande."}`,
-          profile: "secondary",
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        });
+        // Fallback standard JSON
+        const resData = await res.json();
+        if (resData.success) {
+          messages.push({
+            role: "assistant",
+            content: resData.response,
+            profile: resData.profileUsed || activeProfile,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          });
+          previewKey++;
+        } else {
+          messages.push({
+            role: "assistant",
+            content: `⚠️ Note : ${resData.error || "Impossible d'exécuter la commande."}`,
+            profile: "secondary",
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          });
+        }
       }
     } catch (err: any) {
       messages.push({
@@ -528,8 +575,15 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
             </svg>
             Assistant Studio
           </span>
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] text-muted-foreground uppercase hidden sm:inline">Svelte 5 Runes</span>
+          <div class="flex items-center gap-1.5">
+            <select
+              bind:value={activeProfile}
+              class="text-[10px] font-mono bg-surface border border-black/10 rounded px-2 py-0.5 text-foreground cursor-pointer outline-none hover:border-brand transition-colors"
+              title="Sélectionner le profil Google actif"
+            >
+              <option value="primary">Google : Primary</option>
+              <option value="secondary">Google : Secondary</option>
+            </select>
             <button
               onclick={() => showChat = false}
               class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"

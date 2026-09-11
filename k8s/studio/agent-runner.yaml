@@ -5,9 +5,10 @@ metadata:
   namespace: ether
   labels:
     app: agent-runner
-    profile: primary
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: agent-runner
@@ -23,8 +24,10 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            - name: AGY_PROFILE
-              value: "primary"
+            - name: DATA_DIR
+              value: "/data"
+            - name: MAX_CONCURRENT_TURNS
+              value: "3"
             - name: GOOGLE_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -41,13 +44,12 @@ spec:
               cpu: 2000m
               memory: 2048Mi
           volumeMounts:
-            - name: agy-auth
-              mountPath: /root/.gemini
+            - name: runner-data
+              mountPath: /data
       volumes:
-        - name: agy-auth
-          secret:
-            secretName: agy-auth-profiles
-            optional: true
+        - name: runner-data
+          persistentVolumeClaim:
+            claimName: agent-runner-pvc
 ---
 apiVersion: v1
 kind: Service
@@ -61,57 +63,6 @@ spec:
     - port: 8080
       targetPort: 8080
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: agent-runner-secondary
-  namespace: ether
-  labels:
-    app: agent-runner-secondary
-    profile: secondary
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: agent-runner-secondary
-  template:
-    metadata:
-      labels:
-        app: agent-runner-secondary
-    spec:
-      containers:
-        - name: agy-runner
-          image: ghcr.io/bassemsab/agy-runner:latest
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PORT
-              value: "8080"
-            - name: AGY_PROFILE
-              value: "secondary"
-            - name: DEEPSEEK_PLATFORM_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ether-website-secrets
-                  key: DEEPSEEK_PLATFORM_TOKEN
-                  optional: true
-          ports:
-            - containerPort: 8080
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              cpu: 2000m
-              memory: 2048Mi
-          volumeMounts:
-            - name: agy-auth
-              mountPath: /root/.gemini
-      volumes:
-        - name: agy-auth
-          secret:
-            secretName: agy-auth-profiles
-            optional: true
----
 apiVersion: v1
 kind: Service
 metadata:
@@ -119,7 +70,7 @@ metadata:
   namespace: ether
 spec:
   selector:
-    app: agent-runner-secondary
+    app: agent-runner
   ports:
     - port: 8080
       targetPort: 8080
