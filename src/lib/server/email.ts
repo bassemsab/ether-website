@@ -276,21 +276,12 @@ export async function sendOtpEmail(email: string, code: string) {
         }
         .logo-mark {
           display: inline-block;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
+          width: 72px;
+          height: auto;
           vertical-align: middle;
         }
-        .brand-title {
-          margin-top: 10px;
-          font-size: 13px;
-          font-weight: 700;
-          letter-spacing: 0.28em;
-          text-transform: lowercase;
-          color: #1E1B39;
-        }
         .brand-subtitle {
-          margin-top: 4px;
+          margin-top: 8px;
           font-size: 11px;
           text-transform: uppercase;
           letter-spacing: 0.2em;
@@ -346,7 +337,7 @@ export async function sendOtpEmail(email: string, code: string) {
             box-shadow: 4px 4px 0px 0px #384259 !important;
             color: #F1F5F9 !important;
           }
-          .brand-title, .greeting, .code-number {
+          .greeting, .code-number {
             color: #F8FAFC !important;
           }
           .brand-subtitle, .expiry-note {
@@ -370,20 +361,16 @@ export async function sendOtpEmail(email: string, code: string) {
           <td align="center" style="padding: 32px 16px;">
             <div class="email-card" style="max-width: 480px; background-color: #FFFFFF; border: 1.5px solid #1E1B39; border-radius: 20px; box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15); padding: 36px 32px; text-align: center;">
               
-              <!-- Official small ether logo -->
+              <!-- Official ether logo -->
               <div style="text-align: center;">
                 <img
-                  src="https://ether.paris/ether-logo.png"
+                  src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
                   alt="ether"
-                  width="40"
-                  height="40"
+                  width="72"
                   class="logo-mark"
-                  style="display: inline-block; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(30, 27, 57, 0.12); vertical-align: middle;"
+                  style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
-                <div class="brand-title" style="margin-top: 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.28em; text-transform: lowercase; color: #1E1B39;">
-                  ether
-                </div>
-                <div class="brand-subtitle" style="margin-top: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
               </div>
