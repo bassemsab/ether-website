@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, copyFileSync } from "fs";
 import { join } from "path";
-import { randomUUID } from "crypto";
+import { randomBytes, createHash, randomUUID } from "crypto";
 
 export interface TokenPayload {
   access_token: string;
@@ -27,23 +27,46 @@ export interface ProfileStatus {
   turnsCount: number;
 }
 
-// In-memory runtime quota & metrics tracking per profile
+interface PendingAuth {
+  profile: string;
+  codeVerifier: string;
+  createdAt: number;
+}
+
+// In-memory runtime tracking
 const profileThrottleMap = new Map<string, number>();
 const profileTurnsMap = new Map<string, number>();
+const pendingAuthMap = new Map<string, PendingAuth>();
 
-// Google Antigravity standard OAuth Client ID
+// Google Antigravity official OAuth Client ID
 export const DEFAULT_CLIENT_ID =
   process.env.GOOGLE_OAUTH_CLIENT_ID ||
   "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
-export const DEFAULT_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET || "";
+export const DEFAULT_REDIRECT_URI = "https://antigravity.google/oauth-callback";
 
-// Standard scopes needed for Gemini / Code Assistance
+// Google Scopes required by Antigravity CLI
 export const GOOGLE_SCOPES = [
+  "https://www.googleapis.com/auth/cloud-platform",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
+  "https://www.googleapis.com/auth/cclog",
+  "https://www.googleapis.com/auth/experimentsandconfigs",
+  "https://www.googleapis.com/auth/aicode",
   "openid",
-  "https://www.googleapis.com/auth/cloud-platform",
 ].join(" ");
+
+function base64UrlEncode(buffer: Buffer): string {
+  return buffer.toString("base64url");
+}
+
+function generateCodeVerifier(): string {
+  return base64UrlEncode(randomBytes(32));
+}
+
+function generateCodeChallenge(verifier: string): string {
+  const hash = createHash("sha256").update(verifier).digest();
+  return base64UrlEncode(hash);
+}
 
 /**
  * Marks a profile as temporarily throttled (due to 429 / Resource Exhausted).
@@ -105,44 +128,77 @@ export function getNextHealthyProfile(
 }
 
 /**
- * Generates an authorization URL for manual or headless Google login.
+ * Generates an authorization URL with PKCE for Google login.
  */
 export function generateAuthUrl(
-  clientId: string = DEFAULT_CLIENT_ID,
-  redirectUri: string = "urn:ietf:wg:oauth:2.0:oob",
-  state?: string
+  dataDir: string = "/data",
+  profile: string = "primary",
+  clientId: string = DEFAULT_CLIENT_ID
 ): string {
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+
+  const pending: PendingAuth = {
+    profile,
+    codeVerifier,
+    createdAt: Date.now(),
+  };
+
+  pendingAuthMap.set(profile, pending);
+
+  // Also persist to disk for durability across worker/pod restarts
+  try {
+    const profileDir = join(dataDir, "profiles", profile);
+    mkdirSync(profileDir, { recursive: true });
+    writeFileSync(join(profileDir, ".pending_auth.json"), JSON.stringify(pending));
+  } catch (e) {}
+
   const params = new URLSearchParams({
+    access_type: "offline",
     client_id: clientId,
-    redirect_uri: redirectUri,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    prompt: "consent",
+    redirect_uri: DEFAULT_REDIRECT_URI,
     response_type: "code",
     scope: GOOGLE_SCOPES,
-    access_type: "offline",
-    prompt: "consent",
+    state: profile,
   });
-  if (state) {
-    params.set("state", state);
-  }
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+
+  return `https://accounts.google.com/o/oauth2/auth?${params.toString()}`;
 }
 
 /**
- * Exchanges authorization code for access & refresh tokens with Google OAuth.
+ * Exchanges authorization code for access & refresh tokens with Google OAuth using stored PKCE verifier.
  */
 export async function exchangeCodeForTokens(
-  code: string,
-  clientId: string = DEFAULT_CLIENT_ID,
-  clientSecret: string = DEFAULT_CLIENT_SECRET,
-  redirectUri: string = "urn:ietf:wg:oauth:2.0:oob"
+  dataDir: string = "/data",
+  code: string = "",
+  profile: string = "primary",
+  clientId: string = DEFAULT_CLIENT_ID
 ): Promise<TokenPayload> {
+  let codeVerifier: string | undefined = pendingAuthMap.get(profile)?.codeVerifier;
+
+  // If not in memory, try reading from disk
+  if (!codeVerifier) {
+    try {
+      const pendingFile = join(dataDir, "profiles", profile, ".pending_auth.json");
+      if (existsSync(pendingFile)) {
+        const saved = JSON.parse(readFileSync(pendingFile, "utf-8"));
+        codeVerifier = saved.codeVerifier;
+      }
+    } catch (e) {}
+  }
+
   const bodyParams: Record<string, string> = {
-    code,
     client_id: clientId,
-    redirect_uri: redirectUri,
+    code,
     grant_type: "authorization_code",
+    redirect_uri: DEFAULT_REDIRECT_URI,
   };
-  if (clientSecret) {
-    bodyParams.client_secret = clientSecret;
+
+  if (codeVerifier) {
+    bodyParams.code_verifier = codeVerifier;
   }
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -161,6 +217,9 @@ export async function exchangeCodeForTokens(
     ? new Date(Date.now() + data.expires_in * 1000).toISOString()
     : undefined;
 
+  // Clean up pending auth once consumed
+  pendingAuthMap.delete(profile);
+
   return {
     access_token: data.access_token,
     token_type: data.token_type || "Bearer",
@@ -175,17 +234,13 @@ export async function exchangeCodeForTokens(
  */
 export async function refreshAccessToken(
   refreshToken: string,
-  clientId: string = DEFAULT_CLIENT_ID,
-  clientSecret: string = DEFAULT_CLIENT_SECRET
+  clientId: string = DEFAULT_CLIENT_ID
 ): Promise<TokenPayload> {
   const bodyParams: Record<string, string> = {
     client_id: clientId,
     refresh_token: refreshToken,
     grant_type: "refresh_token",
   };
-  if (clientSecret) {
-    bodyParams.client_secret = clientSecret;
-  }
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -225,7 +280,42 @@ export async function fetchUserEmail(accessToken: string): Promise<string | null
       return data.email || null;
     }
   } catch (err) {
-    // Non-fatal if userinfo endpoint is not reachable
+    // Non-fatal
+  }
+  return null;
+}
+
+/**
+ * Finds the token file in a profile directory.
+ */
+function findTokenFile(profilePath: string): string | null {
+  const candidates = [
+    join(profilePath, ".gemini", "antigravity-cli", "antigravity-oauth-token"),
+    join(profilePath, ".gemini", "antigravity-cli", "jetski-standalone-oauth-token"),
+    join(profilePath, ".gemini", "jetski-standalone-oauth-token"),
+    join(profilePath, ".gemini", "antigravity-oauth-token"),
+    join(profilePath, "antigravity-oauth-token"),
+    join(profilePath, "jetski-standalone-oauth-token"),
+  ];
+
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return null;
+}
+
+/**
+ * Finds the accounts JSON file in a profile directory.
+ */
+function findAccountsFile(profilePath: string): string | null {
+  const candidates = [
+    join(profilePath, ".gemini", "google_accounts.json"),
+    join(profilePath, ".gemini", "antigravity-cli", "google_accounts.json"),
+    join(profilePath, "google_accounts.json"),
+  ];
+
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
   }
   return null;
 }
@@ -246,8 +336,8 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
     if (!entry.isDirectory()) continue;
     const name = entry.name;
     const profilePath = join(profilesDir, name);
-    const tokenPath = join(profilePath, "jetski-standalone-oauth-token");
-    const accountsPath = join(profilePath, "google_accounts.json");
+    const tokenPath = findTokenFile(profilePath);
+    const accountsPath = findAccountsFile(profilePath);
 
     let hasToken = false;
     let isExpired = false;
@@ -255,7 +345,7 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
     let email: string | null = null;
     let lastUpdated: string | null = null;
 
-    if (existsSync(tokenPath)) {
+    if (tokenPath) {
       try {
         const raw = JSON.parse(readFileSync(tokenPath, "utf-8"));
         const token = raw.token || raw;
@@ -271,7 +361,7 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
       }
     }
 
-    if (existsSync(accountsPath)) {
+    if (accountsPath) {
       try {
         const acc = JSON.parse(readFileSync(accountsPath, "utf-8"));
         email = acc.active || (acc.old && acc.old[0]) || null;
@@ -305,12 +395,13 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
  */
 export function createEmptyProfile(dataDir: string, name: string): string {
   const profileDir = join(dataDir, "profiles", name);
-  mkdirSync(profileDir, { recursive: true });
+  mkdirSync(join(profileDir, ".gemini", "antigravity-cli"), { recursive: true });
   return profileDir;
 }
 
 /**
  * Saves or updates profile token files in dataDir/profiles/<name>/.
+ * Writes both antigravity-oauth-token and jetski-standalone-oauth-token for cross-compatibility.
  */
 export function saveProfile(
   dataDir: string,
@@ -319,7 +410,12 @@ export function saveProfile(
   accountEmail?: string | null
 ): string {
   const profileDir = join(dataDir, "profiles", name);
+  const geminiDir = join(profileDir, ".gemini");
+  const cliDir = join(geminiDir, "antigravity-cli");
+
   mkdirSync(profileDir, { recursive: true });
+  mkdirSync(geminiDir, { recursive: true });
+  mkdirSync(cliDir, { recursive: true });
 
   const tokenContent: StoredTokenFile = {
     token: {
@@ -331,47 +427,46 @@ export function saveProfile(
     auth_method: "consumer",
   };
 
-  writeFileSync(
+  const serializedToken = JSON.stringify(tokenContent, null, 2);
+
+  // Write token in all locations agy might inspect
+  const tokenLocations = [
+    join(cliDir, "antigravity-oauth-token"),
+    join(cliDir, "jetski-standalone-oauth-token"),
+    join(geminiDir, "antigravity-oauth-token"),
+    join(geminiDir, "jetski-standalone-oauth-token"),
+    join(profileDir, "antigravity-oauth-token"),
     join(profileDir, "jetski-standalone-oauth-token"),
-    JSON.stringify(tokenContent, null, 2),
-    { mode: 0o600 }
-  );
+  ];
+
+  for (const loc of tokenLocations) {
+    writeFileSync(loc, serializedToken, { mode: 0o600 });
+  }
 
   const email = accountEmail || "unknown@google.com";
-  const accountsContent = {
-    active: email,
-    old: [email],
-  };
+  const accountsContent = JSON.stringify({ active: email, old: [email] }, null, 2);
 
-  writeFileSync(
-    join(profileDir, "google_accounts.json"),
-    JSON.stringify(accountsContent, null, 2)
+  writeFileSync(join(geminiDir, "google_accounts.json"), accountsContent);
+  writeFileSync(join(cliDir, "google_accounts.json"), accountsContent);
+  writeFileSync(join(profileDir, "google_accounts.json"), accountsContent);
+
+  const settingsContent = JSON.stringify(
+    {
+      ide: { enabled: true, hasSeenNudge: true },
+      security: { auth: { selectedType: "gateway" } },
+      general: { previewFeatures: true },
+    },
+    null,
+    2
   );
 
-  const settingsContent = {
-    ide: {
-      enabled: true,
-      hasSeenNudge: true,
-    },
-    security: {
-      auth: {
-        selectedType: "gateway",
-      },
-    },
-    general: {
-      previewFeatures: true,
-    },
-  };
+  writeFileSync(join(geminiDir, "settings.json"), settingsContent);
+  writeFileSync(join(cliDir, "settings.json"), settingsContent);
+  writeFileSync(join(profileDir, "settings.json"), settingsContent);
 
-  writeFileSync(
-    join(profileDir, "settings.json"),
-    JSON.stringify(settingsContent, null, 2)
-  );
-
-  const installIdPath = join(profileDir, "installation_id");
-  if (!existsSync(installIdPath)) {
-    writeFileSync(installIdPath, randomUUID());
-  }
+  const installId = randomUUID();
+  writeFileSync(join(geminiDir, "installation_id"), installId);
+  writeFileSync(join(cliDir, "installation_id"), installId);
 
   // Clear throttle upon fresh auth
   profileThrottleMap.delete(name);
@@ -380,22 +475,8 @@ export function saveProfile(
 }
 
 /**
- * Gets the API key for a profile (profile-specific api_key.txt or fallback from env).
- */
-export function getProfileApiKey(dataDir: string, profileName: string): string | undefined {
-  const keyPath = join(dataDir, "profiles", profileName, "api_key.txt");
-  if (existsSync(keyPath)) {
-    try {
-      const key = readFileSync(keyPath, "utf-8").trim();
-      if (key) return key;
-    } catch (e) {}
-  }
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-}
-
-/**
  * Copies Google profile credentials into a tenant sandbox (~/.gemini)
- * and configures modelProvider: gemini so agy runs autonomously.
+ * so agy runs autonomously as the tenant.
  */
 export function injectProfileIntoTenantSandbox(
   dataDir: string,
@@ -410,34 +491,54 @@ export function injectProfileIntoTenantSandbox(
   const cliDir = join(sandboxGeminiDir, "antigravity-cli");
   mkdirSync(cliDir, { recursive: true });
 
-  // Ensure CLI settings.json has modelProvider: gemini
-  const cliSettingsFile = join(cliDir, "settings.json");
-  let cliSettings: Record<string, any> = { modelProvider: "gemini" };
-  if (existsSync(cliSettingsFile)) {
-    try {
-      cliSettings = JSON.parse(readFileSync(cliSettingsFile, "utf-8"));
-      cliSettings.modelProvider = "gemini";
-    } catch (e) {}
+  // Locate the profile's token file
+  const tokenFile = findTokenFile(profileDir);
+  if (tokenFile && existsSync(tokenFile)) {
+    const tokenData = readFileSync(tokenFile);
+    // Write into both antigravity-oauth-token and jetski-standalone-oauth-token
+    writeFileSync(join(cliDir, "antigravity-oauth-token"), tokenData, { mode: 0o600 });
+    writeFileSync(join(cliDir, "jetski-standalone-oauth-token"), tokenData, { mode: 0o600 });
+    writeFileSync(join(sandboxGeminiDir, "antigravity-oauth-token"), tokenData, { mode: 0o600 });
+    writeFileSync(join(sandboxGeminiDir, "jetski-standalone-oauth-token"), tokenData, { mode: 0o600 });
   }
-  writeFileSync(cliSettingsFile, JSON.stringify(cliSettings, null, 2));
 
-  // Files to mirror into the sandbox if profile exists
-  if (existsSync(profileDir)) {
-    const filesToCopy = [
-      "jetski-standalone-oauth-token",
-      "google_accounts.json",
-      "settings.json",
-      "installation_id",
-      "api_key.txt",
-    ];
+  // Locate accounts file
+  const accountsFile = findAccountsFile(profileDir);
+  if (accountsFile && existsSync(accountsFile)) {
+    const accData = readFileSync(accountsFile);
+    writeFileSync(join(sandboxGeminiDir, "google_accounts.json"), accData);
+    writeFileSync(join(cliDir, "google_accounts.json"), accData);
+  }
 
-    for (const file of filesToCopy) {
-      const src = join(profileDir, file);
-      const dest = join(sandboxGeminiDir, file);
-      if (existsSync(src)) {
-        writeFileSync(dest, readFileSync(src));
-      }
+  // Copy or generate settings
+  const settingsCandidates = [
+    join(profileDir, ".gemini", "antigravity-cli", "settings.json"),
+    join(profileDir, ".gemini", "settings.json"),
+    join(profileDir, "settings.json"),
+  ];
+  let settingsWritten = false;
+  for (const s of settingsCandidates) {
+    if (existsSync(s)) {
+      const data = readFileSync(s);
+      writeFileSync(join(cliDir, "settings.json"), data);
+      writeFileSync(join(sandboxGeminiDir, "settings.json"), data);
+      settingsWritten = true;
+      break;
     }
+  }
+
+  if (!settingsWritten) {
+    const defaultSettings = JSON.stringify(
+      {
+        ide: { enabled: true, hasSeenNudge: true },
+        security: { auth: { selectedType: "gateway" } },
+        general: { previewFeatures: true },
+      },
+      null,
+      2
+    );
+    writeFileSync(join(cliDir, "settings.json"), defaultSettings);
+    writeFileSync(join(sandboxGeminiDir, "settings.json"), defaultSettings);
   }
 
   return join(tenantDir, ".gemini-sandbox");

@@ -49,16 +49,26 @@ if [ "${MODE}" == "--import-local" ] || [ "${MODE}" == "--sync-local" ]; then
     exit 1
   fi
 
-  # Create remote profile directory
-  kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -- mkdir -p "/data/profiles/${PROFILE}"
+  # Create remote profile directory structure
+  kubectl exec -n "${NAMESPACE}" "${POD_NAME}" -- mkdir -p "/data/profiles/${PROFILE}/.gemini/antigravity-cli"
 
-  # Copy files
+  # Copy tokens to all locations expected by agy
   kubectl cp "${TOKEN_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/jetski-standalone-oauth-token"
+  kubectl cp "${TOKEN_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/antigravity-oauth-token"
+  kubectl cp "${TOKEN_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/jetski-standalone-oauth-token"
+  kubectl cp "${TOKEN_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/antigravity-oauth-token"
+  kubectl cp "${TOKEN_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/antigravity-cli/antigravity-oauth-token"
+  kubectl cp "${TOKEN_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/antigravity-cli/jetski-standalone-oauth-token"
+
   if [ -f "${ACCOUNTS_FILE}" ]; then
     kubectl cp "${ACCOUNTS_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/google_accounts.json"
+    kubectl cp "${ACCOUNTS_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/google_accounts.json"
+    kubectl cp "${ACCOUNTS_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/antigravity-cli/google_accounts.json"
   fi
   if [ -f "${SETTINGS_FILE}" ]; then
     kubectl cp "${SETTINGS_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/settings.json"
+    kubectl cp "${SETTINGS_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/settings.json"
+    kubectl cp "${SETTINGS_FILE}" "${NAMESPACE}/${POD_NAME}:/data/profiles/${PROFILE}/.gemini/antigravity-cli/settings.json"
   fi
 
   echo "✅ Success! Local credentials imported into cluster profile '${PROFILE}'."

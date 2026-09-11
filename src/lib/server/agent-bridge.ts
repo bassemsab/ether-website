@@ -81,18 +81,12 @@ export async function dispatchAgyPrompt(payload: AgentTurnPayload): Promise<Agen
       };
     }
 
-    console.warn(`[agent-bridge] Runner returned status ${res.status} for profile ${targetProfile}`);
+    const errText = await res.text();
+    throw new Error(`Runner error (${res.status}): ${errText}`);
   } catch (err: any) {
-    console.warn(`[agent-bridge] Runner unavailable on ${RUNNER_ENDPOINT}: ${err.message}`);
+    console.error(`[agent-bridge] Dispatch prompt failed: ${err.message}`);
+    throw err;
   }
-
-  // 2. Simulated Local Development Fallback
-  return {
-    success: true,
-    output: `[Studio Agent · ${targetProfile}] Modification appliquée pour ${payload.tenantSlug}. Le code a été généré avec Svelte 5 Runes et Bun SQLite.`,
-    profileUsed: targetProfile,
-    conversationId: payload.conversationId || `conv_${Date.now()}`,
-  };
 }
 
 /**
@@ -121,36 +115,28 @@ export async function streamAgyPrompt(payload: AgentTurnPayload): Promise<Respon
     if (res.ok && res.body) {
       return res;
     }
+
+    const errText = await res.text();
+    console.error(`[agent-bridge] Runner error (${res.status}): ${errText}`);
+    throw new Error(`Runner error (${res.status}): ${errText}`);
   } catch (err: any) {
-    console.warn(`[agent-bridge] SSE stream failed to connect to runner: ${err.message}`);
+    console.warn(`[agent-bridge] SSE stream failed: ${err.message}`);
+    const errorStream = new ReadableStream({
+      start(controller) {
+        const payload = `event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`;
+        controller.enqueue(new TextEncoder().encode(payload));
+        controller.close();
+      },
+    });
+
+    return new Response(errorStream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   }
-
-  // Simulated fallback SSE stream
-  const fallbackStream = new ReadableStream({
-    start(controller) {
-      const sendEvent = (event: string, data: any) => {
-        controller.enqueue(new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      };
-      sendEvent("status", { message: `Génération en cours avec Svelte 5 Runes (${targetProfile})...` });
-      sendEvent("chunk", {
-        text: `[Studio Agent · ${targetProfile}] Modifications appliquées avec succès pour ${payload.tenantSlug}.`,
-      });
-      sendEvent("done", {
-        success: true,
-        profileUsed: targetProfile,
-        conversationId: payload.conversationId || `conv_${Date.now()}`,
-      });
-      controller.close();
-    },
-  });
-
-  return new Response(fallbackStream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
 }
 
 /**

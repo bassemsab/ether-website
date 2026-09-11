@@ -11,7 +11,6 @@ import {
   markProfileThrottled,
   getNextHealthyProfile,
   incrementProfileTurnCount,
-  getProfileApiKey,
 } from "./auth-helper";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
@@ -161,22 +160,19 @@ const server = Bun.serve({
         const profile = (body.profile || `profile-${Date.now()}`).trim();
         createEmptyProfile(DATA_DIR, profile);
 
-        const authUrl = generateAuthUrl(body.clientId, body.redirectUri, profile);
+        const authUrl = generateAuthUrl(DATA_DIR, profile, body.clientId);
         return Response.json({ success: true, profile, authUrl }, { headers: corsHeaders });
       } catch (err: any) {
         return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
       }
     }
 
-    // Start OAuth Flow (Generates Authorization URL)
+    // Start OAuth Flow (Generates Authorization URL with PKCE)
     if (path === "/auth/start" && req.method === "POST") {
       try {
         const body = (await req.json()) as any;
-        const profile = body.profile || "primary";
-        const clientId = body.clientId;
-        const redirectUri = body.redirectUri || "urn:ietf:wg:oauth:2.0:oob";
-
-        const authUrl = generateAuthUrl(clientId, redirectUri, profile);
+        const profile = (body.profile || "primary").trim();
+        const authUrl = generateAuthUrl(DATA_DIR, profile, body.clientId);
         return Response.json({ success: true, profile, authUrl }, { headers: corsHeaders });
       } catch (err: any) {
         return Response.json({ success: false, error: err.message }, { status: 500, headers: corsHeaders });
@@ -187,17 +183,14 @@ const server = Bun.serve({
     if (path === "/auth/finish" && req.method === "POST") {
       try {
         const body = (await req.json()) as any;
-        const profile = body.profile || "primary";
+        const profile = (body.profile || "primary").trim();
         const code = (body.code || "").trim();
-        const clientId = body.clientId;
-        const clientSecret = body.clientSecret;
-        const redirectUri = body.redirectUri || "urn:ietf:wg:oauth:2.0:oob";
 
         if (!code) {
           return Response.json({ success: false, error: "Authorization code is required" }, { status: 400, headers: corsHeaders });
         }
 
-        const tokenPayload = await exchangeCodeForTokens(code, clientId, clientSecret, redirectUri);
+        const tokenPayload = await exchangeCodeForTokens(DATA_DIR, code, profile, body.clientId);
         const email = await fetchUserEmail(tokenPayload.access_token);
         saveProfile(DATA_DIR, profile, tokenPayload, email);
 
@@ -219,7 +212,7 @@ const server = Bun.serve({
     if (path === "/profiles/import" && req.method === "POST") {
       try {
         const body = (await req.json()) as any;
-        const profile = body.profile || "primary";
+        const profile = (body.profile || "primary").trim();
         const tokenData = body.tokenData;
         const email = body.email;
 
@@ -273,7 +266,7 @@ const server = Bun.serve({
                     triedProfiles.push(activeProfile);
 
                     sendEvent("status", {
-                      message: `Exécution sur ${activeProfile}...`,
+                      message: `Exécution sur le compte [${activeProfile}]...`,
                       profile: activeProfile,
                     });
 
@@ -281,93 +274,84 @@ const server = Bun.serve({
                     let sandboxHome = join(DATA_DIR, "tenants", project, ".gemini-sandbox");
                     try {
                       sandboxHome = injectProfileIntoTenantSandbox(DATA_DIR, activeProfile, project);
-                    } catch (e) {
-                      mkdirSync(join(sandboxHome, ".gemini"), { recursive: true });
+                    } catch (e: any) {
+                      console.error(`[Runner] Sandbox injection error: ${e.message}`);
+                      mkdirSync(join(sandboxHome, ".gemini", "antigravity-cli"), { recursive: true });
                     }
 
                     const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
                     const hasAgy = existsSync(agyBin);
 
-                    if (hasAgy) {
-                      const apiKey = getProfileApiKey(DATA_DIR, activeProfile);
-                      const args = [
-                        agyBin,
-                        "-p", prompt,
-                        "--add-dir", tenantCodeDir,
-                        "--dangerously-skip-permissions",
-                      ];
-                      if (conversationId) {
-                        args.push("--conversation", conversationId);
-                      }
-
-                      const proc = Bun.spawn(args, {
-                        cwd: tenantCodeDir,
-                        env: {
-                          ...process.env,
-                          HOME: sandboxHome,
-                          AGY_PROFILE: activeProfile,
-                          GEMINI_API_KEY: apiKey,
-                          GOOGLE_API_KEY: apiKey,
-                        },
-                        stdout: "pipe",
-                        stderr: "pipe",
-                      });
-
-                      const reader = proc.stdout.getReader();
-                      const decoder = new TextDecoder();
-                      let fullOutput = "";
-
-                      while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        const text = decoder.decode(value);
-                        fullOutput += text;
-                        sendEvent("chunk", { text });
-                      }
-
-                      const stderrText = await new Response(proc.stderr).text();
-                      await proc.exited;
-
-                      const combinedOutput = `${fullOutput} ${stderrText}`;
-
-                      if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
-                        console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
-                        markProfileThrottled(activeProfile);
-
-                        const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
-                        if (nextProfile) {
-                          sendEvent("status", {
-                            message: `Quota atteint sur ${activeProfile}. Basculement automatique sur ${nextProfile}...`,
-                            profile: nextProfile,
-                          });
-                          activeProfile = nextProfile;
-                          continue; // Retry with next profile!
-                        }
-                      }
-
-                      success = proc.exitCode === 0;
-                      if (success) {
-                        incrementProfileTurnCount(activeProfile);
-                      }
-
-                      sendEvent("done", {
-                        success,
-                        profileUsed: activeProfile,
-                        conversationId: conversationId || `conv_${Date.now()}`,
-                      });
-                    } else {
-                      // Simulated development fallback
-                      sendEvent("chunk", {
-                        text: `[Agent Studio · ${activeProfile}] Modifications générées pour ${project}.\nCode mis à jour avec Svelte 5 Runes et Bun SQLite.`,
-                      });
-                      incrementProfileTurnCount(activeProfile);
-                      sendEvent("done", {
-                        success: true,
-                        profileUsed: activeProfile,
-                        conversationId: conversationId || `conv_${Date.now()}`,
-                      });
-                      success = true;
+                    if (!hasAgy) {
+                      throw new Error("Antigravity CLI (agy) binary is not installed on runner");
                     }
+
+                    const args = [
+                      agyBin,
+                      "-p", prompt,
+                      "--add-dir", tenantCodeDir,
+                      "--dangerously-skip-permissions",
+                    ];
+                    if (conversationId) {
+                      args.push("--conversation", conversationId);
+                    }
+
+                    const proc = Bun.spawn(args, {
+                      cwd: tenantCodeDir,
+                      env: {
+                        ...process.env,
+                        HOME: sandboxHome,
+                        AGY_PROFILE: activeProfile,
+                      },
+                      stdout: "pipe",
+                      stderr: "pipe",
+                    });
+
+                    const reader = proc.stdout.getReader();
+                    const decoder = new TextDecoder();
+                    let fullOutput = "";
+
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+                      const text = decoder.decode(value);
+                      fullOutput += text;
+                      sendEvent("chunk", { text });
+                    }
+
+                    const stderrText = await new Response(proc.stderr).text();
+                    await proc.exited;
+
+                    const combinedOutput = `${fullOutput} ${stderrText}`;
+
+                    if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
+                      console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
+                      markProfileThrottled(activeProfile);
+
+                      const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
+                      if (nextProfile) {
+                        sendEvent("status", {
+                          message: `Quota atteint sur [${activeProfile}]. Basculement automatique sur [${nextProfile}]...`,
+                          profile: nextProfile,
+                        });
+                        activeProfile = nextProfile;
+                        continue; // Retry with next profile
+                      }
+                    }
+
+                    success = proc.exitCode === 0;
+                    if (success) {
+                      incrementProfileTurnCount(activeProfile);
+                    } else if (!fullOutput && stderrText) {
+                      sendEvent("chunk", { text: `\n⚠️ Erreur: ${stderrText.trim()}` });
+                    }
+
+                    sendEvent("done", {
+                      success,
+                      profileUsed: activeProfile,
+                      conversationId: conversationId || `conv_${Date.now()}`,
+                      exitCode: proc.exitCode,
+                    });
                   }
                 });
               } catch (turnErr: any) {
@@ -400,80 +384,76 @@ const server = Bun.serve({
               let sandboxHome = join(DATA_DIR, "tenants", project, ".gemini-sandbox");
               try {
                 sandboxHome = injectProfileIntoTenantSandbox(DATA_DIR, activeProfile, project);
-              } catch (e) {
-                mkdirSync(join(sandboxHome, ".gemini"), { recursive: true });
+              } catch (e: any) {
+                console.error(`[Runner] Sandbox injection error: ${e.message}`);
+                mkdirSync(join(sandboxHome, ".gemini", "antigravity-cli"), { recursive: true });
               }
 
               const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
               const hasAgy = existsSync(agyBin);
 
-              if (hasAgy) {
-                const apiKey = getProfileApiKey(DATA_DIR, activeProfile);
-                const args = [
-                  agyBin,
-                  "-p", prompt,
-                  "--add-dir", tenantCodeDir,
-                  "--dangerously-skip-permissions",
-                ];
-                if (conversationId) {
-                  args.push("--conversation", conversationId);
-                }
-
-                const proc = Bun.spawn(args, {
-                  cwd: tenantCodeDir,
-                  env: {
-                    ...process.env,
-                    HOME: sandboxHome,
-                    AGY_PROFILE: activeProfile,
-                    GEMINI_API_KEY: apiKey,
-                    GOOGLE_API_KEY: apiKey,
-                  },
-                  stdout: "pipe",
-                  stderr: "pipe",
-                });
-
-                const stdout = await new Response(proc.stdout).text();
-                const stderr = await new Response(proc.stderr).text();
-                await proc.exited;
-
-                const combinedOutput = `${stdout} ${stderr}`;
-
-                if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
-                  console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
-                  markProfileThrottled(activeProfile);
-
-                  const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
-                  if (nextProfile) {
-                    activeProfile = nextProfile;
-                    continue; // Retry with next profile!
-                  }
-                }
-
-                if (proc.exitCode === 0) {
-                  incrementProfileTurnCount(activeProfile);
-                }
-
-                return {
-                  success: proc.exitCode === 0,
-                  response: stdout || stderr || "Turn completed.",
-                  profileUsed: activeProfile,
-                  conversationId: conversationId || `conv_${Date.now()}`,
-                };
-              } else {
-                incrementProfileTurnCount(activeProfile);
-                return {
-                  success: true,
-                  response: `[Agent Studio · ${activeProfile}] Modification appliquée pour ${project}. Code prêt sur le volume persistant.`,
-                  profileUsed: activeProfile,
-                  conversationId: conversationId || `conv_${Date.now()}`,
-                };
+              if (!hasAgy) {
+                throw new Error("Antigravity CLI (agy) binary is not installed on runner");
               }
+
+              const args = [
+                agyBin,
+                "-p", prompt,
+                "--add-dir", tenantCodeDir,
+                "--dangerously-skip-permissions",
+              ];
+              if (conversationId) {
+                args.push("--conversation", conversationId);
+              }
+
+              const proc = Bun.spawn(args, {
+                cwd: tenantCodeDir,
+                env: {
+                  ...process.env,
+                  HOME: sandboxHome,
+                  AGY_PROFILE: activeProfile,
+                },
+                stdout: "pipe",
+                stderr: "pipe",
+              });
+
+              const stdout = await new Response(proc.stdout).text();
+              const stderr = await new Response(proc.stderr).text();
+              await proc.exited;
+
+              const combinedOutput = `${stdout} ${stderr}`;
+
+              if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
+                console.warn(`[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`);
+                markProfileThrottled(activeProfile);
+
+                const nextProfile = getNextHealthyProfile(DATA_DIR, undefined, triedProfiles);
+                if (nextProfile) {
+                  activeProfile = nextProfile;
+                  continue; // Retry with next profile
+                }
+              }
+
+              const success = proc.exitCode === 0;
+              if (success) {
+                incrementProfileTurnCount(activeProfile);
+              }
+
+              return {
+                success,
+                response: stdout || stderr,
+                profileUsed: activeProfile,
+                conversationId: conversationId || `conv_${Date.now()}`,
+                exitCode: proc.exitCode,
+              };
             }
 
             return {
               success: false,
-              response: "Tous les profils Google ont temporairement épuisé leur quota. Veuillez réessayer dans quelques minutes.",
+              response: "All configured Google profiles have reached their quota limits.",
               profileUsed: activeProfile,
+              conversationId: conversationId || `conv_${Date.now()}`,
+              exitCode: -1,
             };
           });
 
@@ -488,6 +468,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`🚀 Ether Agent Runner Daemon listening on http://0.0.0.0:${PORT}`);
-console.log(`📁 Persistent storage path: ${DATA_DIR}`);
-console.log(`⚡ Concurrency limit: ${MAX_CONCURRENT_TURNS} turns`);
+console.log(`🤖 Ether Agent Runner Server started on port ${PORT}`);

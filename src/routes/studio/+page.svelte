@@ -383,6 +383,9 @@ export function logVisitor(ip: string, path: string, userAgent: string) {
                   promptQuota.remaining = 0;
                   promptQuota.allowed = false;
                 }
+                if (data.error) {
+                  messages[assistantMsgIndex].content += `\n⚠️ Erreur: ${data.error}\n`;
+                }
                 if (data.text) {
                   messages[assistantMsgIndex].content += data.text;
                 }
