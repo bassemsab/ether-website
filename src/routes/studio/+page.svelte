@@ -4,9 +4,47 @@
   import type { PageData } from "./$types";
   import { marked } from "marked";
 
-  marked.setOptions({
+  // CodeMirror imports
+  import { EditorView, basicSetup } from "codemirror";
+  import { keymap } from "@codemirror/view";
+  import { html } from "@codemirror/lang-html";
+  import { javascript } from "@codemirror/lang-javascript";
+  import { EditorState, Compartment } from "@codemirror/state";
+  import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+
+  function isFilePath(str: string): boolean {
+    if (!str || typeof str !== "string") return false;
+    const clean = str.trim().replace(/^[`"']+|[`"']+$/g, "");
+    if (clean.includes("\n") || clean.length > 80) return false;
+    return (
+      /\.(svelte|ts|js|mjs|json|html|css|md|yaml|yml|sql)$/i.test(clean) ||
+      clean.startsWith("src/") ||
+      clean.startsWith("/src/") ||
+      (clean.includes("/") && /\.[a-z0-9]+$/i.test(clean))
+    );
+  }
+
+  const customRenderer = new marked.Renderer();
+  customRenderer.link = ({ href, text }) => {
+    const isFile = isFilePath(href) || isFilePath(text);
+    if (isFile) {
+      const path = isFilePath(href) ? href : text;
+      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer" title="Ouvrir ${path} dans l'éditeur">📄 <span>${text || path}</span></button>`;
+    }
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline font-medium">${text}</a>`;
+  };
+
+  customRenderer.codespan = ({ text }) => {
+    if (isFilePath(text)) {
+      return `<button type="button" data-studio-file="${text}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer" title="Ouvrir ${text} dans l'éditeur">📄 <span>${text}</span></button>`;
+    }
+    return `<code class="text-foreground bg-black/5 px-1 py-0.5 rounded font-mono text-[11px]">${text}</code>`;
+  };
+
+  marked.use({
     breaks: true,
     gfm: true,
+    renderer: customRenderer,
   });
 
   function renderMarkdown(content: string): string {
@@ -17,13 +55,6 @@
       return content;
     }
   }
-
-  // CodeMirror imports
-  import { EditorView, basicSetup } from "codemirror";
-  import { html } from "@codemirror/lang-html";
-  import { javascript } from "@codemirror/lang-javascript";
-  import { EditorState, Compartment } from "@codemirror/state";
-  import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 
   interface Props {
     data: PageData;
@@ -48,7 +79,11 @@
   const tenant = $derived(data.tenant);
   const projectSlug = $derived(data.projectSlug || "tester");
   const liveUrl = $derived(
-    tenant.custom_domain ? `https://${tenant.custom_domain}` : `https://${projectSlug}.ether.paris`
+    typeof window !== "undefined" && window.location.hostname.includes("localhost")
+      ? `/api/studio/preview/${projectSlug}/`
+      : tenant.custom_domain
+        ? `https://${tenant.custom_domain}`
+        : `https://${projectSlug}.ether.paris`
   );
 
   const isAdmin = $derived(Boolean(data.isAdmin));
@@ -86,6 +121,10 @@
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.key === "Escape" && profileMenuOpen) {
       profileMenuOpen = false;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      handleSaveCode();
     }
   }
 
@@ -162,7 +201,7 @@
   let previousPanelState = $state({ chat: true, editor: true });
 
   let chatWidth = $state(360);
-  let editorWidth = $state(480);
+  let editorWidth = $state(580);
   let isResizing = $state(false);
 
   function togglePanel(panel: "chat" | "editor" | "preview") {
@@ -261,6 +300,18 @@
   let activeFile = $state(
     Object.keys(files)[0] || "src/routes/+page.svelte"
   );
+  let showExplorer = $state(true);
+  let fileSearchQuery = $state("");
+  let saveToast = $state<string | null>(null);
+
+  const filteredFiles = $derived(
+    Object.entries(files).filter(([path, file]) => {
+      if (!fileSearchQuery.trim()) return true;
+      const q = fileSearchQuery.trim().toLowerCase();
+      return path.toLowerCase().includes(q) || file.name.toLowerCase().includes(q);
+    })
+  );
+
   let editorSaved = $state(false);
   let editorContainer = $state<HTMLDivElement | null>(null);
   let editorView = $state<EditorView | null>(null);
@@ -289,6 +340,94 @@
       }
     } catch (err) {
       console.warn("Failed to load tenant files:", err);
+    }
+  }
+
+  async function openFileFromPath(targetPath: string) {
+    if (!targetPath) return;
+
+    let cleanPath = targetPath
+      .trim()
+      .replace(/^[`"']+|[`"']+$/g, "")
+      .replace(/^[./\\]+/, "")
+      .replace(/^https?:\/\/[^/]+\//, "")
+      .replace(/\?.*$/, "");
+
+    // 1. Direct match
+    let matchedKey = Object.keys(files).find(
+      (k) => k === cleanPath || k.toLowerCase() === cleanPath.toLowerCase(),
+    );
+
+    // 2. Suffix match
+    if (!matchedKey) {
+      matchedKey = Object.keys(files).find(
+        (k) => k.endsWith(cleanPath) || cleanPath.endsWith(k),
+      );
+    }
+
+    // 3. Basename match
+    if (!matchedKey) {
+      const baseName = cleanPath.split("/").pop()?.toLowerCase();
+      if (baseName) {
+        matchedKey = Object.keys(files).find(
+          (k) => k.split("/").pop()?.toLowerCase() === baseName,
+        );
+      }
+    }
+
+    // 4. Try refreshing from server if newly created
+    if (!matchedKey) {
+      await loadTenantFiles();
+      matchedKey = Object.keys(files).find(
+        (k) =>
+          k === cleanPath ||
+          k.toLowerCase() === cleanPath.toLowerCase() ||
+          k.endsWith(cleanPath) ||
+          cleanPath.endsWith(k),
+      );
+    }
+
+    if (matchedKey) {
+      showEditor = true;
+      switchFile(matchedKey);
+    } else {
+      console.warn("Fichier non trouvé dans le projet:", targetPath);
+    }
+  }
+
+  function handleChatContainerClick(e: MouseEvent) {
+    const target = (e.target as HTMLElement)?.closest(
+      "[data-studio-file], a, code",
+    ) as HTMLElement | null;
+    if (!target) return;
+
+    const fileAttr = target.getAttribute("data-studio-file");
+    if (fileAttr) {
+      e.preventDefault();
+      e.stopPropagation();
+      openFileFromPath(fileAttr);
+      return;
+    }
+
+    if (target.tagName.toLowerCase() === "a") {
+      const href = target.getAttribute("href") || "";
+      const text = target.textContent?.trim() || "";
+      if (isFilePath(href)) {
+        e.preventDefault();
+        e.stopPropagation();
+        openFileFromPath(href);
+      } else if (isFilePath(text)) {
+        e.preventDefault();
+        e.stopPropagation();
+        openFileFromPath(text);
+      }
+    } else if (target.tagName.toLowerCase() === "code") {
+      const text = target.textContent?.trim() || "";
+      if (isFilePath(text)) {
+        e.preventDefault();
+        e.stopPropagation();
+        openFileFromPath(text);
+      }
     }
   }
 
@@ -347,6 +486,12 @@
   });
 
   onMount(() => {
+    if (typeof window !== "undefined" && data.sessionToken) {
+      try {
+        localStorage.setItem("ether_session_token", data.sessionToken);
+      } catch {}
+    }
+
     if (!editorContainer) return;
 
     const initialFile = files[activeFile] || { content: "", lang: "html" as SupportedLang };
@@ -354,6 +499,16 @@
       doc: initialFile.content,
       extensions: [
         basicSetup,
+        keymap.of([
+          {
+            key: "Mod-s",
+            preventDefault: true,
+            run: () => {
+              handleSaveCode();
+              return true;
+            },
+          },
+        ]),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         retroEditorTheme,
         languageCompartment.of(getLangExtension(initialFile.lang)),
@@ -663,10 +818,10 @@
 
     <!-- Center: Panel Docking Controls -->
     <div class="flex items-center gap-2">
-      <div class="flex items-center gap-1.5 rounded-full border border-black/10 bg-surface/90 p-1 text-xs font-mono shadow-retro-sm">
+      <div class="flex items-center gap-0.5 rounded-full border border-black/10 bg-surface/90 p-0.5 text-xs font-mono shadow-retro-sm">
         <button
           onclick={() => togglePanel("chat")}
-          class="px-3 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
           title={showChat ? "Masquer le chat IA" : "Afficher le chat IA"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -676,7 +831,7 @@
         </button>
         <button
           onclick={() => togglePanel("editor")}
-          class="px-3 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
           title={showEditor ? "Masquer l'éditeur de code" : "Afficher l'éditeur de code"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -686,7 +841,7 @@
         </button>
         <button
           onclick={() => togglePanel("preview")}
-          class="px-3 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
           title={showPreview ? "Masquer l'aperçu du site" : "Afficher l'aperçu du site"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -817,7 +972,7 @@
 
               {#if profileMenuOpen}
                 <div
-                  class="absolute right-0 top-full mt-1.5 w-40 bg-card border border-black/10 rounded-lg shadow-retro p-1 text-xs font-mono z-50 divide-y divide-black/5"
+                  class="absolute right-0 top-full mt-1.5 w-44 bg-card border border-black/10 rounded-2xl shadow-retro p-1.5 text-xs font-mono z-50 divide-y divide-black/5"
                   role="listbox"
                 >
                   <div class="p-0.5">
@@ -829,7 +984,7 @@
                         activeProfile = 'auto';
                         profileMenuOpen = false;
                       }}
-                      class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                      class="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
                     >
                       <div class="flex items-center gap-2">
                         <span class="text-amber-500">⚡</span>
@@ -853,7 +1008,7 @@
                           activeProfile = prof.name;
                           profileMenuOpen = false;
                         }}
-                        class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                        class="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
                       >
                         <div class="flex items-center gap-2">
                           <span class="w-1.5 h-1.5 rounded-full {activeProfile === prof.name ? 'bg-emerald-500' : 'bg-black/20'}"></span>
@@ -884,7 +1039,11 @@
         </div>
 
         <!-- Messages Stream -->
-        <div bind:this={chatContainer} class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue">
+        <div
+          bind:this={chatContainer}
+          onclick={handleChatContainerClick}
+          class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue"
+        >
           {#each messages as msg}
             <div class="space-y-1 {msg.role === 'user' ? 'text-right' : ''}">
               <div class="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground {msg.role === 'user' ? 'justify-end' : ''}">
@@ -1039,25 +1198,43 @@
       class="{showEditor ? 'flex' : 'hidden'} flex-col h-full overflow-hidden border-r border-black/10 bg-card {showPreview ? 'shrink-0' : 'flex-1 w-full min-w-0'}"
       style={showPreview ? `width: ${editorWidth}px; max-width: calc(100% - 320px); min-width: 280px;` : ''}
     >
-      <!-- File Tabs -->
+      <!-- File Tabs & Editor Controls -->
       <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-2 text-xs font-mono shrink-0">
-        <div class="flex items-center gap-1 overflow-x-auto">
+        <div class="flex items-center gap-1 overflow-x-auto min-w-0">
+          <button
+            onclick={() => showExplorer = !showExplorer}
+            class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 text-brand' : ''}"
+            title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+          </button>
+
           {#each Object.entries(files) as [path, file]}
             <button
               onclick={() => switchFile(path)}
-              class="px-3 py-1.5 rounded-t border-b-2 font-medium transition-all {activeFile === path ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+              class="px-2.5 py-1 rounded-t border-b-2 font-medium transition-all shrink-0 flex items-center gap-1.5 {activeFile === path ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+              title={path}
             >
-              {file.name}
+              <span>{file.name}</span>
             </button>
           {/each}
         </div>
 
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 shrink-0">
           <button
             onclick={handleSaveCode}
-            class="px-3 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer"
+            class="px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+            title="Sauvegarder les modifications (Cmd+S ou Ctrl+S)"
           >
-            {editorSaved ? "✓ Sauvegardé" : "Sauvegarder"}
+            {#if editorSaved}
+              <span class="text-emerald-600 font-bold">✓</span>
+              <span>Sauvegardé</span>
+            {:else}
+              <span>Sauvegarder</span>
+              <kbd class="text-[9px] bg-black/5 px-1 py-0.2 rounded text-muted-foreground font-mono">⌘S</kbd>
+            {/if}
           </button>
           <button
             onclick={() => showEditor = false}
@@ -1071,8 +1248,93 @@
         </div>
       </div>
 
-      <!-- CodeMirror Editor Container -->
-      <div class="flex-1 overflow-hidden bg-surface/20" bind:this={editorContainer}></div>
+      <!-- Main Editor Area with Explorer Sidebar -->
+      <div class="flex-1 flex overflow-hidden min-h-0">
+        <!-- File Explorer Sidebar -->
+        {#if showExplorer}
+          <div class="w-48 sm:w-52 border-r border-black/10 bg-surface/40 flex flex-col shrink-0 overflow-hidden select-none">
+            <!-- Explorer Header & Filter -->
+            <div class="p-2 border-b border-black/10 space-y-1.5 shrink-0 bg-surface/60">
+              <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                <span>Fichiers ({filteredFiles.length})</span>
+                <button
+                  onclick={loadTenantFiles}
+                  class="p-0.5 rounded hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
+                  title="Recharger la liste des fichiers"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+              <div class="relative">
+                <input
+                  type="text"
+                  bind:value={fileSearchQuery}
+                  placeholder="Filtrer..."
+                  class="w-full bg-card border border-black/10 rounded px-2 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:border-brand"
+                />
+                {#if fileSearchQuery}
+                  <button
+                    onclick={() => fileSearchQuery = ""}
+                    class="absolute right-1 top-1 text-muted-foreground hover:text-foreground text-[10px] px-1"
+                  >
+                    ✕
+                  </button>
+                {/if}
+              </div>
+            </div>
+
+            <!-- File List -->
+            <div class="flex-1 overflow-y-auto p-1 space-y-0.5 font-mono text-xs">
+              {#if filteredFiles.length === 0}
+                <div class="p-3 text-[11px] text-muted-foreground text-center">
+                  Aucun fichier
+                </div>
+              {:else}
+                {#each filteredFiles as [path, file]}
+                  <button
+                    onclick={() => switchFile(path)}
+                    class="w-full text-left px-2 py-1.5 rounded-md flex items-center gap-2 transition-colors cursor-pointer group {activeFile === path ? 'bg-brand/10 text-brand font-medium' : 'text-muted-foreground hover:bg-black/5 hover:text-foreground'}"
+                    title={path}
+                  >
+                    {#if path.endsWith('.svelte')}
+                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-orange-500/15 text-orange-600 shrink-0">S</span>
+                    {:else if path.endsWith('.ts')}
+                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-blue-500/15 text-blue-600 shrink-0">TS</span>
+                    {:else if path.endsWith('.js') || path.endsWith('.mjs')}
+                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-amber-500/15 text-amber-600 shrink-0">JS</span>
+                    {:else if path.endsWith('.json')}
+                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-emerald-500/15 text-emerald-600 shrink-0">{"{}"}</span>
+                    {:else if path.endsWith('.html')}
+                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
+                    {:else if path.endsWith('.css')}
+                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
+                    {:else}
+                      <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
+                    {/if}
+                    <div class="min-w-0 flex-1 truncate">
+                      <div class="truncate text-[11px] {activeFile === path ? 'font-semibold' : ''}">{file.name}</div>
+                      <div class="truncate text-[9px] text-muted-foreground/70 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {path.replace(`/${file.name}`, '').replace(file.name, '') || '/'}
+                      </div>
+                    </div>
+                  </button>
+                {/each}
+              {/if}
+            </div>
+          </div>
+        {/if}
+
+        <!-- CodeMirror Editor Container -->
+        <div class="flex-1 overflow-hidden bg-surface/20 relative" bind:this={editorContainer}>
+          {#if editorSaved}
+            <div class="absolute bottom-3 right-3 bg-foreground text-background text-[11px] font-mono px-3 py-1.5 rounded-full shadow-retro z-20 pointer-events-none flex items-center gap-1.5">
+              <span>✓ Sauvegardé</span>
+            </div>
+          {/if}
+        </div>
+      </div>
     </div>
 
     <!-- Divider 2: Drag to resize Editor & Preview -->

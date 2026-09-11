@@ -90,5 +90,6 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
     chatHistory,
     lastConversationId,
     initialFiles,
+    sessionToken: cookies.get("session") || null,
   };
 };

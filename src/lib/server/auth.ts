@@ -32,7 +32,7 @@ export function generateSessionToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 365; // 365 days
 
 /**
  * Resolves the shared cookie domain across all ether.paris subdomains (studio, tenant, main)

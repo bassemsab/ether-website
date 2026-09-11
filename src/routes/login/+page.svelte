@@ -76,6 +76,13 @@
         throw new Error(data.error || "Code invalide.");
       }
 
+      if (data.sessionToken) {
+        try {
+          localStorage.setItem("ether_session_token", data.sessionToken);
+          localStorage.setItem("ether_user_email", email);
+        } catch {}
+      }
+
       window.location.href = redirectParam || data.redirect || "/dashboard";
     } catch (err: any) {
       errorMessage = err.message;
@@ -83,6 +90,26 @@
       loading = false;
     }
   }
+
+  onMount(async () => {
+    try {
+      const savedToken = localStorage.getItem("ether_session_token");
+      if (savedToken) {
+        const res = await fetch("/api/auth/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionToken: savedToken }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) {
+            const redirectParam = $page.url.searchParams.get("redirect");
+            window.location.href = redirectParam || "/studio";
+          }
+        }
+      }
+    } catch {}
+  });
 </script>
 
 <svelte:head>

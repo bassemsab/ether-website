@@ -117,11 +117,60 @@ export const handle: Handle = async ({ event, resolve }) => {
     const customTenant = await getTenantByDomain(host);
     if (customTenant) {
       event.locals.tenant = customTenant;
+      tenantSlug = customTenant.slug;
     }
   }
 
-  // Get session from cookie
-  const sessionToken = event.cookies.get("session");
+  // Live Vite Dev Server Proxy for Tenants
+  // Directs traffic to the runner's live Vite dev server for the tenant's real code
+  if (
+    tenantSlug &&
+    !event.locals.isStudio &&
+    !event.url.pathname.startsWith("/api/")
+  ) {
+    const runnerUrl =
+      process.env.RUNNER_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "http://agent-runner:8080"
+        : "http://localhost:8085");
+
+    try {
+      const devPath = `/dev/${tenantSlug}${event.url.pathname}${event.url.search}`;
+      const proxyUrl = `${runnerUrl}${devPath}`;
+      const forwardHeaders = new Headers(event.request.headers);
+      forwardHeaders.set("x-forwarded-host", rawHost);
+
+      const devRes = await fetch(proxyUrl, {
+        method: event.request.method,
+        headers: forwardHeaders,
+        body:
+          event.request.method !== "GET" && event.request.method !== "HEAD"
+            ? await event.request.blob()
+            : undefined,
+        signal: AbortSignal.timeout(4000),
+      });
+
+      if (devRes.ok || (devRes.status >= 300 && devRes.status < 500)) {
+        const responseHeaders = new Headers(devRes.headers);
+        responseHeaders.delete("x-frame-options");
+        responseHeaders.delete("content-security-policy");
+        return new Response(devRes.body, {
+          status: devRes.status,
+          statusText: devRes.statusText,
+          headers: responseHeaders,
+        });
+      }
+    } catch {
+      // Fall through to standard resolve(event)
+    }
+  }
+
+  // Get session from cookie or Authorization header
+  const authHeader = event.request.headers.get("authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : null;
+  const sessionToken = event.cookies.get("session") || bearerToken;
 
   if (sessionToken) {
     const session = await getSessionByToken(sessionToken);
@@ -153,10 +202,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         });
       }
     } else {
-      // Invalid session, clear cookie across domain and host
-      const cookieDomain = getSessionCookieDomain(host);
-      event.cookies.delete("session", { path: "/", domain: cookieDomain });
-      event.cookies.delete("session", { path: "/" });
+      // Never delete cookie on transient lookup errors during rollout/restarts
       event.locals.user = null;
     }
   } else {

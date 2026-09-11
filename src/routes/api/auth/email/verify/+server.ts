@@ -56,10 +56,10 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
       );
     }
 
-    // Create session (30 days validity)
+    // Create session (365 days validity)
     const sessionToken = generateSessionToken();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
+    expiresAt.setDate(expiresAt.getDate() + 365);
 
     const session = await createSession(user.id, sessionToken, expiresAt);
     if (!session) {
@@ -90,6 +90,7 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
     return json({
       success: true,
       message: "Connexion réussie",
+      sessionToken,
       redirect: targetRedirect,
     });
   } catch (err: any) {

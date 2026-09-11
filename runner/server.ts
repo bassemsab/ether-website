@@ -169,6 +169,63 @@ function ensureTenantCodebase(tenantSlug: string): string {
   return codeDir;
 }
 
+// Vite Dev Server Management for Tenant Previews
+interface DevServerInstance {
+  proc: any;
+  port: number;
+  ready: boolean;
+  lastActive: number;
+}
+const tenantDevServers = new Map<string, DevServerInstance>();
+let nextAvailablePort = 5200;
+
+async function getOrLaunchTenantDevServer(slug: string): Promise<number> {
+  const existing = tenantDevServers.get(slug);
+  if (existing && !existing.proc.killed) {
+    existing.lastActive = Date.now();
+    return existing.port;
+  }
+
+  const codeDir = ensureTenantCodebase(slug);
+  const port = nextAvailablePort++;
+
+  // Spawn vite dev server
+  const proc = Bun.spawn(
+    ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)],
+    {
+      cwd: codeDir,
+      env: {
+        ...process.env,
+        PORT: String(port),
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+
+  const instance: DevServerInstance = {
+    proc,
+    port,
+    ready: false,
+    lastActive: Date.now(),
+  };
+  tenantDevServers.set(slug, instance);
+
+  // Poll for ready state
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      const ping = await fetch(`http://127.0.0.1:${port}`);
+      if (ping.status < 500) {
+        instance.ready = true;
+        break;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  return port;
+}
+
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
@@ -184,6 +241,48 @@ const server = Bun.serve({
 
     if (req.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
+    }
+
+    // Tenant Vite Dev Server Reverse Proxy
+    const devMatch = path.match(/^\/(?:dev|preview)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
+    if (devMatch) {
+      const tenantSlug = devMatch[1];
+      const subPath = (devMatch[2] || "/") + url.search;
+
+      try {
+        const devPort = await getOrLaunchTenantDevServer(tenantSlug);
+        const targetUrl = `http://127.0.0.1:${devPort}${subPath}`;
+
+        const reqHeaders = new Headers(req.headers);
+        reqHeaders.set("host", `127.0.0.1:${devPort}`);
+
+        const bodyData =
+          req.method !== "GET" && req.method !== "HEAD"
+            ? await req.blob()
+            : undefined;
+
+        const proxyRes = await fetch(targetUrl, {
+          method: req.method,
+          headers: reqHeaders,
+          body: bodyData,
+        });
+
+        const resHeaders = new Headers(proxyRes.headers);
+        resHeaders.set("Access-Control-Allow-Origin", "*");
+        resHeaders.delete("X-Frame-Options");
+        resHeaders.delete("Content-Security-Policy");
+
+        return new Response(proxyRes.body, {
+          status: proxyRes.status,
+          statusText: proxyRes.statusText,
+          headers: resHeaders,
+        });
+      } catch (err: any) {
+        return new Response(`Dev server proxy error: ${err.message}`, {
+          status: 502,
+          headers: corsHeaders,
+        });
+      }
     }
 
     // Health Check
