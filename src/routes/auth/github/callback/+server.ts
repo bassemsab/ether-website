@@ -1,6 +1,6 @@
 import { redirect } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { handleGitHubCallback } from "$lib/server/auth";
+import { handleGitHubCallback, getSessionCookieDomain, SESSION_MAX_AGE_SECONDS } from "$lib/server/auth";
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get("code");
@@ -33,13 +33,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     // Exchange code for tokens and create user session
     const { user, sessionToken } = await handleGitHubCallback(code);
 
-    // Set session cookie
+    // Set session cookie scoped across .ether.paris subdomains
     cookies.set("session", sessionToken, {
       path: "/",
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: SESSION_MAX_AGE_SECONDS,
       sameSite: "lax",
+      domain: getSessionCookieDomain(url.hostname),
     });
 
     // Redirect to dashboard

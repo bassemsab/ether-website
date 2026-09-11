@@ -1,5 +1,6 @@
 import type { Handle } from "@sveltejs/kit";
 import { getSessionByToken, cleanupExpiredSessions, getTenantBySlug, getTenantByDomain } from "$lib/server/db";
+import { getSessionCookieDomain, SESSION_MAX_AGE_SECONDS } from "$lib/server/auth";
 
 const RESERVED_SLUGS = new Set([
   "api", "admin", "studio", "git", "mail", "smtp", "www", "app", "dev", "staging", "auth", "login", "dashboard", "logout"
@@ -113,8 +114,23 @@ export const handle: Handle = async ({ event, resolve }) => {
         github_access_token: session.github_access_token || null,
         avatar_url: session.avatar_url || null,
       };
+
+      // Ensure cookie is domain-scoped to .ether.paris for seamless studio / tenant SSO
+      const cookieDomain = getSessionCookieDomain(host);
+      if (cookieDomain) {
+        event.cookies.set("session", sessionToken, {
+          path: "/",
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          maxAge: SESSION_MAX_AGE_SECONDS,
+          domain: cookieDomain,
+        });
+      }
     } else {
-      // Invalid session, clear cookie
+      // Invalid session, clear cookie across domain and host
+      const cookieDomain = getSessionCookieDomain(host);
+      event.cookies.delete("session", { path: "/", domain: cookieDomain });
       event.cookies.delete("session", { path: "/" });
       event.locals.user = null;
     }

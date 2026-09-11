@@ -28,6 +28,22 @@ export function generateSessionToken(): string {
   return randomBytes(32).toString("hex");
 }
 
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
+/**
+ * Resolves the shared cookie domain across all ether.paris subdomains (studio, tenant, main)
+ */
+export function getSessionCookieDomain(host?: string | null): string | undefined {
+  if (!host) {
+    return process.env.NODE_ENV === "production" ? ".ether.paris" : undefined;
+  }
+  const cleanHost = host.split(":")[0].toLowerCase();
+  if (cleanHost.endsWith("ether.paris")) {
+    return ".ether.paris";
+  }
+  return undefined;
+}
+
 export function getGitHubOAuthUrl(state: string): string {
   if (!GITHUB_CLIENT_ID) {
     throw new Error("GITHUB_CLIENT_ID not configured");
@@ -112,10 +128,10 @@ export async function handleGitHubCallback(code: string): Promise<{ user: any; s
     throw new Error("Failed to create user");
   }
 
-  // Create session
+  // Create session (30 days validity)
   const sessionToken = generateSessionToken();
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
   const session = await createSession(user.id, sessionToken, expiresAt);
 

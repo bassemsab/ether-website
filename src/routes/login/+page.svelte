@@ -60,10 +60,15 @@
     statusMessage = null;
 
     try {
+      const redirectParam = $page.url.searchParams.get("redirect");
       const res = await fetch("/api/auth/email/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: code.trim() }),
+        body: JSON.stringify({
+          email,
+          code: code.trim(),
+          redirect: redirectParam || undefined,
+        }),
       });
       const data = await res.json();
 
@@ -71,7 +76,7 @@
         throw new Error(data.error || "Code invalide.");
       }
 
-      window.location.href = data.redirect || "/dashboard";
+      window.location.href = redirectParam || data.redirect || "/dashboard";
     } catch (err: any) {
       errorMessage = err.message;
     } finally {

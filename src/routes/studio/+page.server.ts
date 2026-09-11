@@ -1,7 +1,13 @@
+import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 import { getTenantBySlug } from "$lib/server/db";
 
 export const load: PageServerLoad = async ({ url, locals }) => {
+  if (!locals.user) {
+    const returnUrl = url.pathname + url.search;
+    throw redirect(302, `/login?redirect=${encodeURIComponent(returnUrl)}`);
+  }
+
   const projectSlug = url.searchParams.get("project") || "tester";
   let tenant = await getTenantBySlug(projectSlug);
 

@@ -2,9 +2,9 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { verifyEmailCode } from "$lib/server/email-login-codes";
 import { getOrCreateUserByEmail, createSession } from "$lib/server/db";
-import { generateSessionToken } from "$lib/server/auth";
+import { generateSessionToken, getSessionCookieDomain, SESSION_MAX_AGE_SECONDS } from "$lib/server/auth";
 
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request, cookies, url }) => {
   try {
     const body = await request.json();
     const email = (body.email || "").trim().toLowerCase();
@@ -40,29 +40,35 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       );
     }
 
-    // Create session (7 days validity)
+    // Create session (30 days validity)
     const sessionToken = generateSessionToken();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     const session = await createSession(user.id, sessionToken, expiresAt);
     if (!session) {
       return json({ success: false, error: "Erreur lors de la création de la session" }, { status: 500 });
     }
 
-    // Set cookie
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || url.hostname;
+    const cookieDomain = getSessionCookieDomain(host);
+
+    // Set cookie scoped across all .ether.paris subdomains (studio, app, tenant)
     cookies.set("session", sessionToken, {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: SESSION_MAX_AGE_SECONDS,
+      domain: cookieDomain,
     });
+
+    const targetRedirect = body.redirect || "/dashboard";
 
     return json({
       success: true,
       message: "Connexion réussie",
-      redirect: "/dashboard",
+      redirect: targetRedirect,
     });
   } catch (err: any) {
     console.error("[api/auth/email/verify] Error:", err);
