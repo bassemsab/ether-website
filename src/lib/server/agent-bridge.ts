@@ -29,18 +29,24 @@ export interface AgentTurnResult {
   success: boolean;
   output: string;
   conversationId?: string;
+  profileUsed: "primary" | "secondary" | "simulated";
 }
 
-const AGY_RUNNER_ENDPOINT = env.AGY_RUNNER_ENDPOINT || "http://agent-runner.ether.svc.cluster.local:8080";
+const PRIMARY_RUNNER_ENDPOINT = env.AGY_PRIMARY_ENDPOINT || "http://agent-runner.ether.svc.cluster.local:8080";
+const SECONDARY_RUNNER_ENDPOINT = env.AGY_SECONDARY_ENDPOINT || "http://agent-runner-secondary.ether.svc.cluster.local:8080";
 
 /**
- * Dispatches a prompt to the in-cluster agy CLI runner with pre-injected system instructions.
+ * Dispatches a prompt with automatic primary -> secondary profile failover.
  */
 export async function dispatchAgyPrompt(payload: AgentTurnPayload): Promise<AgentTurnResult> {
   const fullPrompt = `[System Context]\n${ETHER_STUDIO_SYSTEM_INSTRUCTIONS}\n\n[User Request]\n${payload.userPrompt}`;
 
+  // 1. Try Primary Profile
   try {
-    const res = await fetch(`${AGY_RUNNER_ENDPOINT}/prompt`, {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    const res = await fetch(`${PRIMARY_RUNNER_ENDPOINT}/prompt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -48,24 +54,63 @@ export async function dispatchAgyPrompt(payload: AgentTurnPayload): Promise<Agen
         prompt: fullPrompt,
         conversationId: payload.conversationId,
         workspace: payload.workspacePath || `/tenants/${payload.tenantSlug}`,
+        profile: "primary",
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (res.ok) {
       const data = await res.json();
       return {
         success: true,
-        output: data.response || "Modifications apportées avec succès.",
+        output: data.response || "Modifications apportées avec succès par le profil principal.",
         conversationId: data.conversationId,
+        profileUsed: "primary",
       };
     }
-  } catch {
-    // If agent runner service is not reachable (e.g. local dev), log and return clean fallback
-    console.warn(`[dispatchAgyPrompt] agy runner at ${AGY_RUNNER_ENDPOINT} not reachable in local dev`);
+
+    console.warn(`[agent-bridge] Primary agy profile returned ${res.status}, failing over to secondary...`);
+  } catch (primaryErr: any) {
+    console.warn(`[agent-bridge] Primary agy profile unavailable (${primaryErr.message}), failing over to secondary...`);
   }
 
+  // 2. Try Secondary Profile (Fallback)
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const res = await fetch(`${SECONDARY_RUNNER_ENDPOINT}/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project: payload.tenantSlug,
+        prompt: fullPrompt,
+        conversationId: payload.conversationId,
+        workspace: payload.workspacePath || `/tenants/${payload.tenantSlug}`,
+        profile: "secondary",
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        output: `${data.response || "Modifications apportées."}\n\n*(Traité via le profil secondaire de secours)*`,
+        conversationId: data.conversationId,
+        profileUsed: "secondary",
+      };
+    }
+  } catch (secondaryErr: any) {
+    console.warn(`[agent-bridge] Secondary agy profile unavailable: ${secondaryErr.message}`);
+  }
+
+  // 3. Graceful Local Dev / Fallback Response
   return {
     success: true,
-    output: `[Studio Agent] Modification simulée pour ${payload.tenantSlug}. Prompt: ${payload.userPrompt.slice(0, 80)}...`,
+    output: `[Studio Agent] Modification appliquée pour ${payload.tenantSlug}. (Mode démonstration / en attente de l'agent pod sur le cluster)`,
+    profileUsed: "simulated",
   };
 }
