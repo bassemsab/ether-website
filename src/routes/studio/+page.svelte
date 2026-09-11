@@ -14,12 +14,13 @@
 
   function isFilePath(str: string): boolean {
     if (!str || typeof str !== "string") return false;
-    const clean = str.trim().replace(/^[`"']+|[`"']+$/g, "");
-    if (clean.includes("\n") || clean.length > 80) return false;
+    const clean = str.trim().replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "");
+    if (clean.includes("\n") || clean.length > 100) return false;
     return (
       /\.(svelte|ts|js|mjs|json|html|css|md|yaml|yml|sql)$/i.test(clean) ||
       clean.startsWith("src/") ||
       clean.startsWith("/src/") ||
+      clean.startsWith("+") ||
       (clean.includes("/") && /\.[a-z0-9]+$/i.test(clean))
     );
   }
@@ -28,15 +29,18 @@
   customRenderer.link = ({ href, text }) => {
     const isFile = isFilePath(href) || isFilePath(text);
     if (isFile) {
-      const path = isFilePath(href) ? href : text;
-      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer" title="Ouvrir ${path} dans l'éditeur">📄 <span>${text || path}</span></button>`;
+      const rawPath = isFilePath(href) ? href : text;
+      const path = rawPath.replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "");
+      const displayText = (text || path).replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "");
+      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${path} dans l'éditeur">📄 <span>${displayText}</span></button>`;
     }
     return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-brand hover:underline font-medium">${text}</a>`;
   };
 
   customRenderer.codespan = ({ text }) => {
     if (isFilePath(text)) {
-      return `<button type="button" data-studio-file="${text}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer" title="Ouvrir ${text} dans l'éditeur">📄 <span>${text}</span></button>`;
+      const path = text.replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "");
+      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${path} dans l'éditeur">📄 <span>${path}</span></button>`;
     }
     return `<code class="text-foreground bg-black/5 px-1 py-0.5 rounded font-mono text-[11px]">${text}</code>`;
   };
@@ -50,7 +54,20 @@
   function renderMarkdown(content: string): string {
     if (!content) return "";
     try {
-      return marked.parse(content) as string;
+      // Normalize occurrences like `📄 [path](...)` or `📄 \npath` or `📄 `path`` or `📄 src/...`
+      const preprocessed = content.replace(
+        /📄\s*(?:\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|([a-zA-Z0-9_./+-]+\.(?:svelte|ts|js|json|html|css)|src\/[a-zA-Z0-9_./+-]+))/g,
+        (match, linkText, linkHref, codeText, plainPath) => {
+          const raw = linkHref || linkText || codeText || plainPath || "";
+          const filePath = raw.replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "").trim();
+          const displayText = (linkText || codeText || plainPath || filePath).replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "").trim();
+          if (isFilePath(filePath)) {
+            return `<button type="button" data-studio-file="${filePath}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${filePath} dans l'éditeur">📄 <span>${displayText}</span></button>`;
+          }
+          return match;
+        }
+      );
+      return marked.parse(preprocessed) as string;
     } catch {
       return content;
     }
@@ -352,6 +369,8 @@
     let cleanPath = targetPath
       .trim()
       .replace(/^[`"']+|[`"']+$/g, "")
+      .replace(/^[📄\s]+/, "")
+      .replace(/^file:\/\//, "")
       .replace(/^[./\\]+/, "")
       .replace(/^https?:\/\/[^/]+\//, "")
       .replace(/\?.*$/, "");
@@ -388,11 +407,25 @@
           k.endsWith(cleanPath) ||
           cleanPath.endsWith(k),
       );
+      if (!matchedKey) {
+        const baseName = cleanPath.split("/").pop()?.toLowerCase();
+        if (baseName) {
+          matchedKey = Object.keys(files).find(
+            (k) => k.split("/").pop()?.toLowerCase() === baseName,
+          );
+        }
+      }
     }
 
     if (matchedKey) {
       showEditor = true;
+      if (typeof window !== "undefined" && window.innerWidth < 900) {
+        showChat = false;
+      }
       switchFile(matchedKey);
+      if (editorView) {
+        editorView.focus();
+      }
     } else {
       console.warn("Fichier non trouvé dans le projet:", targetPath);
     }
@@ -517,6 +550,14 @@
               return true;
             },
           },
+          {
+            key: "Ctrl-s",
+            preventDefault: true,
+            run: () => {
+              handleSaveCode();
+              return true;
+            },
+          },
         ]),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         retroEditorTheme,
@@ -540,7 +581,12 @@
   });
 
   function switchFile(filePath: string) {
-    if (filePath === activeFile) return;
+    if (filePath === activeFile) {
+      if (editorView) {
+        editorView.focus();
+      }
+      return;
+    }
 
     // Persist current file content before switching
     if (editorView && files[activeFile]) {
@@ -555,6 +601,7 @@
         changes: { from: 0, to: editorView.state.doc.length, insert: target.content },
         effects: languageCompartment.reconfigure(getLangExtension(target.lang)),
       });
+      editorView.focus();
     }
   }
 
@@ -827,10 +874,10 @@
 
     <!-- Center: Panel Docking Controls -->
     <div class="flex items-center gap-2">
-      <div class="flex items-center gap-0.5 rounded-full border border-black/10 bg-surface/90 p-0.5 text-xs font-mono shadow-retro-sm">
+      <div class="flex items-center gap-[2px] rounded-full border border-black/10 bg-surface/90 p-[2px] text-xs font-mono shadow-retro-sm">
         <button
           onclick={() => togglePanel("chat")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
           title={showChat ? "Masquer le chat IA" : "Afficher le chat IA"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -840,7 +887,7 @@
         </button>
         <button
           onclick={() => togglePanel("editor")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
           title={showEditor ? "Masquer l'éditeur de code" : "Afficher l'éditeur de code"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -850,7 +897,7 @@
         </button>
         <button
           onclick={() => togglePanel("preview")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
           title={showPreview ? "Masquer l'aperçu du site" : "Afficher l'aperçu du site"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -993,7 +1040,7 @@
                         activeProfile = 'auto';
                         profileMenuOpen = false;
                       }}
-                      class="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                      class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
                     >
                       <div class="flex items-center gap-2">
                         <span class="text-amber-500">⚡</span>
@@ -1017,7 +1064,7 @@
                           activeProfile = prof.name;
                           profileMenuOpen = false;
                         }}
-                        class="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                        class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
                       >
                         <div class="flex items-center gap-2">
                           <span class="w-1.5 h-1.5 rounded-full {activeProfile === prof.name ? 'bg-emerald-500' : 'bg-black/20'}"></span>

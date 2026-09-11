@@ -4,6 +4,7 @@ import {
   cleanupExpiredSessions,
   getTenantBySlug,
   getTenantByDomain,
+  type SessionWithUser,
 } from "$lib/server/db";
 import {
   getSessionCookieDomain,
@@ -223,45 +224,72 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  // Get session from cookie or Authorization header
+  // Get session from cookie or Authorization header (with multi-token candidate resolution)
   const authHeader = event.request.headers.get("authorization");
   const bearerToken = authHeader?.startsWith("Bearer ")
     ? authHeader.slice(7).trim()
     : null;
-  const sessionToken = event.cookies.get("session") || bearerToken;
 
-  if (sessionToken) {
-    const session = await getSessionByToken(sessionToken);
+  const rawCookieHeader = event.request.headers.get("cookie") || "";
+  const candidateTokens: string[] = [];
 
-    if (session) {
-      // Attach user to locals
-      event.locals.user = {
-        id: session.user_id,
-        email: session.email || session.github_email || null,
-        gitea_username: session.gitea_username || null,
-        gitea_token: session.gitea_token || null,
-        github_id: session.github_id || null,
-        github_username: session.github_username || null,
-        github_email: session.github_email || null,
-        github_access_token: session.github_access_token || null,
-        avatar_url: session.avatar_url || null,
-      };
-
-      // Ensure cookie is domain-scoped to .ether.paris for seamless studio / tenant SSO
-      const cookieDomain = getSessionCookieDomain(host);
-      if (cookieDomain) {
-        event.cookies.set("session", sessionToken, {
-          path: "/",
-          httpOnly: true,
-          sameSite: "lax",
-          secure: process.env.NODE_ENV === "production",
-          maxAge: SESSION_MAX_AGE_SECONDS,
-          domain: cookieDomain,
-        });
+  // Parse all session cookies if multiple exist (host-only vs domain-scoped)
+  const cookieMatches = rawCookieHeader.matchAll(/(?:^|;\s*)session=([^;]+)/g);
+  for (const m of cookieMatches) {
+    if (m[1]) {
+      const decoded = decodeURIComponent(m[1].trim());
+      if (decoded && !candidateTokens.includes(decoded)) {
+        candidateTokens.push(decoded);
       }
-    } else {
-      // Never delete cookie on transient lookup errors during rollout/restarts
-      event.locals.user = null;
+    }
+  }
+
+  const svelteSessionCookie = event.cookies.get("session");
+  if (svelteSessionCookie && !candidateTokens.includes(svelteSessionCookie)) {
+    candidateTokens.push(svelteSessionCookie);
+  }
+
+  if (bearerToken && !candidateTokens.includes(bearerToken)) {
+    candidateTokens.push(bearerToken);
+  }
+
+  let validSession: SessionWithUser | null = null;
+  let activeToken: string | null = null;
+
+  for (const token of candidateTokens) {
+    const session = await getSessionByToken(token);
+    if (session) {
+      validSession = session;
+      activeToken = token;
+      break;
+    }
+  }
+
+  if (validSession && activeToken) {
+    // Attach user to locals
+    event.locals.user = {
+      id: validSession.user_id,
+      email: validSession.email || validSession.github_email || null,
+      gitea_username: validSession.gitea_username || null,
+      gitea_token: validSession.gitea_token || null,
+      github_id: validSession.github_id || null,
+      github_username: validSession.github_username || null,
+      github_email: validSession.github_email || null,
+      github_access_token: validSession.github_access_token || null,
+      avatar_url: validSession.avatar_url || null,
+    };
+
+    // Ensure cookie is domain-scoped to .ether.paris for seamless studio / tenant SSO
+    const cookieDomain = getSessionCookieDomain(host);
+    if (cookieDomain) {
+      event.cookies.set("session", activeToken, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: SESSION_MAX_AGE_SECONDS,
+        domain: cookieDomain,
+      });
     }
   } else {
     event.locals.user = null;
