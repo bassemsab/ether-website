@@ -73,6 +73,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // 5. Apply Kubernetes resources (Namespace, NetworkPolicy, PVC, Deployments, Ingress)
     const k8sOk = await applyTenantK8s({
       slug,
+      brandName,
       subdomain: `${slug}.ether.paris`,
       namespace: `tenant-${slug}`,
     });

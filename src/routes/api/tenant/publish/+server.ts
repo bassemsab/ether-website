@@ -1,6 +1,7 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { getTenantById, updateTenantStatus } from "$lib/server/db";
+import { applyTenantK8s } from "$lib/server/k8s-tenant";
 
 export const POST: RequestHandler = async ({ request, locals }) => {
   if (!locals.user) {
@@ -22,7 +23,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     const namespace = tenant.k8s_namespace || `tenant-${tenant.slug}`;
 
-    // Rollout restart the production deployment
+    const tenantSlug = tenant.slug || `tenant-${tenant.id}`;
+
+    // 1. Ensure tenant resources (Namespace, PVC, NetworkPolicy, Deployment, Service, Ingress) are applied
+    await applyTenantK8s({
+      slug: tenantSlug,
+      brandName: tenant.brand_name || tenantSlug,
+      subdomain: tenant.subdomain || `${tenantSlug}.ether.paris`,
+      customDomain: tenant.custom_domain,
+      namespace,
+    });
+
+    // 2. Rollout restart the production deployment
     try {
       const proc = Bun.spawn({
         cmd: ["kubectl", "rollout", "restart", "deployment/web-prod", "-n", namespace],

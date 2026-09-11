@@ -334,8 +334,11 @@ export async function getTenantByDomain(
   if (!db) return null;
 
   try {
-    const stmt = db.prepare(`SELECT * FROM tenants WHERE domain = ?`);
-    const result = stmt.get(domain);
+    const cleanDomain = domain.toLowerCase().trim();
+    const stmt = db.prepare(
+      `SELECT * FROM tenants WHERE LOWER(domain) = ? OR LOWER(subdomain) = ? OR LOWER(custom_domain) = ?`
+    );
+    const result = stmt.get(cleanDomain, cleanDomain, cleanDomain);
     return result as TenantRecord | null;
   } catch (error) {
     console.error("Failed to get tenant:", error);

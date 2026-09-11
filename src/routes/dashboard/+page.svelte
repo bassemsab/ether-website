@@ -220,12 +220,6 @@
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <button
-          onclick={() => { selectedTenant = null; isSupportModalOpen = true; }}
-          class="focus-ring px-5 py-2.5 rounded-full border border-black/10 bg-surface/80 hover:bg-surface text-foreground text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer"
-        >
-          Infra sur-mesure
-        </button>
-        <button
           onclick={() => { isCreateModalOpen = true; }}
           class="focus-ring px-6 py-2.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
         >
@@ -322,6 +316,23 @@
             </div>
           </div>
         {/each}
+      </div>
+
+      <!-- Custom Infrastructure & Support section (shown only after user has created their website) -->
+      <div class="retro-card p-6 md:p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 border border-black/5 bg-surface/60 mt-8">
+        <div class="space-y-1">
+          <span class="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Évolution &amp; Sur-mesure</span>
+          <h3 class="font-display text-xl text-foreground font-normal">Besoin d'une infrastructure dédiée ou sur-mesure ?</h3>
+          <p class="text-xs text-muted-foreground max-w-xl leading-relaxed">
+            Volumes de stockage étendus, cluster privé isolé, connecteurs externes (Firebase, CRM, PostgreSQL dédié) ou montée en charge garantie.
+          </p>
+        </div>
+        <button
+          onclick={() => { selectedTenant = tenants[0]; isSupportModalOpen = true; }}
+          class="focus-ring px-6 py-3 rounded-full border border-black/15 bg-surface hover:bg-surface/80 text-foreground text-xs font-medium uppercase tracking-[0.2em] transition-all cursor-pointer shrink-0 shadow-retro-sm"
+        >
+          Demander une infrastructure
+        </button>
       </div>
     {:else}
       <!-- Empty State -->

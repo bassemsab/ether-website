@@ -1,5 +1,9 @@
 import type { Handle } from "@sveltejs/kit";
-import { getSessionByToken, cleanupExpiredSessions } from "$lib/server/db";
+import { getSessionByToken, cleanupExpiredSessions, getTenantBySlug, getTenantByDomain } from "$lib/server/db";
+
+const RESERVED_SLUGS = new Set([
+  "api", "admin", "studio", "git", "mail", "smtp", "www", "app", "dev", "staging", "auth", "login", "dashboard", "logout"
+]);
 
 // Clean up expired sessions periodically
 let lastCleanup = Date.now();
@@ -10,6 +14,84 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (Date.now() - lastCleanup > CLEANUP_INTERVAL) {
     await cleanupExpiredSessions();
     lastCleanup = Date.now();
+  }
+
+  // Detect Host
+  const rawHost =
+    event.request.headers.get("x-forwarded-host") ||
+    event.request.headers.get("host") ||
+    event.url.hostname ||
+    "";
+  const host = rawHost.split(":")[0].toLowerCase();
+
+  // Studio Subdomain Handling (studio.ether.paris)
+  if (host === "studio.ether.paris") {
+    event.locals.isStudio = true;
+    if (event.url.pathname === "/") {
+      return new Response(null, {
+        status: 307,
+        headers: { location: `/studio${event.url.search}` },
+      });
+    }
+  }
+
+  // Tenant Resolution:
+  // 1. Check pod environment variable TENANT_SLUG (when running in isolated tenant namespace)
+  // 2. Check host ending in .ether.paris with a non-reserved slug (e.g. tester.ether.paris)
+  // 3. Check custom domains (e.g. hidden-artist.fr)
+  let tenantSlug: string | null = process.env.TENANT_SLUG || null;
+  if (!tenantSlug && host.endsWith(".ether.paris")) {
+    const candidate = host.replace(".ether.paris", "");
+    if (!RESERVED_SLUGS.has(candidate) && candidate.length > 0) {
+      tenantSlug = candidate;
+    }
+  }
+
+  if (tenantSlug) {
+    let tenant = await getTenantBySlug(tenantSlug);
+    if (!tenant) {
+      // Fallback for pod running in tenant namespace or newly created tenant
+      tenant = {
+        id: 0,
+        user_id: 0,
+        slug: tenantSlug,
+        subdomain: `${tenantSlug}.ether.paris`,
+        brand_name: process.env.TENANT_BRAND_NAME || tenantSlug,
+        domain: `${tenantSlug}.ether.paris`,
+        email: "contact@ether.paris",
+        custom_domain: null,
+        k8s_namespace: `tenant-${tenantSlug}`,
+        git_repo_url: `https://git.ether.paris/${tenantSlug}/${tenantSlug}.git`,
+        git_access_token: "",
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        plan: "free",
+        github_repo: null,
+        aws_ses_verified: false,
+        aws_ses_token: null,
+        stalwart_user_created: false,
+        stalwart_username: null,
+        stalwart_password: null,
+        k8s_ingress_created: true,
+        cloudflare_dns_records: null,
+        error_message: null,
+        stripe_subscription_id: null,
+      };
+    }
+    event.locals.tenant = tenant;
+  } else if (
+    host !== "ether.paris" &&
+    host !== "www.ether.paris" &&
+    host !== "studio.ether.paris" &&
+    !host.includes("localhost") &&
+    !host.includes("127.0.0.1")
+  ) {
+    // Check if custom domain matches a tenant
+    const customTenant = await getTenantByDomain(host);
+    if (customTenant) {
+      event.locals.tenant = customTenant;
+    }
   }
 
   // Get session from cookie

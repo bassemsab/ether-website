@@ -3,6 +3,7 @@ import { env } from "$env/dynamic/private";
 export interface TenantK8sConfig {
   slug: string;
   subdomain: string;
+  brandName?: string | null;
   customDomain?: string | null;
   namespace: string;
 }
@@ -13,7 +14,8 @@ export function generateTenantManifests(config: TenantK8sConfig): string {
     hosts.push(config.customDomain);
   }
 
-  const tlsHosts = hosts.map((h) => `    - ${h}`).join("\n");
+  const tlsHosts = hosts.map((h) => `        - ${h}`).join("\n");
+  const brandName = (config.brandName || config.slug).replace(/"/g, '\\"');
   const ingressRules = hosts
     .map(
       (h) => `  - host: ${h}
@@ -115,10 +117,12 @@ spec:
       labels:
         app: web-prod
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: website
           image: ghcr.io/bassemsab/ether-website:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: PORT
               value: "3000"
@@ -126,6 +130,12 @@ spec:
               value: "production"
             - name: DB_PATH
               value: "/data/app.db"
+            - name: TENANT_SLUG
+              value: "${config.slug}"
+            - name: TENANT_DOMAIN
+              value: "${config.subdomain}"
+            - name: TENANT_BRAND_NAME
+              value: "${brandName}"
           ports:
             - containerPort: 3000
           resources:
@@ -190,6 +200,8 @@ spec:
       labels:
         app: web-dev
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: dev-server
           image: oven/bun:1.2-alpine
@@ -229,6 +241,47 @@ spec:
  * Applies tenant manifests to Kubernetes cluster using kubectl.
  */
 export async function applyTenantK8s(config: TenantK8sConfig): Promise<boolean> {
+  // 1. Ensure namespace exists
+  try {
+    const nsProc = Bun.spawn({
+      cmd: ["kubectl", "create", "namespace", config.namespace, "--dry-run=client", "-o", "yaml"],
+      stdout: "pipe",
+    });
+    const nsYaml = await new Response(nsProc.stdout).text();
+    const nsApply = Bun.spawn({
+      cmd: ["kubectl", "apply", "-f", "-"],
+      stdin: new Response(nsYaml),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    await nsApply.exited;
+  } catch {}
+
+  // 2. Ensure ghcr-secret is copied into the namespace for pulling images
+  try {
+    const secProc = Bun.spawn({
+      cmd: ["kubectl", "get", "secret", "ghcr-secret", "-n", "ether", "-o", "json"],
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const secJsonStr = await new Response(secProc.stdout).text();
+    if (secJsonStr && secJsonStr.includes('"kind": "Secret"')) {
+      const secObj = JSON.parse(secJsonStr);
+      delete secObj.metadata.resourceVersion;
+      delete secObj.metadata.uid;
+      delete secObj.metadata.creationTimestamp;
+      secObj.metadata.namespace = config.namespace;
+      const secApply = Bun.spawn({
+        cmd: ["kubectl", "apply", "-f", "-"],
+        stdin: new Response(JSON.stringify(secObj)),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await secApply.exited;
+    }
+  } catch {}
+
+  // 3. Apply manifests
   const manifests = generateTenantManifests(config);
   const tempPath = `/tmp/k8s-tenant-${config.slug}.yaml`;
 
@@ -250,7 +303,6 @@ export async function applyTenantK8s(config: TenantK8sConfig): Promise<boolean> 
 
     if (exitCode !== 0) {
       console.warn(`[applyTenantK8s] kubectl note for ${config.slug}: ${stderr}`);
-      // In local dev without kubectl cluster connection, don't crash
       return false;
     }
 

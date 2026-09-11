@@ -16,6 +16,8 @@ declare global {
 
     interface Locals {
       user: User | null;
+      tenant?: any | null;
+      isStudio?: boolean;
     }
 
     interface PageData {
