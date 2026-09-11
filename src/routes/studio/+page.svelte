@@ -1,6 +1,14 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import BrandMark from "$lib/components/brand-mark.svelte";
   import type { PageData } from "./$types";
+
+  // CodeMirror imports
+  import { EditorView, basicSetup } from "codemirror";
+  import { html } from "@codemirror/lang-html";
+  import { javascript } from "@codemirror/lang-javascript";
+  import { EditorState, Compartment } from "@codemirror/state";
+  import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 
   interface Props {
     data: PageData;
@@ -16,7 +24,7 @@
   let messages = $state([
     {
       role: "assistant",
-      content: `Bonjour ! Je suis l'agent IA Ether Studio propulsé par l'agy CLI. Votre site **${tenant.brand_name || projectSlug}** tourne sur Kubernetes avec SvelteKit 5 Runes, Bun et une base de données SQLite isolée sur volume persistant.\n\nQue souhaitez-vous ajouter ou modifier sur votre site ?`,
+      content: `Bonjour ! Je suis l'agent IA Ether Studio. Votre site **${tenant.brand_name || projectSlug}** tourne sur Kubernetes avec SvelteKit 5 Runes, Bun et une base de données SQLite isolée sur volume persistant.\n\nQue souhaitez-vous ajouter ou modifier sur votre site ?`,
       profile: "primary",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
@@ -27,10 +35,231 @@
   let publishLoading = $state(false);
   let publishStatus = $state<string | null>(null);
 
-  // Editor State
+  // Resizable Panels State
+  let chatWidth = $state(380);
+  let previewWidth = $state(480);
+  let isResizing = $state(false);
+
+  function startResizeChat(e: MouseEvent) {
+    e.preventDefault();
+    isResizing = true;
+    const startX = e.clientX;
+    const startWidth = chatWidth;
+
+    function onMouseMove(moveEvent: MouseEvent) {
+      const delta = moveEvent.clientX - startX;
+      chatWidth = Math.max(260, Math.min(560, startWidth + delta));
+    }
+
+    function onMouseUp() {
+      isResizing = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
+
+  function startResizePreview(e: MouseEvent) {
+    e.preventDefault();
+    isResizing = true;
+    const startX = e.clientX;
+    const startWidth = previewWidth;
+
+    function onMouseMove(moveEvent: MouseEvent) {
+      const delta = startX - moveEvent.clientX; // drag left increases preview width
+      previewWidth = Math.max(320, Math.min(760, startWidth + delta));
+    }
+
+    function onMouseUp() {
+      isResizing = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
+
+  // Multi-file Code Editor State
+  type SupportedLang = "html" | "typescript" | "json";
+  interface FileItem {
+    name: string;
+    path: string;
+    lang: SupportedLang;
+    content: string;
+  }
+
+  let files = $state<Record<string, FileItem>>({
+    "src/routes/+page.svelte": {
+      name: "+page.svelte",
+      path: "src/routes/+page.svelte",
+      lang: "html",
+      content: data.defaultCode || "",
+    },
+    "src/lib/server/db.ts": {
+      name: "db.ts",
+      path: "src/lib/server/db.ts",
+      lang: "typescript",
+      content: `import { Database } from "bun:sqlite";
+
+// Base de données persistante SQLite pour ${tenant.brand_name || projectSlug}
+const db = new Database(process.env.DB_PATH || "data.sqlite");
+
+// Schéma des tables
+db.run(\`
+  CREATE TABLE IF NOT EXISTS visitors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT,
+    path TEXT,
+    user_agent TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+\`);
+
+export function getRecentVisitors() {
+  return db.query("SELECT * FROM visitors ORDER BY timestamp DESC LIMIT 20").all();
+}
+
+export function logVisitor(ip: string, path: string, userAgent: string) {
+  return db.query("INSERT INTO visitors (ip, path, user_agent) VALUES (?, ?, ?)").run(ip, path, userAgent);
+}
+`,
+    },
+    "package.json": {
+      name: "package.json",
+      path: "package.json",
+      lang: "json",
+      content: JSON.stringify(
+        {
+          name: projectSlug,
+          version: "1.0.0",
+          private: true,
+          scripts: {
+            dev: "bun --bun vite dev",
+            build: "bun --bun vite build",
+            preview: "vite preview",
+          },
+          dependencies: {
+            "@sveltejs/kit": "^2.0.0",
+            svelte: "^5.0.0",
+            tailwindcss: "^3.4.3",
+          },
+        },
+        null,
+        2
+      ),
+    },
+  });
+
   let activeFile = $state("src/routes/+page.svelte");
-  let codeContent = $state(data.defaultCode || "");
   let editorSaved = $state(false);
+  let editorContainer = $state<HTMLDivElement | null>(null);
+  let editorView = $state<EditorView | null>(null);
+  const languageCompartment = new Compartment();
+
+  function getLangExtension(lang: SupportedLang) {
+    if (lang === "typescript") {
+      return javascript({ typescript: true });
+    } else if (lang === "json") {
+      return javascript();
+    }
+    return html();
+  }
+
+  const retroEditorTheme = EditorView.theme({
+    "&": {
+      height: "100%",
+      fontSize: "12px",
+      fontFamily: "'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      backgroundColor: "transparent",
+      color: "#1E1B39",
+    },
+    ".cm-content": {
+      padding: "16px 0",
+      caretColor: "#1E1B39",
+      lineHeight: "1.6",
+    },
+    ".cm-cursor": {
+      borderLeftColor: "#1E1B39",
+      borderLeftWidth: "2px",
+    },
+    ".cm-gutters": {
+      backgroundColor: "transparent",
+      color: "#A8A29E",
+      border: "none",
+      paddingRight: "12px",
+      userSelect: "none",
+    },
+    ".cm-lineNumbers .cm-gutterElement": {
+      paddingLeft: "12px",
+      minWidth: "28px",
+    },
+    ".cm-activeLineGutter": {
+      backgroundColor: "rgba(30, 27, 57, 0.06)",
+      color: "#1E1B39",
+      fontWeight: "bold",
+    },
+    ".cm-activeLine": {
+      backgroundColor: "rgba(30, 27, 57, 0.03)",
+    },
+    ".cm-scroller": {
+      overflow: "auto",
+      fontFamily: "inherit",
+    },
+    "&.cm-focused": {
+      outline: "none",
+    },
+  });
+
+  onMount(() => {
+    if (!editorContainer) return;
+
+    const initialFile = files[activeFile];
+    const state = EditorState.create({
+      doc: initialFile.content,
+      extensions: [
+        basicSetup,
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        retroEditorTheme,
+        languageCompartment.of(getLangExtension(initialFile.lang)),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            files[activeFile].content = update.state.doc.toString();
+          }
+        }),
+      ],
+    });
+
+    editorView = new EditorView({
+      state,
+      parent: editorContainer,
+    });
+
+    return () => {
+      editorView?.destroy();
+    };
+  });
+
+  function switchFile(filePath: string) {
+    if (filePath === activeFile) return;
+
+    // Persist current file content before switching
+    if (editorView) {
+      files[activeFile].content = editorView.state.doc.toString();
+    }
+
+    activeFile = filePath;
+    const target = files[filePath];
+
+    if (editorView && target) {
+      editorView.dispatch({
+        changes: { from: 0, to: editorView.state.doc.length, insert: target.content },
+        effects: languageCompartment.reconfigure(getLangExtension(target.lang)),
+      });
+    }
+  }
 
   // Preview State
   let viewportMode = $state<"desktop" | "tablet" | "mobile">("desktop");
@@ -82,7 +311,7 @@
     } catch (err: any) {
       messages.push({
         role: "assistant",
-        content: `Erreur de connexion avec le runner agy : ${err.message}`,
+        content: `Erreur de connexion avec l'agent Studio : ${err.message}`,
         profile: "secondary",
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
@@ -119,6 +348,9 @@
   }
 
   function handleSaveCode() {
+    if (editorView) {
+      files[activeFile].content = editorView.state.doc.toString();
+    }
     editorSaved = true;
     previewKey++;
     setTimeout(() => {
@@ -155,7 +387,7 @@
       </div>
       <div class="flex items-center gap-1.5 px-3 py-1 rounded-full border border-black/10 bg-surface text-muted-foreground">
         <span class="w-1.5 h-1.5 rounded-full bg-brand"></span>
-        <span>agy daemon (Gemini 2.5)</span>
+        <span>Agent Studio Connecté</span>
       </div>
     </div>
 
@@ -203,16 +435,19 @@
     </div>
   {/if}
 
-  <!-- Main Studio Workspace (3 Columns) -->
-  <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-    <!-- Left Column: AI Prompt & Chat (4 cols) -->
-    <div class="lg:col-span-4 border-r border-black/10 bg-surface/40 flex flex-col h-full overflow-hidden">
+  <!-- Main Studio Workspace (Resizable 3 Panels) -->
+  <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative {isResizing ? 'select-none cursor-col-resize' : ''}">
+    <!-- Left Panel: AI Prompt & Chat -->
+    <div
+      class="border-r border-black/10 bg-surface/40 flex flex-col h-full overflow-hidden shrink-0 w-full lg:w-auto"
+      style="width: {chatWidth}px;"
+    >
       <div class="p-3 border-b border-black/10 bg-surface/80 flex items-center justify-between text-xs font-mono">
         <span class="font-semibold text-foreground uppercase tracking-widest flex items-center gap-2">
           <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
-          Assistant IA (agy CLI)
+          Assistant Studio
         </span>
         <span class="text-[10px] text-muted-foreground uppercase">Svelte 5 Runes Mode</span>
       </div>
@@ -240,7 +475,7 @@
         {#if isThinking}
           <div class="flex items-center gap-2 p-3 text-xs text-muted-foreground font-mono">
             <div class="w-2 h-2 rounded-full bg-brand animate-ping"></div>
-            <span>L'agent agy modifie le code en direct...</span>
+            <span>L'agent modifie le code en direct...</span>
           </div>
         {/if}
       </div>
@@ -254,7 +489,7 @@
           + Témoignages
         </button>
         <button
-          onclick={() => { promptInput = "Crée un formulaire de réservation avec enregistrement dans SQLite"; }}
+          onclick={() => { promptInput = "Crée un formulaire de contact avec sauvegarde dans SQLite"; }}
           class="shrink-0 px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
         >
           + Formulaire SQLite
@@ -286,29 +521,31 @@
       </form>
     </div>
 
-    <!-- Center Column: Code Editor (4 cols) -->
-    <div class="hidden lg:flex lg:col-span-4 border-r border-black/10 bg-card flex-col h-full overflow-hidden">
+    <!-- Divider 1: Drag to resize Chat & Editor -->
+    <!-- svelte-ignore a11y_interactive_supports_focus -->
+    <div
+      role="separator"
+      tabindex="0"
+      aria-label="Redimensionner le panneau de discussion"
+      onmousedown={startResizeChat}
+      class="hidden lg:flex w-2 -mx-1 relative z-20 cursor-col-resize items-center justify-center hover:bg-brand/15 active:bg-brand/30 transition-colors group select-none shrink-0"
+    >
+      <div class="w-[3px] h-10 rounded-full bg-black/15 group-hover:bg-brand transition-colors"></div>
+    </div>
+
+    <!-- Center Panel: Code Editor (CodeMirror Syntax Highlighted) -->
+    <div class="flex-1 min-w-[280px] border-r border-black/10 bg-card flex flex-col h-full overflow-hidden">
       <!-- File Tabs -->
       <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-2 text-xs font-mono">
         <div class="flex items-center gap-1">
-          <button
-            onclick={() => activeFile = "src/routes/+page.svelte"}
-            class="px-3 py-1.5 rounded-t border-b-2 font-medium transition-all {activeFile === 'src/routes/+page.svelte' ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-          >
-            +page.svelte
-          </button>
-          <button
-            onclick={() => activeFile = "src/lib/server/db.ts"}
-            class="px-3 py-1.5 rounded-t border-b-2 font-medium transition-all {activeFile === 'src/lib/server/db.ts' ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-          >
-            db.ts
-          </button>
-          <button
-            onclick={() => activeFile = "package.json"}
-            class="px-3 py-1.5 rounded-t border-b-2 font-medium transition-all {activeFile === 'package.json' ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-          >
-            package.json
-          </button>
+          {#each Object.entries(files) as [path, file]}
+            <button
+              onclick={() => switchFile(path)}
+              class="px-3 py-1.5 rounded-t border-b-2 font-medium transition-all {activeFile === path ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+            >
+              {file.name}
+            </button>
+          {/each}
         </div>
 
         <button
@@ -319,18 +556,27 @@
         </button>
       </div>
 
-      <!-- Code Area -->
-      <div class="flex-1 p-4 font-mono text-xs overflow-auto bg-surface/20">
-        <textarea
-          bind:value={codeContent}
-          class="w-full h-full bg-transparent text-foreground outline-none resize-none font-mono text-xs leading-relaxed"
-          spellcheck="false"
-        ></textarea>
-      </div>
+      <!-- CodeMirror Editor Container -->
+      <div class="flex-1 overflow-hidden bg-surface/20" bind:this={editorContainer}></div>
     </div>
 
-    <!-- Right Column: Live Preview (4 cols) -->
-    <div class="lg:col-span-4 bg-surface/30 flex flex-col h-full overflow-hidden">
+    <!-- Divider 2: Drag to resize Editor & Preview -->
+    <!-- svelte-ignore a11y_interactive_supports_focus -->
+    <div
+      role="separator"
+      tabindex="0"
+      aria-label="Redimensionner le panneau d'aperçu"
+      onmousedown={startResizePreview}
+      class="hidden lg:flex w-2 -mx-1 relative z-20 cursor-col-resize items-center justify-center hover:bg-brand/15 active:bg-brand/30 transition-colors group select-none shrink-0"
+    >
+      <div class="w-[3px] h-10 rounded-full bg-black/15 group-hover:bg-brand transition-colors"></div>
+    </div>
+
+    <!-- Right Panel: Live Preview -->
+    <div
+      class="bg-surface/30 flex flex-col h-full overflow-hidden shrink-0 w-full lg:w-auto"
+      style="width: {previewWidth}px;"
+    >
       <!-- Preview Toolbar -->
       <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-3 text-xs font-mono">
         <div class="flex items-center gap-1.5">
@@ -386,7 +632,7 @@
             <iframe
               src={liveUrl}
               title="Aperçu en direct de {projectSlug}"
-              class="w-full h-full border-0 bg-background"
+              class="w-full h-full border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
             ></iframe>
           {/key}
         </div>

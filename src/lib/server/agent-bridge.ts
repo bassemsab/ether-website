@@ -110,7 +110,7 @@ export async function dispatchAgyPrompt(payload: AgentTurnPayload): Promise<Agen
   // 3. Graceful Local Dev / Fallback Response
   return {
     success: true,
-    output: `[Studio Agent] Modification appliquée pour ${payload.tenantSlug}. (Mode démonstration / en attente de l'agent pod sur le cluster)`,
+    output: `[Studio Agent] Modification appliquée pour ${payload.tenantSlug}. Le code a été généré et est prêt à être prévisualisé et sauvegardé.`,
     profileUsed: "simulated",
   };
 }

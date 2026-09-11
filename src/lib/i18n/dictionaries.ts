@@ -251,7 +251,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
           "Générez vos sites web avec SvelteKit & Bun, obtenez un nom de domaine ou sous-domaine ether.paris, et pilotez votre code en toute autonomie.",
         primaryCta: "Créer un site",
         secondaryCta: "En savoir plus",
-        features: ["Nom de domaine", "Infrastructure Bun & SQLite", "Dépôt Git dédié", "Studio IA agy"],
+        features: ["Nom de domaine", "Infrastructure Bun & SQLite", "Dépôt Git dédié", "Studio IA Ether"],
       },
       manifesto: {
         eyebrow: "Manifeste",
@@ -567,7 +567,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
           "Spin up websites powered by SvelteKit & Bun, secure custom domains or ether.paris subdomains, and manage code with complete autonomy.",
         primaryCta: "Launch a site",
         secondaryCta: "Learn more",
-        features: ["Custom Domain", "Bun & SQLite Infrastructure", "Dedicated Git Repository", "agy AI Studio"],
+        features: ["Custom Domain", "Bun & SQLite Infrastructure", "Dedicated Git Repository", "Ether AI Studio"],
       },
       manifesto: {
         eyebrow: "Manifesto",
@@ -882,7 +882,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
           "أنشئ مواقع الويب بتقنيات SvelteKit وBun، مع دومين مخصص أو نطاق فرعي من ether.paris واستوديو ذكاء اصطناعي مدمج.",
         primaryCta: "ابدأ موقعك",
         secondaryCta: "اعرف المزيد",
-        features: ["نطاق مخصص", "بنية سحابية بـ Bun وSQLite", "مستودع Git مستقل", "استوديو الذكاء الاصطناعي agy"],
+        features: ["نطاق مخصص", "بنية سحابية بـ Bun وSQLite", "مستودع Git مستقل", "استوديو الذكاء الاصطناعي Ether"],
       },
       manifesto: {
         eyebrow: "البيان",

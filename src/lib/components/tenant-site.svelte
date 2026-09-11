@@ -223,7 +223,7 @@
           </div>
           <h3 class="font-display text-xl text-foreground font-normal">Édition en Studio</h3>
           <p class="text-xs text-muted-foreground leading-relaxed">
-            Personnalisez tout le code en direct via Ether Studio avec assistance IA alimentée par l'agy CLI.
+            Personnalisez tout le code en direct via Ether Studio avec assistance IA interactive.
           </p>
         </div>
       </div>
