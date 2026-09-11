@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { page } from "$app/stores";
   import BrandMark from "$lib/components/brand-mark.svelte";
 

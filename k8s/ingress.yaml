@@ -36,3 +36,14 @@ spec:
                 name: ether-website
                 port:
                   number: 80
+    - host: "*.ether.paris"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ether-website
+                port:
+                  number: 80
+
