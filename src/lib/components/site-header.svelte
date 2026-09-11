@@ -104,7 +104,7 @@
     </nav>
 
     <div class="hidden items-center gap-3 md:flex">
-      <div class="text-xs">
+      <div class="relative inline-flex items-center text-xs">
         <label for="desktop-language" class="sr-only">
           {languageLabel}
         </label>
@@ -112,14 +112,23 @@
           id="desktop-language"
           value={locale}
           onchange={(e) => handleLocaleChange(e.currentTarget.value)}
-          class="rounded-full border border-black/10 bg-surface/80 px-3 py-1 uppercase tracking-[0.3em] text-muted-foreground transition focus:outline-none focus:ring-2 focus:ring-brand"
+          class="cursor-pointer appearance-none rounded-full border border-black/10 bg-surface/80 pl-3.5 pr-7 py-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground transition hover:border-black/20 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-brand rtl:pl-7 rtl:pr-3.5"
         >
           {#each localeLinks as item}
-            <option value={item.locale}>
+            <option value={item.locale} class="bg-surface text-foreground font-normal normal-case tracking-normal">
               {item.label}
             </option>
           {/each}
         </select>
+        <svg
+          class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground rtl:right-auto rtl:left-2.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
       </div>
       <a
         href="/login"
@@ -175,18 +184,29 @@
         >
           {languageLabel}
         </label>
-        <select
-          id="mobile-language"
-          value={locale}
-          onchange={(e) => handleLocaleChange(e.currentTarget.value, true)}
-          class="w-full rounded-2xl border border-black/10 bg-surface px-4 py-2 uppercase tracking-[0.3em] text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand"
-        >
-          {#each localeLinks as item}
-            <option value={item.locale}>
-              {item.label}
-            </option>
-          {/each}
-        </select>
+        <div class="relative">
+          <select
+            id="mobile-language"
+            value={locale}
+            onchange={(e) => handleLocaleChange(e.currentTarget.value, true)}
+            class="w-full appearance-none cursor-pointer rounded-2xl border border-black/10 bg-surface px-4 py-2.5 pr-10 uppercase tracking-[0.3em] text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand rtl:pr-4 rtl:pl-10"
+          >
+            {#each localeLinks as item}
+              <option value={item.locale} class="bg-surface text-foreground font-normal normal-case tracking-normal">
+                {item.label}
+              </option>
+            {/each}
+          </select>
+          <svg
+            class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground rtl:right-auto rtl:left-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </div>
       {#each navigation as item}
         <a
