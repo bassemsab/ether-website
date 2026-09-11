@@ -79,11 +79,14 @@
   const tenant = $derived(data.tenant);
   const projectSlug = $derived(data.projectSlug || "tester");
   const liveUrl = $derived(
+    tenant.custom_domain
+      ? `https://${tenant.custom_domain}`
+      : `https://${projectSlug}.ether.paris`
+  );
+  const previewUrl = $derived(
     typeof window !== "undefined" && window.location.hostname.includes("localhost")
       ? `/api/studio/preview/${projectSlug}/`
-      : tenant.custom_domain
-        ? `https://${tenant.custom_domain}`
-        : `https://${projectSlug}.ether.paris`
+      : `https://preview-${projectSlug}.ether.paris`
   );
 
   const isAdmin = $derived(Boolean(data.isAdmin));
@@ -558,7 +561,7 @@
       try {
         previewIframe.contentWindow?.location.reload();
       } catch {
-        previewIframe.src = liveUrl;
+        previewIframe.src = previewUrl;
       }
     }
   }
@@ -1425,10 +1428,11 @@
           </button>
 
           <a
-            href={liveUrl}
+            href={previewUrl}
             target="_blank"
             rel="noopener"
             class="text-[11px] text-brand hover:underline font-mono inline-flex items-center gap-1"
+            title="Ouvrir l'aperçu du code dans un nouvel onglet"
           >
             Ouvrir ↗
           </a>
@@ -1451,8 +1455,8 @@
           <div class="w-full h-full bg-background overflow-hidden flex flex-col">
             <iframe
               bind:this={previewIframe}
-              src={liveUrl}
-              title="Aperçu en direct de {projectSlug}"
+              src={previewUrl}
+              title="Aperçu du code en cours de {projectSlug}"
               class="w-full h-full border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
             ></iframe>
           </div>
@@ -1465,8 +1469,8 @@
               <div class="w-12 h-1 bg-black/20 rounded-full"></div>
             </div>
             <iframe
-              src={liveUrl}
-              title="Aperçu mobile de {projectSlug}"
+              src={previewUrl}
+              title="Aperçu mobile du code de {projectSlug}"
               class="w-full flex-1 border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
             ></iframe>
           </div>

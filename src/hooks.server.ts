@@ -58,14 +58,29 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   // Tenant Resolution:
-  // 1. Check query parameter preview_tenant (for Studio local dev or iframe preview)
-  // 2. Check pod environment variable TENANT_SLUG (when running in isolated tenant namespace)
-  // 3. Check host ending in .ether.paris with a non-reserved slug (e.g. tester.ether.paris)
-  // 4. Check custom domains (e.g. hidden-artist.fr)
+  // 1. Check if host is a preview subdomain (e.g. preview-tester.ether.paris)
+  // 2. Check query parameter preview_tenant (for Studio local dev or iframe preview)
+  // 3. Check pod environment variable TENANT_SLUG (when running in isolated tenant namespace)
+  // 4. Check host ending in .ether.paris with a non-reserved slug (e.g. tester.ether.paris)
+  // 5. Check custom domains (e.g. hidden-artist.fr)
+  let isPreview = false;
   let tenantSlug: string | null =
     event.url.searchParams.get("preview_tenant") ||
     process.env.TENANT_SLUG ||
     null;
+
+  if (event.url.searchParams.has("preview_tenant")) {
+    isPreview = true;
+  }
+
+  if (!tenantSlug && host.startsWith("preview-") && host.endsWith(".ether.paris")) {
+    const candidate = host.slice(8).replace(".ether.paris", "");
+    if (candidate.length > 0 && !RESERVED_SLUGS.has(candidate)) {
+      tenantSlug = candidate;
+      isPreview = true;
+    }
+  }
+
   if (!tenantSlug && host.endsWith(".ether.paris")) {
     const candidate = host.replace(".ether.paris", "");
     if (!RESERVED_SLUGS.has(candidate) && candidate.length > 0) {
@@ -121,9 +136,11 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  // Live Vite Dev Server Proxy for Tenants
-  // Directs traffic to the runner's live Vite dev server for the tenant's real code
+  // Live Vite Dev Server Proxy for Studio Preview
+  // Only intercepts when in preview mode (e.g. preview-<slug>.ether.paris)
+  // The actual production tenant site (e.g. tester.ether.paris) is served normally
   if (
+    isPreview &&
     tenantSlug &&
     !event.locals.isStudio &&
     !event.url.pathname.startsWith("/api/")
