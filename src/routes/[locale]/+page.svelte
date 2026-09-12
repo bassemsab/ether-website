@@ -3,7 +3,6 @@
   import SiteFooter from '$lib/components/footer.svelte';
   import Hero from '$lib/components/hero.svelte';
   import Section from '$lib/components/section.svelte';
-  import PartnerMarquee from '$lib/components/partner-marquee.svelte';
   import ContactForm from '$lib/components/contact-form.svelte';
   import Manifesto from '$lib/components/manifesto.svelte';
   import Expertise from '$lib/components/expertise.svelte';
@@ -111,10 +110,6 @@
     </section>
   </div>
 
-  <div class="container">
-    <PartnerMarquee partners={partnerMarquee.partners} />
-  </div>
-
   <Section
     id="manifesto"
     eyebrow={sections.manifesto.eyebrow}
@@ -166,14 +161,16 @@
     />
   </Section>
 
-  <Section
-    id="testimonials"
-    eyebrow={sections.testimonials.eyebrow}
-    title={sections.testimonials.title}
-    description={sections.testimonials.description}
-  >
-    <Testimonials testimonials={sections.testimonials.testimonials} />
-  </Section>
+  {#if sections.testimonials.testimonials.length > 0}
+    <Section
+      id="testimonials"
+      eyebrow={sections.testimonials.eyebrow}
+      title={sections.testimonials.title}
+      description={sections.testimonials.description}
+    >
+      <Testimonials testimonials={sections.testimonials.testimonials} />
+    </Section>
+  {/if}
 
   <Section
     id="contact"

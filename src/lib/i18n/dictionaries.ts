@@ -24,6 +24,7 @@ type CaseStudy = {
   summary: string;
   metrics: string[];
   image: string;
+  url?: string;
 };
 
 type ApproachStep = {
@@ -171,13 +172,13 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       name: "Ether",
       motto: "Tout Partout",
       description:
-        "Ether assemble des expériences numériques sur mesure en mêlant design, ingénierie logicielle et production musicale.",
+        "Ether conçoit et déploie des expériences numériques singulières, mêlant ingénierie logicielle, design tactile et systèmes intelligents.",
       navigation: [
         { label: "Manifeste", href: "#manifesto" },
         { label: "Expertise", href: "#expertise" },
-        { label: "Études de cas", href: "#cases" },
+        { label: "Projets", href: "#cases" },
         { label: "Approche", href: "#approach" },
-        { label: "Studios", href: "#studio" },
+        { label: "Studio", href: "#studio" },
         { label: "Contact", href: "#contact" },
       ],
       socials: [
@@ -186,7 +187,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       ],
       collaborateCta: "Collaborer",
       studioCta: "Studio",
-      logoAlt: "Assemblage créatif par Ether",
+      logoAlt: "Ether · Studio Numérique",
     },
     header: {
       menuLabel: "Menu",
@@ -194,53 +195,55 @@ const dictionaries: Record<Locale, HomeDictionary> = {
     metadata: {
       title: "Ether · Tout Partout",
       description:
-        "Studio multidisciplinaire : logiciels sur mesure, label & production musicale, conseil en affaires.",
+        "Studio d'ingénierie et de design numérique : applications web & mobiles, expériences interactives et systèmes d'intelligence artificielle.",
       keywords: [
         "Studio créatif",
         "Développement logiciel",
-        "Production musicale",
-        "Conseil stratégique",
-        "DJ mixage",
-        "Maintenance applicative",
+        "SvelteKit",
+        "Applications web",
+        "Design d'interface",
+        "Intelligence artificielle",
+        "Expériences interactives",
+        "Ingénierie full stack",
       ],
     },
     hero: {
       eyebrow: "Tout Partout",
       heading:
-        "Solutions numériques, label et conseil pour des organisations qui résonnent globalement.",
+        "Ingénierie logicielle, design d'interfaces et expériences numériques sur-mesure.",
       description:
-        "Nous concevons des logiciels fiables, produisons de la musique originale et accompagnons les équipes dans leurs décisions clés.",
+        "De la conception d'interfaces singulières au déploiement d'architectures temps réel et d'agents IA, Ether développe des produits numériques exigeants et soignés.",
       primaryCta: { label: "Entrer en contact", href: "#contact" },
-      secondaryCta: { label: "Voir les cas", href: "#cases" },
+      secondaryCta: { label: "Explorer les projets", href: "#cases" },
       highlights: [
         {
-          label: "Solutions logicielles livrées",
-          value: "38",
-          detail: "Produits internes & plateformes clients",
+          label: "Projets en production",
+          value: "3",
+          detail: "Applications IA, e-commerce & art interactif",
         },
         {
-          label: "Projets musicaux accompagnés",
-          value: "22",
-          detail: "DJ mixage & production à Kuala Lumpur et Paris",
+          label: "Ingénierie sur-mesure",
+          value: "100%",
+          detail: "SvelteKit, Bun, TypeScript & stack moderne",
         },
         {
-          label: "Mandats de conseil",
-          value: "45",
-          detail: "Stratégie, opérations et gouvernance",
+          label: "Ancrage",
+          value: "Paris",
+          detail: "Studio indépendant, collaboration globale",
         },
       ],
-      imageAlt: "Assemblage créatif par Ether",
+      imageAlt: "Ether · Assemblage créatif et technologique",
     },
     partnerMarquee: {
       partners: [
-        "Artefact",
-        "Canopée",
-        "Éclat",
-        "Fluxus",
-        "Matin Bleu",
-        "Nuage Studio",
-        "Orphée",
-        "Parallèle",
+        "SvelteKit",
+        "Bun & SQLite",
+        "TypeScript",
+        "Tailwind CSS",
+        "Architectures IA",
+        "Expériences Vectorielles",
+        "Audio Temps Réel",
+        "PWA & Mobile",
       ],
     },
     sections: {
@@ -261,200 +264,173 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       manifesto: {
         eyebrow: "Manifeste",
         title:
-          "Designer des souvenirs digitaux pour les cultures qui se transforment.",
+          "Concevoir des outils et des mémoires digitales singulières.",
         description:
-          "Ether accompagne les maisons, institutions et médias avec des expériences tactiles et mesurables.",
+          "Ether allie rigueur technique et sensibilité artistique pour bâtir des interfaces vivantes, tactiles et performantes.",
         paragraphs: [
-          "Ether est un studio polymorphe. Nous voyageons pour rencontrer les équipes, capter les textures des lieux, et traduire ces vibrations en expériences numériques tactiles.",
-          "L’approche Retroui reconnecte avec les codes analogiques : transitions granuleuses, typographies mémorielles, couleurs patinées. Chaque projet devient une pièce curatoriale prête à vivre sur écran, papier ou scène.",
+          "Nous rejetons les modèles préfabriqués et les coquilles vides. Chaque création naît d'une intention claire, d'un dialogue direct et d'un soin maniaque apporté aux moindres détails d'interaction.",
+          "L’approche Retroui infuse les technologies web modernes de textures mémorielles : matières organiques, typographies expressives et micro-animations fluides. Des outils pensés pour durer, navigables avec plaisir.",
         ],
         bullets: [
-          "Expériences multilingues pour toucher des audiences globales.",
-          "Méthodologie accessible par design, audité AA+ avec partenaires spécialisés.",
-          "Production agile : sprints hebdomadaires, rituels dédiés aux parties prenantes.",
+          "Développement sans superflu : code lisible, ultra-rapide et respectueux des standards ouverts.",
+          "Architecture moderne : runtime Bun, composants réactifs Svelte 5, zéro dette inutile.",
+          "Créativité technique : interactions sur-mesure au service de l'identité de chaque projet.",
         ],
         offer: {
-          title: "Offre signature",
+          title: "Cycle de réalisation",
           description:
-            "Un programme de 10 semaines qui combine audit culturel, prototypage vivant et orchestration du lancement, calibré pour les créateurs ambitieux.",
+            "Un processus direct et sans intermédiaire, de l'esquisse conceptuelle jusqu'à la mise en production.",
           phases: [
-            { label: "Phase Exploration", timeline: "Semaines 1-3" },
-            { label: "Phase Design", timeline: "Semaines 4-7" },
-            { label: "Phase Activation", timeline: "Semaines 8-10" },
+            { label: "Cadrage & Intentions", timeline: "Semaine 1" },
+            { label: "Design & Prototype", timeline: "Semaines 2-3" },
+            { label: "Développement & Lancement", timeline: "Semaines 4-6" },
           ],
         },
       },
       expertise: {
         eyebrow: "Expertise",
-        title: "Nos trois piliers d’intervention.",
+        title: "Nos trois domaines d’intervention.",
         description:
-          "Développement logiciel, production musicale et conseil se croisent pour créer des expériences cohérentes.",
+          "Une synergie entre ingénierie logicielle, recherche esthétique et technologies d'intelligence artificielle.",
         services: [
           {
-            title: "Logiciels & Outils Informatiques",
+            title: "Applications Web & Mobile",
             description:
-              "Conception, développement, exploitation et maintenance d’applications métier ou grand public, sécurisées et scalables.",
+              "Conception et développement d’applications complètes, rapides et réactives. Du prototype au produit déployé à l'échelle.",
             deliverables: [
-              "Architecture & roadmap produit",
-              "Développement full stack",
-              "Maintenance & support 24/7",
+              "Architecture produit & API",
+              "Frontend SvelteKit & Runes",
+              "PWA & optimisation mobile",
             ],
           },
           {
-            title: "Label & Production Musicale",
+            title: "Expériences Interactives & Design",
             description:
-              "Production, enregistrement studio, distribution et gestion des droits d’auteur, avec expérience DJ mixage live à Kuala Lumpur et Paris.",
+              "Création d'univers visuels mémorables, d'animations vectorielles sur-mesure et d'interfaces tactiles qui se démarquent des standards génériques.",
             deliverables: [
-              "Production & enregistrement",
-              "Distribution & publishing",
-              "Gestion catalogue & droits",
+              "Direction artistique digitale",
+              "Animations SVG & shaders",
+              "Micro-interactions fluides",
             ],
           },
           {
-            title: "Conseil en Affaires & Gestion",
+            title: "Systèmes Intelligents & Audio Temps Réel",
             description:
-              "Assistance stratégique et opérationnelle pour piloter croissance, transformation et gouvernance des organisations.",
+              "Intégration d'agents conversationnels, de tuteurs intelligents et de pipelines audio à faible latence propulsés par l'IA.",
             deliverables: [
-              "Audits & due diligence",
-              "Structuration opérationnelle",
-              "Coaching des équipes dirigeantes",
+              "Agents vocaux & LLM",
+              "Synthèse & streaming audio",
+              "Bases de données légères (SQLite)",
             ],
           },
         ],
       },
       cases: {
-        eyebrow: "Études de cas",
-        title: "Des accompagnements orchestrés avec soin.",
+        eyebrow: "Projets",
+        title: "Réalisations en production.",
         description:
-          "Chaque mandat est conçu comme un cycle complet : analyse, création et opérations mesurables.",
+          "Trois projets concrets conçus et développés par le studio, illustrant la diversité de nos savoir-faire.",
         caseStudies: [
           {
-            title: "Plateforme Atlas",
-            sector: "Logiciels sur mesure",
+            title: "ami",
+            sector: "Application IA & Tuteur Vocal",
             summary:
-              "Suite SaaS temps réel pour orchestrer des opérations terrain, avec SLA 99,9 % et mises à jour continues.",
+              "Tuteur vocal intelligent pour l'apprentissage du français parlé. Une application mobile-first (PWA) fluide et réactive couvrant plus de 440 domaines grammaticaux du niveau A0 à C1 avec synthèse vocale temps réel.",
             metrics: [
-              "Onboarding en 8 semaines",
-              "Interopérabilité multi-API",
-              "Monitoring & support 24/7",
+              "Synthèse & streaming vocal temps réel",
+              "PWA mobile-first & offline ready",
+              "440+ domaines grammaticaux (A0 à C1)",
             ],
             image:
-              "https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=1600&q=80",
+              "https://img.ether.paris/ami/assets/logo.png?width=1000",
+            url: "https://ami.ether.paris",
           },
           {
-            title: "Label Sonar Lines",
-            sector: "Production musicale",
+            title: "Rosée Minérale",
+            sector: "E-commerce & Marque Artisanale",
             summary:
-              "EP produit entre Kuala Lumpur et Paris, avec direction artistique, mixage et distribution internationale.",
+              "Boutique en ligne et univers de marque pour une maison de bijoux artisanaux en pierres naturelles. Interface poétique intégrant une navigation organique illustrée par des branches et feuilles en SVG interactif.",
             metrics: [
-              "3M streams cumulés",
-              "Vinyles pressés en série limitée",
-              "Gestion complète des droits",
+              "Navigation organique en SVG interactif",
+              "Direction artistique & textures naturelles",
+              "Expérience d'achat fluide et légère",
             ],
             image:
-              "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1600&q=80",
+              "https://rosee-minerale.fr/logo.png",
+            url: "https://rosee-minerale.fr",
           },
           {
-            title: "Programme Horizon",
-            sector: "Conseil stratégique",
+            title: "Le Chat Perdu",
+            sector: "Art Numérique & Portfolio Interactif",
             summary:
-              "Plan de transformation pour un collectif créatif : structuration financière, gouvernance et KPI de croissance.",
+              "Artefact numérique immersif conçu pour dévoiler l'univers ésotérique d'un artiste. Un mécanisme circulaire rotatif interactif où la manipulation des anneaux et sigils déverrouille les chambres d'œuvres, dessins et sculptures.",
             metrics: [
-              "Roadmap 18 mois",
-              "Cadre de gouvernance déployé",
-              "Croissance +34% YoY",
+              "Mécanique rotative & physique interactive",
+              "Filtres procéduraux & textures parchemin",
+              "Exploration non-linéaire d'œuvres d'art",
             ],
             image:
-              "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1600&q=80",
+              "https://lechatperdu.ether.paris/og-image.jpg",
+            url: "https://lechatperdu.ether.paris",
           },
         ],
       },
       approach: {
         eyebrow: "Approche",
-        title: "Un parcours en trois temps, incarné et mesurable.",
+        title: "Un accompagnement direct et rigoureux.",
         steps: [
           {
-            title: "Cartographie sensible",
+            title: "Compréhension & Vision",
             description:
-              "Immersion terrain, interviews, diagnostics techniques et analyse des usages existants.",
+              "Échange direct pour cerner l'essence du projet, ses contraintes et ses ambitions techniques.",
             phase: "01",
           },
           {
-            title: "Prototypage vivant",
+            title: "Prototypage & Conception",
             description:
-              "Cérémonies de co-création, prototypes interactifs, itérations hebdomadaires et tests qualitatifs ciblés.",
+              "Création rapide de maquettes interactives pour tester les flux, l'esthétique et les interactions avant le code final.",
             phase: "02",
           },
           {
-            title: "Diffusion orchestrée",
+            title: "Ingénierie & Déploiement",
             description:
-              "Lancement hybride, stratégies éditoriales, instrumentation analytics et formation des équipes.",
+              "Développement full-stack avec une stack ultra-rapide (Bun, SvelteKit), tests de robustesse et mise en production immédiate.",
             phase: "03",
           },
         ],
       },
       studio: {
-        eyebrow: "Studios",
-        title: "Collectif international, ancré localement.",
+        eyebrow: "Studio",
+        title: "Ancrage parisien, rayonnement global.",
         description:
-          "Des bases multiples pour rester proches des scènes technologiques, culturelles et entrepreneuriales.",
+          "Un studio indépendant à taille humaine, réactif et flexible pour concevoir et déployer vos projets.",
         studios: [
-          {
-            city: "Toronto",
-            timezone: "UTC-5",
-            focus:
-              "Pilotage de projets logiciels et support produit pour l’Amérique du Nord",
-          },
           {
             city: "Paris",
             timezone: "UTC+1",
             focus:
-              "Direction artistique du label et DJ mixage live sur les scènes parisiennes",
+              "Base du studio — Architecture logicielle, design d'interfaces et rencontres en présentiel.",
           },
           {
-            city: "Damas",
-            timezone: "UTC+3",
+            city: "Global / Distanciel",
+            timezone: "Any timezone",
             focus:
-              "Conseil en stratégie et structuration des organisations culturelles",
-          },
-          {
-            city: "Kuala Lumpur",
-            timezone: "UTC+8",
-            focus:
-              "DJ mixage et production studio pour la scène d’Asie du Sud-Est",
-          },
-          {
-            city: "Sharjah",
-            timezone: "UTC+4",
-            focus:
-              "Gestion des catalogues et opérations de distribution musicale au Moyen-Orient",
-          },
-          {
-            city: "Riyad",
-            timezone: "UTC+3",
-            focus:
-              "Accompagnement en gouvernance et intégration digitale pour les entreprises régionales",
-          },
-          {
-            city: "Melbourne",
-            timezone: "UTC+10",
-            focus:
-              "Support technique et maintenance 24/7 pour nos plateformes logicielles",
+              "Collaboration asynchrone fluide, déploiement continu et disponibilité internationale.",
           },
         ],
-        onsiteLabel: "Sessions immersives sur place",
+        onsiteLabel: "Présentiel & Distanciel",
       },
       testimonials: {
         eyebrow: "Témoignages",
-        title: "Feedbacks d’alliés",
-        description: "Contactez-nous pour en savoir plus.",
+        title: "Retours d'expérience",
+        description: "Discutons ensemble de vos besoins.",
         testimonials: [],
       },
       contact: {
         eyebrow: "Contact",
-        title: "Imaginons votre prochain chapitre.",
+        title: "Parlons de votre projet.",
         description:
-          "Présentez-nous votre projet, nous vous répondons sous 48h avec un premier plan d’action.",
+          "Présentez-nous votre idée ou vos besoins. Réponse rapide sous 48h avec une première estimation.",
       },
     },
     contactForm: {
@@ -468,18 +444,18 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       messagePlaceholder: "Parlez-nous de votre projet...",
       submitIdle: "Envoyer",
       submitPending: "Envoi en cours...",
-      helper: "Réponse sous 48h · Sessions immersives possibles",
+      helper: "Réponse sous 48h · Sessions d'échange direct",
       success: "Merci ! Nous revenons vers vous sous 48h.",
       error: "Merci de vérifier les informations du formulaire.",
     },
     footer: {
       description:
-        "Nous façonnons des expériences digitales sensibles pour les créateurs et institutions culturelles.",
+        "Ether conçoit et développe des applications web sur-mesure, des expériences interactives et des systèmes intelligents.",
       exploreLabel: "Explorer",
       socialLabel: "Social",
       rights: "© {year} {name}. Tous droits réservés.",
       studiosLine:
-        "Studios à Toronto · Paris · Damas · Kuala Lumpur · Sharjah · Riyad · Melbourne",
+        "Ether · Basé à Paris — Projets déployés dans le monde entier.",
     },
     languageSwitcher: {
       label: "Langue",
@@ -492,13 +468,13 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       name: "Ether",
       motto: "Everything Everywhere",
       description:
-        "Ether crafts bespoke digital systems, music releases, and strategic guidance for forward organisations.",
+        "Ether designs and delivers bespoke digital experiences, combining software engineering, tactile design, and intelligent systems.",
       navigation: [
         { label: "Manifesto", href: "#manifesto" },
         { label: "Expertise", href: "#expertise" },
-        { label: "Case Studies", href: "#cases" },
+        { label: "Projects", href: "#cases" },
         { label: "Approach", href: "#approach" },
-        { label: "Studios", href: "#studio" },
+        { label: "Studio", href: "#studio" },
         { label: "Contact", href: "#contact" },
       ],
       socials: [
@@ -507,7 +483,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       ],
       collaborateCta: "Work with us",
       studioCta: "Studio",
-      logoAlt: "Creative assemblage by Ether",
+      logoAlt: "Ether · Digital Studio",
     },
     header: {
       menuLabel: "Menu",
@@ -515,53 +491,55 @@ const dictionaries: Record<Locale, HomeDictionary> = {
     metadata: {
       title: "Ether · Everything Everywhere",
       description:
-        "Multidisciplinary studio delivering custom software, music production, and business advisory.",
+        "Software engineering and digital craft studio: web & mobile applications, interactive experiences, and AI systems.",
       keywords: [
         "Creative studio",
         "Software development",
-        "Music production",
-        "Business consulting",
-        "DJ mixing",
-        "Application maintenance",
+        "SvelteKit",
+        "Web applications",
+        "UI design",
+        "Artificial intelligence",
+        "Interactive experiences",
+        "Full-stack engineering",
       ],
     },
     hero: {
       eyebrow: "Everything Everywhere",
       heading:
-        "Digital systems, music releases, and advisory for organisations that resonate globally.",
+        "Software engineering, UI craftsmanship, and bespoke digital experiences.",
       description:
-        "We build reliable software, produce original music, and support teams through decisive moments.",
-      primaryCta: { label: "Start a project", href: "#contact" },
-      secondaryCta: { label: "View case studies", href: "#cases" },
+        "From distinct UI design to real-time architectures and AI agents, Ether designs and ships refined, high-performance digital products.",
+      primaryCta: { label: "Get in touch", href: "#contact" },
+      secondaryCta: { label: "Explore projects", href: "#cases" },
       highlights: [
         {
-          label: "Delivered software solutions",
-          value: "38",
-          detail: "Internal tools & customer platforms",
+          label: "Live production projects",
+          value: "3",
+          detail: "AI applications, e-commerce & interactive art",
         },
         {
-          label: "Music projects produced",
-          value: "22",
-          detail: "DJ mixing & production in Kuala Lumpur and Paris",
+          label: "Bespoke engineering",
+          value: "100%",
+          detail: "SvelteKit, Bun, TypeScript & modern stack",
         },
         {
-          label: "Advisory engagements",
-          value: "45",
-          detail: "Strategy, operations, governance",
+          label: "Based in",
+          value: "Paris",
+          detail: "Independent studio, global collaboration",
         },
       ],
-      imageAlt: "Creative assemblage by Ether",
+      imageAlt: "Ether · Creative and technological assemblage",
     },
     partnerMarquee: {
       partners: [
-        "Artefact",
-        "Canopée",
-        "Éclat",
-        "Fluxus",
-        "Matin Bleu",
-        "Nuage Studio",
-        "Orphée",
-        "Parallèle",
+        "SvelteKit",
+        "Bun & SQLite",
+        "TypeScript",
+        "Tailwind CSS",
+        "AI Architectures",
+        "Interactive Vector Graphics",
+        "Real-Time Audio",
+        "Mobile-First PWA",
       ],
     },
     sections: {
@@ -581,200 +559,173 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       },
       manifesto: {
         eyebrow: "Manifesto",
-        title: "Designing digital memories for cultures in motion.",
+        title: "Crafting distinctive digital tools and living memories.",
         description:
-          "Ether partners with maisons, institutions, and media to deliver tactile and measurable experiences.",
+          "Ether combines technical rigor and artistic sensitivity to build tactile, high-performance digital interfaces.",
         paragraphs: [
-          "Ether is a polymorphic studio. We travel to meet teams, absorb the textures of each place, and translate those vibrations into tactile digital experiences.",
-          "Our Retroui approach reconnects with analog codes—grainy transitions, mnemonic typography, patinated colours. Every project becomes a curatorial piece ready for screen, print, or stage.",
+          "We reject generic templates and empty shells. Every project stems from clear intent, direct collaboration, and obsessive attention to interaction details.",
+          "The Retroui philosophy infuses modern web technologies with mnemonic textures: organic materials, expressive typography, and fluid micro-animations. Built to endure and navigate with delight.",
         ],
         bullets: [
-          "Multilingual experiences to reach global audiences.",
-          "Accessibility by design, audited to AA+ with specialised partners.",
-          "Agile production: weekly sprints and rituals dedicated to stakeholders.",
+          "Focused engineering: clean, fast, open-standards compliant code.",
+          "Modern architecture: Bun runtime, Svelte 5 reactive runes, zero unnecessary debt.",
+          "Technical creativity: bespoke interactions serving each project's unique identity.",
         ],
         offer: {
-          title: "Signature engagement",
+          title: "Production Cycle",
           description:
-            "A 10-week programme blending cultural audit, live prototyping, and launch orchestration calibrated for ambitious creators.",
+            "A direct, focused process without intermediaries, from initial concept to live deployment.",
           phases: [
-            { label: "Exploration phase", timeline: "Weeks 1-3" },
-            { label: "Design phase", timeline: "Weeks 4-7" },
-            { label: "Activation phase", timeline: "Weeks 8-10" },
+            { label: "Vision & Scope", timeline: "Week 1" },
+            { label: "Design & Prototyping", timeline: "Weeks 2-3" },
+            { label: "Engineering & Launch", timeline: "Weeks 4-6" },
           ],
         },
       },
       expertise: {
         eyebrow: "Expertise",
-        title: "Three pillars, one integrated team.",
+        title: "Three areas of mastery.",
         description:
-          "Software engineering, music production, and business advisory combine to deliver coherent experiences.",
+          "A synergy between software engineering, visual aesthetics, and artificial intelligence technologies.",
         services: [
           {
-            title: "Software & Tooling",
+            title: "Web & Mobile Applications",
             description:
-              "Design, development, operations, and maintenance of secure, scalable business and consumer applications.",
+              "Design and development of complete, fast, reactive applications. From prototype to production-grade deployment.",
             deliverables: [
-              "Product architecture & roadmap",
-              "Full-stack development",
-              "24/7 maintenance & support",
+              "Product architecture & APIs",
+              "SvelteKit & Runes frontend",
+              "PWA & mobile optimization",
             ],
           },
           {
-            title: "Label & Music Production",
+            title: "Interactive Experiences & Design",
             description:
-              "Studio recording, distribution, and rights management, with DJ mixing experience across Kuala Lumpur and Paris.",
+              "Memorable visual identities, custom vector animations, and tactile interfaces that stand out from generic conventions.",
             deliverables: [
-              "Production & recording",
-              "Distribution & publishing",
-              "Catalogue & rights management",
+              "Digital art direction",
+              "SVG animations & shaders",
+              "Fluid micro-interactions",
             ],
           },
           {
-            title: "Business Advisory",
+            title: "Intelligent Systems & Real-Time Audio",
             description:
-              "Strategic and operational support to steer growth, transformation, and governance initiatives.",
+              "Conversational agents, intelligent voice tutors, and low-latency audio pipelines powered by modern AI.",
             deliverables: [
-              "Audits & due diligence",
-              "Operational structuring",
-              "Executive coaching",
+              "Voice agents & LLMs",
+              "Audio streaming & synthesis",
+              "Lightweight data layers (SQLite)",
             ],
           },
         ],
       },
       cases: {
-        eyebrow: "Case Studies",
-        title: "Thoughtfully orchestrated engagements.",
+        eyebrow: "Projects",
+        title: "Work in production.",
         description:
-          "Each mandate unfolds as a complete cycle: insight, creation, and measurable operations.",
+          "Three live projects conceived and developed by the studio, illustrating our range of craft.",
         caseStudies: [
           {
-            title: "Atlas Platform",
-            sector: "Custom software",
+            title: "ami",
+            sector: "AI Platform & Voice Tutor",
             summary:
-              "Real-time SaaS suite coordinating field operations with 99.9% SLA and continuous releases.",
+              "Intelligent voice tutor for learning spoken French. A fluid, mobile-first PWA covering 440+ grammar domains from A0 to C1 with real-time voice synthesis.",
             metrics: [
-              "Onboarded in 8 weeks",
-              "Multi-API interoperability",
-              "24/7 monitoring & support",
+              "Real-time voice streaming & synthesis",
+              "Mobile-first PWA & offline ready",
+              "440+ grammar domains (A0 to C1)",
             ],
             image:
-              "https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=1600&q=80",
+              "https://img.ether.paris/ami/assets/logo.png?width=1000",
+            url: "https://ami.ether.paris",
           },
           {
-            title: "Sonar Lines Label",
-            sector: "Music production",
+            title: "Rosée Minérale",
+            sector: "E-Commerce & Artisanal Brand",
             summary:
-              "EP produced between Kuala Lumpur and Paris with art direction, mixing, and global distribution.",
+              "Online boutique and brand world for a handcrafted gemstone jewelry maison. Poetic interface featuring organic interactive SVG branch & leaf navigation.",
             metrics: [
-              "3M cumulative streams",
-              "Limited-edition vinyl pressing",
-              "End-to-end rights management",
+              "Organic interactive SVG branch navigation",
+              "Artisanal aesthetic & natural textures",
+              "Lightweight, responsive shopping experience",
             ],
             image:
-              "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1600&q=80",
+              "https://rosee-minerale.fr/logo.png",
+            url: "https://rosee-minerale.fr",
           },
           {
-            title: "Horizon Programme",
-            sector: "Strategic advisory",
+            title: "Le Chat Perdu",
+            sector: "Digital Art & Interactive Portfolio",
             summary:
-              "Transformation plan for a creative collective covering finances, governance, and growth KPIs.",
+              "Immersive digital artifact revealing an artist's esoteric universe. An interactive mechanical circular device where rotating rings and sigils unlock chambers of drawings and sculptures.",
             metrics: [
-              "18-month roadmap",
-              "Governance framework deployed",
-              "+34% YoY growth",
+              "Rotational ring mechanics & physics",
+              "Procedural filters & parchment textures",
+              "Non-linear artistic chamber exploration",
             ],
             image:
-              "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1600&q=80",
+              "https://lechatperdu.ether.paris/og-image.jpg",
+            url: "https://lechatperdu.ether.paris",
           },
         ],
       },
       approach: {
         eyebrow: "Approach",
-        title: "Three movements, measurable outcomes.",
+        title: "A direct and disciplined journey.",
         steps: [
           {
-            title: "Sensitive mapping",
+            title: "Vision & Alignment",
             description:
-              "Field immersion, interviews, technical diagnostics, and usage analysis.",
+              "Direct exchange to pinpoint project essence, technical requirements, and core ambitions.",
             phase: "01",
           },
           {
-            title: "Living prototypes",
+            title: "Prototyping & Design",
             description:
-              "Co-creation rituals, interactive prototypes, weekly iterations, and qualitative testing.",
+              "Rapid interactive prototypes to validate user flows, aesthetics, and feel before final code.",
             phase: "02",
           },
           {
-            title: "Orchestrated diffusion",
+            title: "Engineering & Launch",
             description:
-              "Hybrid launch, editorial storytelling, analytics instrumentation, and team enablement.",
+              "Full-stack development with a high-performance stack (Bun, SvelteKit), testing, and immediate live deployment.",
             phase: "03",
           },
         ],
       },
       studio: {
-        eyebrow: "Studios",
-        title: "Global collective, local anchors.",
+        eyebrow: "Studio",
+        title: "Rooted in Paris, collaborating globally.",
         description:
-          "Multiple bases keep us close to technological, cultural, and business scenes.",
+          "An independent, human-scale studio that is agile, responsive, and dedicated to your digital products.",
         studios: [
-          {
-            city: "Toronto",
-            timezone: "UTC-5",
-            focus:
-              "Software project stewardship and product support for North America",
-          },
           {
             city: "Paris",
             timezone: "UTC+1",
             focus:
-              "Label art direction and live DJ mixing across Parisian venues",
+              "Studio headquarters — Software architecture, interface design, and in-person collaboration.",
           },
           {
-            city: "Damascus",
-            timezone: "UTC+3",
+            city: "Global / Remote",
+            timezone: "Any timezone",
             focus:
-              "Strategic advisory and organisational structuring for cultural actors",
-          },
-          {
-            city: "Kuala Lumpur",
-            timezone: "UTC+8",
-            focus:
-              "DJ mixing and studio production for the South-East Asian scene",
-          },
-          {
-            city: "Sharjah",
-            timezone: "UTC+4",
-            focus:
-              "Catalogue management and music distribution operations across the Middle East",
-          },
-          {
-            city: "Riyadh",
-            timezone: "UTC+3",
-            focus:
-              "Governance and digital integration advisory for regional enterprises",
-          },
-          {
-            city: "Melbourne",
-            timezone: "UTC+10",
-            focus:
-              "Technical support and 24/7 maintenance for our software platforms",
+              "Smooth asynchronous workflow, continuous deployment, and international availability.",
           },
         ],
-        onsiteLabel: "On-site immersive sessions",
+        onsiteLabel: "On-site & Remote",
       },
       testimonials: {
         eyebrow: "Testimonials",
-        title: "Allies in resonance",
-        description: "Ask us to know more.",
+        title: "Client reflections",
+        description: "Get in touch to discuss your goals.",
         testimonials: [],
       },
       contact: {
         eyebrow: "Contact",
-        title: "Imagine your next chapter.",
+        title: "Let's build your next product.",
         description:
-          "Tell us about your project — we reply within 48 hours with an initial action plan.",
+          "Share your idea or requirements. We reply within 48 hours with an initial evaluation.",
       },
     },
     contactForm: {
@@ -783,23 +734,23 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       emailLabel: "Email",
       emailPlaceholder: "contact@studio.com",
       companyLabel: "Organisation",
-      companyPlaceholder: "House, studio, institution...",
+      companyPlaceholder: "Company, studio, project...",
       messageLabel: "Message",
       messagePlaceholder: "Tell us about your project...",
       submitIdle: "Send",
       submitPending: "Sending...",
-      helper: "Response within 48h · Immersive sessions available",
-      success: "Thanks! We’ll get back to you within 48 hours.",
+      helper: "Response within 48h · Direct collaboration",
+      success: "Thank you! We'll get back to you within 48 hours.",
       error: "Please double-check the form information.",
     },
     footer: {
       description:
-        "We craft sensitive digital experiences for cultural innovators and ambitious organisations.",
+        "Ether designs and develops bespoke web applications, interactive experiences, and intelligent systems.",
       exploreLabel: "Explore",
       socialLabel: "Social",
       rights: "© {year} {name}. All rights reserved.",
       studiosLine:
-        "Studios in Toronto · Paris · Damascus · Kuala Lumpur · Sharjah · Riyadh · Melbourne",
+        "Ether · Based in Paris — Deployed worldwide.",
     },
     languageSwitcher: {
       label: "Language",
@@ -812,13 +763,13 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       name: "إيثر",
       motto: "في كل مكان",
       description:
-        "إيثر يطوّر حلولاً برمجية مخصّصة، وينتج أعمالاً موسيقية، ويقدّم الاستشارات للأعمال الطموحة.",
+        "إيثر يصمم ويطور تجارب رقمية مخصصة، تجمع بين هندسة البرمجيات، التصميم التفاعلي، والأنظمة الذكية.",
       navigation: [
         { label: "البيان", href: "#manifesto" },
         { label: "الخبرات", href: "#expertise" },
-        { label: "دراسات الحالة", href: "#cases" },
+        { label: "المشاريع", href: "#cases" },
         { label: "المنهجية", href: "#approach" },
-        { label: "الاستوديوهات", href: "#studio" },
+        { label: "الاستوديو", href: "#studio" },
         { label: "تواصل", href: "#contact" },
       ],
       socials: [
@@ -827,7 +778,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       ],
       collaborateCta: "فلنبدأ التعاون",
       studioCta: "الاستوديو",
-      logoAlt: "تركيب إبداعي من إيثر",
+      logoAlt: "إيثر · استوديو رقمي",
     },
     header: {
       menuLabel: "القائمة",
@@ -835,58 +786,59 @@ const dictionaries: Record<Locale, HomeDictionary> = {
     metadata: {
       title: "إيثر · في كل مكان",
       description:
-        "استوديو متعدد التخصصات يقدّم تطوير البرمجيات، إنتاج الموسيقى، والاستشارات الإدارية.",
+        "استوديو هندسة وتصميم رقمي: تطبيقات ويب وجوال، تجارب تفاعلية، وأنظمة ذكاء اصطناعي.",
       keywords: [
         "استوديو إبداعي",
         "تطوير برمجيات",
-        "إنتاج موسيقي",
-        "استشارات أعمال",
-        "دي جي",
-        "صيانة التطبيقات",
+        "SvelteKit",
+        "تطبيقات ويب",
+        "تصميم واجهات",
+        "ذكاء اصطناعي",
+        "تجارب تفاعلية",
       ],
     },
     hero: {
       eyebrow: "في كل مكان",
       heading:
-        "أنظمة رقمية، إنتاجات موسيقية، واستشارات للأعمال التي ترغب في التأثير عالمياً.",
+        "هندسة برمجية متقنة، تصميم واجهات، وتجارب رقمية مخصصة.",
       description:
-        "نبني برامج موثوقة، ننتج موسيقى أصلية، وندعم الفرق خلال اللحظات الحاسمة.",
+        "من تصميم الواجهات الفريدة إلى نشر البنى التحتية الفورية وعملاء الذكاء الاصطناعي، يطوّر إيثر منتجات رقمية عالية الأداء والدقة.",
       primaryCta: { label: "ابدأ مشروعك", href: "#contact" },
-      secondaryCta: { label: "اطّلع على الأعمال", href: "#cases" },
+      secondaryCta: { label: "استعرض المشاريع", href: "#cases" },
       highlights: [
         {
-          label: "حلول برمجية منجزة",
-          value: "38",
-          detail: "منصات داخلية وخدمات للعملاء",
+          label: "مشاريع قيد التشغيل",
+          value: "3",
+          detail: "تطبيقات ذكاء اصطناعي، تجارة وتجارب تفاعلية",
         },
         {
-          label: "مشاريع موسيقية",
-          value: "22",
-          detail: "خبرة دي جي في كوالالمبور وباريس",
+          label: "هندسة مخصصة",
+          value: "100%",
+          detail: "SvelteKit وBun وTypeScript وبنية حديثة",
         },
         {
-          label: "مهام استشارية",
-          value: "45",
-          detail: "استراتيجية وتشغيل وحوكمة",
+          label: "المقر",
+          value: "باريس",
+          detail: "استوديو مستقل يتعاون عالمياً",
         },
       ],
-      imageAlt: "تركيب إبداعي من إيثر",
+      imageAlt: "إيثر · تركيب إبداعي وتقني",
     },
     partnerMarquee: {
       partners: [
-        "Artefact",
-        "Canopée",
-        "Éclat",
-        "Fluxus",
-        "Matin Bleu",
-        "Nuage Studio",
-        "Orphée",
-        "Parallèle",
+        "SvelteKit",
+        "Bun & SQLite",
+        "TypeScript",
+        "Tailwind CSS",
+        "بنى الذكاء الاصطناعي",
+        "رسوم متجهة تفاعلية",
+        "صوتيات فورية",
+        "تطبيقات الويب التقدمية",
       ],
     },
     sections: {
       platform: {
-        eyebrow: "المنصة السحابية",
+        eyebrow: "المنصة والنشر",
         title: "حضورك الرقمي، يُطلق في ثوانٍ معدودة.",
         description:
           "أنشئ مواقع الويب بتقنيات SvelteKit وBun، مع دومين مخصص أو نطاق فرعي من ether.paris واستوديو ذكاء اصطناعي مدمج.",
@@ -901,191 +853,173 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       },
       manifesto: {
         eyebrow: "البيان",
-        title: "نصمّم ذكريات رقمية لثقافات تتغيّر باستمرار.",
+        title: "صناعة أدوات وذكريات رقمية متفردة.",
         description:
-          "ترافق إيثر الدور الثقافية والمؤسسات والإعلام بتجارب حسّية قابلة للقياس.",
+          "يجمع إيثر بين الانضباط التقني والحس الفني لبناء واجهات حية، ملموسة، وفائقة السرعة.",
         paragraphs: [
-          "إيثر استوديو متعدد الأشكال. نسافر للقاء الفرق، ونستكشف تفاصيل الأماكن، ثم نحول هذه الذبذبات إلى تجارب رقمية ملموسة.",
-          "منهجية Retroui تعيد وصل العالم الرقمي بالرموز التناظرية: انتقالات حبيبية، خطوط تستدعي الذاكرة، وألوان دافئة. كل مشروع يصبح قطعة تنظيمية جاهزة للعرض على الشاشة أو الورق أو المسرح.",
+          "نبتعد تماماً عن القوالب الجاهزة والحلول المكررة. كل مشروع ينطلق من هدف واضح وحوار مباشر وعناية فائقة بأدق تفاصيل التفاعل.",
+          "تدمج منهجية Retroui أحدث تقنيات الويب بملمس بصري دافئ: عناصر عضوية، خطوط معبرة، وحركات تفاعلية سلسة. أدوات مصممة لتدوم وتُستخدم بكل سلاسة.",
         ],
         bullets: [
-          "تجارب متعددة اللغات للوصول إلى جمهور عالمي.",
-          "منهجية تركّز على سهولة الوصول، مع تدقيق بمعيار AA+.",
-          "إنتاج مرن: سباقات أسبوعية وطقوس مخصصة لأصحاب المصلحة.",
+          "تطوير نقي: كود نظيف وسريع وفق المعايير المفتوحة.",
+          "بنية حديثة: بيئة تشغيل Bun ومكونات Svelte 5 تفاعلية بدون تعقيد زائد.",
+          "إبداع تقني: تفاعلات مصممة خصيصاً لهوية كل مشروع.",
         ],
         offer: {
-          title: "عرضنا المميز",
+          title: "دورة العمل",
           description:
-            "برنامج يمتد لعشرة أسابيع يجمع بين التدقيق الثقافي، النمذجة الحيّة، وتنظيم الإطلاق، مصمم للمبدعين الطموحين.",
+            "مسار عمل مباشر وبدون وسطاء، من الفكرة والتخطيط حتى الإطلاق الفعلي.",
           phases: [
-            { label: "مرحلة الاستكشاف", timeline: "الأسابيع 1-3" },
-            { label: "مرحلة التصميم", timeline: "الأسابيع 4-7" },
-            { label: "مرحلة التفعيل", timeline: "الأسابيع 8-10" },
+            { label: "الرؤية والنطاق", timeline: "الأسبوع 1" },
+            { label: "التصميم والنمذجة", timeline: "الأسابيع 2-3" },
+            { label: "الهندسة والإطلاق", timeline: "الأسابيع 4-6" },
           ],
         },
       },
       expertise: {
         eyebrow: "الخبرات",
-        title: "ثلاث ركائز بتكامل واحد.",
+        title: "ثلاثة مجالات رئيسية.",
         description:
-          "الهندسة البرمجية، الإنتاج الموسيقي، والاستشارات تتكامل لتقديم تجارب متناسقة.",
+          "تكامل وثيق بين هندسة البرمجيات، الابتكار البصري، وتقنيات الذكاء الاصطناعي.",
         services: [
           {
-            title: "البرمجيات والأدوات",
+            title: "تطبيقات الويب والجوال",
             description:
-              "تصميم وتطوير وتشغيل وصيانة التطبيقات المؤسسية والاستهلاكية الآمنة والقابلة للتوسع.",
+              "تصميم وتطوير تطبيقات متكاملة، سريعة ومستجيبة من النماذج الأولية إلى المنتجات الإنتاجية.",
             deliverables: [
-              "هندسة المنتج وخارطة الطريق",
-              "تطوير متكامل",
-              "دعم وصيانة على مدار الساعة",
+              "معمارية المنتجات والـ APIs",
+              "واجهات SvelteKit وRunes",
+              "تطبيقات الويب التقدمية (PWA)",
             ],
           },
           {
-            title: "العلامة والإنتاج الموسيقي",
+            title: "التجارب التفاعلية والتصميم",
             description:
-              "إنتاج وتسجيل وتوزيع الموسيقى وإدارة حقوق المؤلف، مع خبرة دي جي في كوالالمبور وباريس.",
+              "ابتكار هويات بصرية مميزة ورسوم متجهة تفاعلية وواجهات فريدة تبتعد عن التصاميم التقليدية.",
             deliverables: [
-              "إنتاج وتسجيل",
-              "توزيع ونشر",
-              "إدارة الكتالوج والحقوق",
+              "إخراج فني رقمي",
+              "رسوم SVG متحركة",
+              "تفاعلات دقيقة وانسيابية",
             ],
           },
           {
-            title: "الاستشارات الإدارية",
+            title: "الأنظمة الذكية والصوت الفوري",
             description:
-              "دعم استراتيجي وعملي لقيادة النمو والتحول والحوكمة للمؤسسات.",
+              "دمج وكلاء الذكاء الاصطناعي والمساعدين الصوتيين ومعالجة الصوت الفوري بزمن استجابة منخفض.",
             deliverables: [
-              "تدقيق ودراسات جدوى",
-              "هيكلة العمليات",
-              "تمكين القيادات",
+              "عملاء صوتيون ونماذج لغوية",
+              "توليد وبث صوتي فوري",
+              "قواعد بيانات مدمجة وخفيفة (SQLite)",
             ],
           },
         ],
       },
       cases: {
-        eyebrow: "دراسات الحالة",
-        title: "مرافقة مُحكمة التنفيذ.",
+        eyebrow: "المشاريع",
+        title: "أعمال حية في الإنتاج.",
         description:
-          "كل مهمة تمر بدورة كاملة: تحليل، إنشاء، وتشغيل قابل للقياس.",
+          "ثلاثة مشاريع حقيقية صممها وطورها الاستوديو تعكس تنوع خبراتنا ودقتها.",
         caseStudies: [
           {
-            title: "منصة أطلس",
-            sector: "برمجيات مخصّصة",
+            title: "ami",
+            sector: "منصة ذكاء اصطناعي ومعلم صوتي",
             summary:
-              "منظومة SaaS فورية لإدارة العمليات الميدانية مع توافر 99.9% وتحديثات مستمرة.",
+              "معلّم صوتي ذكي لإتقان المحادثة بالفرنسية. تطبيق ويب وجوال فوري وسلس يغطي أكثر من 440 قاعدة ومستوى لغوي مع تفاعل صوتي حي فائق السرعة.",
             metrics: [
-              "إطلاق خلال 8 أسابيع",
-              "تكامل متعدد الواجهات",
-              "مراقبة ودعم على مدار الساعة",
+              "توليد وبث صوتي تفاعلي فوري",
+              "تطبيق ويب تقدمي (PWA) يعمل بدون اتصال",
+              "أكثر من 440 محوراً لغوياً (A0 إلى C1)",
             ],
             image:
-              "https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=1600&q=80",
+              "https://img.ether.paris/ami/assets/logo.png?width=1000",
+            url: "https://ami.ether.paris",
           },
           {
-            title: "علامة سونار لاينز",
-            sector: "إنتاج موسيقي",
+            title: "Rosée Minérale",
+            sector: "متجر إلكتروني وعلامة مجوهرات",
             summary:
-              "ألبوم قصير أُنتج بين كوالالمبور وباريس مع إخراج فني ومكساج وتوزيع عالمي.",
+              "متجر إلكتروني وعالم بصري متكامل لدار مجوهرات من الأحجار الطبيعية، يتميز بواجهة نباتية ناعمة وتنقل تفاعلي مستوحى من فروع النباتات بتقنيات SVG.",
             metrics: [
-              "3 ملايين استماع",
-              "طباعة أسطوانات محدودة",
-              "إدارة كاملة للحقوق",
+              "تنقل تفاعلي عضوي بأوراق وفروع SVG",
+              "هوية فنية بملمس وألوان طبيعية",
+              "تجربة تسوق خفيفة وسريعة التجاوب",
             ],
             image:
-              "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=1600&q=80",
+              "https://rosee-minerale.fr/logo.png",
+            url: "https://rosee-minerale.fr",
           },
           {
-            title: "برنامج هورايزن",
-            sector: "استشارات استراتيجية",
+            title: "Le Chat Perdu",
+            sector: "فن رقمي ومعرض تفاعلي",
             summary:
-              "خطة تحول لمجموعة إبداعية تشمل الهيكلة المالية، الحوكمة، ومؤشرات النمو.",
+              "تحفة رقمية تفاعلية تستعرض العالم الفني المبتكر لفنان تشكيلي. جهاز دائري ميكانيكي يدور ليكشف عن غرف اللوحات والمنحوتات والمجوهرات.",
             metrics: [
-              "خارطة طريق 18 شهراً",
-              "إطلاق إطار حوكمة",
-              "نمو سنوي 34%",
+              "ميكانيكا دوران وفيزياء تفاعلية",
+              "مرشحات رقمية بملمس الورق القديم",
+              "استكشاف فني غير خطي للمعارض",
             ],
             image:
-              "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1600&q=80",
+              "https://lechatperdu.ether.paris/og-image.jpg",
+            url: "https://lechatperdu.ether.paris",
           },
         ],
       },
       approach: {
         eyebrow: "المنهجية",
-        title: "ثلاث مراحل ونتائج قابلة للقياس.",
+        title: "مسار عمل مباشر ومنضبط.",
         steps: [
           {
-            title: "رصد الحسّ",
+            title: "الرؤية والاتفاق",
             description:
-              "زيارات ميدانية، مقابلات، فحوصات تقنية، وتحليل للاستخدامات.",
+              "حوار مباشر لتحديد جوهر المشروع والمتطلبات التقنية والأهداف المنشودة.",
             phase: "01",
           },
           {
-            title: "نماذج حيّة",
+            title: "النمذجة والتصميم",
             description:
-              "جلسات مشاركة، نماذج تفاعلية، تكرارات أسبوعية واختبارات نوعية.",
+              "بناء نماذج أولية تفاعلية سريعة لاختبار تجربة الاستخدام والشكل قبل الكود النهائي.",
             phase: "02",
           },
           {
-            title: "إطلاق منظّم",
-            description: "إطلاق هجين، سرد قصصي، أدوات تحليل، وتدريب الفرق.",
+            title: "الهندسة والإطلاق",
+            description:
+              "تطوير شامل بأحدث التقنيات السريعة (Bun وSvelteKit) واختبارات الجودة والإطلاق المباشر.",
             phase: "03",
           },
         ],
       },
       studio: {
-        eyebrow: "الاستوديوهات",
-        title: "شبكة عالمية بجذور محلية.",
+        eyebrow: "الاستوديو",
+        title: "انطلاق من باريس، وحضور عالمي.",
         description:
-          "قواعد متعددة تبقينا قريبين من المشاهد التقنية والثقافية والاقتصادية.",
+          "استوديو مستقل يتسم بالمرونة والسرعة لتنفيذ وتطوير مشاريعك الرقمية.",
         studios: [
-          {
-            city: "تورونتو",
-            timezone: "UTC-5",
-            focus: "إدارة مشاريع البرمجيات ودعم المنتجات لأمريكا الشمالية",
-          },
           {
             city: "باريس",
             timezone: "UTC+1",
-            focus: "الإخراج الفني للعلامة وخبرة دي جي المباشرة في باريس",
+            focus:
+              "مقر الاستوديو — معمارية البرمجيات، تصميم الواجهات والاجتماعات المباشرة.",
           },
           {
-            city: "دمشق",
-            timezone: "UTC+3",
-            focus: "استشارات استراتيجية وهيكلة للمنظمات الثقافية",
-          },
-          {
-            city: "كوالالمبور",
-            timezone: "UTC+8",
-            focus: "دي جي وإنتاج استوديو للمشهد في جنوب شرق آسيا",
-          },
-          {
-            city: "الشارقة",
-            timezone: "UTC+4",
-            focus: "إدارة الكتالوج والتوزيع الموسيقي في الشرق الأوسط",
-          },
-          {
-            city: "الرياض",
-            timezone: "UTC+3",
-            focus: "حوكمة واستشارات رقمية للمؤسسات الإقليمية",
-          },
-          {
-            city: "ملبورن",
-            timezone: "UTC+10",
-            focus: "دعم تقني وصيانة على مدار الساعة لمنصاتنا البرمجية",
+            city: "عالمي / عن بُعد",
+            timezone: "أي منطقة زمنية",
+            focus:
+              "تعاون سلس عن بعد، نشر مستمر وجاهزية للعمل مع مختلف الدول.",
           },
         ],
-        onsiteLabel: "جلسات غامرة في الموقع",
+        onsiteLabel: "حضوري وعن بُعد",
       },
       testimonials: {
         eyebrow: "شهادات",
-        title: "شركاء على الموجة ذاتها",
-        description: "تواصل معنا لمعرفة المزيد.",
+        title: "آراء العملاء",
+        description: "تواصل معنا لمناقشة أهدافك.",
         testimonials: [],
       },
       contact: {
         eyebrow: "تواصل",
-        title: "لنتخيّل الفصل التالي معاً.",
-        description: "أخبرنا عن مشروعك، سنعود إليك خلال 48 ساعة بخطوة أولى.",
+        title: "فلنبدأ بناء مشروعك القادم.",
+        description:
+          "شاركنا فكرتك أو متطلباتك، وسنوافيك بالرد خلال 48 ساعة مع تقييم أولي.",
       },
     },
     contactForm: {
@@ -1093,23 +1027,24 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       namePlaceholder: "اسمك",
       emailLabel: "البريد الإلكتروني",
       emailPlaceholder: "contact@studio.com",
-      companyLabel: "الجهة",
-      companyPlaceholder: "شركة، استوديو، مؤسسة...",
+      companyLabel: "الجهة أو المؤسسة",
+      companyPlaceholder: "شركة، استوديو، مشروع...",
       messageLabel: "الرسالة",
       messagePlaceholder: "حدثنا عن مشروعك...",
       submitIdle: "إرسال",
       submitPending: "جاري الإرسال...",
-      helper: "رد خلال 48 ساعة · يمكن تنظيم جلسات غامرة",
+      helper: "رد خلال 48 ساعة · تواصل مباشر",
       success: "شكراً لك! سنعاود التواصل خلال 48 ساعة.",
-      error: "يرجى التحقق من بيانات النموذج.",
+      error: "يرجى التحقق من صحة بيانات النموذج.",
     },
     footer: {
-      description: "نبتكر تجارب رقمية حسية للجهات الثقافية والمؤسسات الطموحة.",
+      description:
+        "إيثر يصمم ويطور تطبيقات ويب مخصصة، تجارب تفاعلية، وأنظمة ذكاء اصطناعي.",
       exploreLabel: "استكشاف",
       socialLabel: "منصات",
       rights: "© {year} {name}. جميع الحقوق محفوظة.",
       studiosLine:
-        "استوديوهات في تورونتو · باريس · دمشق · كوالالمبور · الشارقة · الرياض · ملبورن",
+        "إيثر · مقرنا باريس — مشاريع منشورة حول العالم.",
     },
     languageSwitcher: {
       label: "اللغة",
