@@ -1467,7 +1467,7 @@
 
 <div class="h-screen flex flex-col bg-background text-foreground overflow-hidden grain-overlay">
   <!-- Studio Top Navigation -->
-  <header class="h-14 border-b border-border/80 bg-surface/90 backdrop-blur px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 gap-4">
+  <header class="h-14 border-b border-black/10 dark:border-white/10 bg-surface/90 dark:bg-background/90 backdrop-blur px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 gap-4">
     <div class="flex items-center gap-3 sm:gap-4 min-w-0">
       <a href="/dashboard" class="transition-opacity hover:opacity-80 flex items-center gap-2 shrink-0">
         <BrandMark class="h-8 w-8" />
@@ -1479,7 +1479,7 @@
           href={liveUrl}
           target="_blank"
           rel="noopener"
-          class="text-[10px] font-mono px-2.5 py-0.5 rounded-full border border-border bg-card hover:bg-surface text-muted-foreground hover:text-foreground uppercase tracking-widest transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+          class="text-[10px] font-mono px-2.5 py-0.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white uppercase tracking-widest transition-colors flex items-center gap-1 cursor-pointer shrink-0"
           title="Ouvrir le site en direct (nouvel onglet)"
         >
           <span>{tenant.custom_domain || `${projectSlug}.ether.paris`}</span>
@@ -1492,10 +1492,10 @@
 
     <!-- Center: Panel Docking Controls -->
     <div class="flex items-center gap-2">
-      <div class="flex items-center gap-[2px] rounded-full border border-border bg-surface/90 p-[2px] text-xs font-mono shadow-retro-sm">
+      <div class="flex items-center gap-[2px] rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-[#16161c] p-[2px] text-xs font-mono shadow-retro-sm dark:shadow-none">
         <button
           onclick={() => togglePanel("chat")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
           title={showChat ? "Masquer le chat IA" : "Afficher le chat IA"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1505,7 +1505,7 @@
         </button>
         <button
           onclick={() => togglePanel("editor")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
           title={showEditor ? "Masquer l'éditeur de code" : "Afficher l'éditeur de code"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1515,7 +1515,7 @@
         </button>
         <button
           onclick={() => togglePanel("preview")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
           title={showPreview ? "Masquer l'aperçu du site" : "Afficher l'aperçu du site"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1548,7 +1548,7 @@
 
       <a
         href="/dashboard"
-        class="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/50 transition-colors"
+        class="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
         title="Retour au tableau de bord"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1641,9 +1641,9 @@
 
               {#if historyMenuOpen}
                 <div
-                  class="absolute right-0 top-full mt-1.5 w-72 bg-card dark:bg-[#18181f] border border-black/10 dark:border-white/10 rounded-2xl shadow-retro dark:shadow-xl p-2 text-xs font-mono z-50 flex flex-col gap-1 max-h-[360px] overflow-hidden"
+                  class="absolute right-0 top-full mt-1.5 w-72 bg-card dark:bg-[#18181f] border border-black/10 dark:border-white/10 rounded-xl shadow-retro-sm dark:shadow-xl p-1.5 text-xs font-mono z-50 flex flex-col gap-1 max-h-[360px] overflow-hidden"
                 >
-                  <div class="px-2 py-1.5 flex items-center justify-between border-b border-black/5 dark:border-white/10 text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+                  <div class="px-2.5 py-1.5 flex items-center justify-between border-b border-black/5 dark:border-white/10 text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
                     <span>Conversations</span>
                     <button
                       type="button"
@@ -1654,7 +1654,7 @@
                     </button>
                   </div>
 
-                  <div class="overflow-y-auto flex-1 space-y-1 py-1 pr-0.5">
+                  <div class="overflow-y-auto flex-1 space-y-0.5 py-0.5 pr-0.5">
                     {#if conversations.length === 0}
                       <div class="px-3 py-4 text-center text-muted-foreground text-xs">
                         Aucun historique pour le moment.
@@ -1667,13 +1667,13 @@
                           tabindex="0"
                           onclick={() => selectConversation(conv.conversationId)}
                           onkeydown={(e) => { if (e.key === 'Enter') selectConversation(conv.conversationId); }}
-                          class="group w-full flex items-start justify-between gap-2 p-2 rounded-xl transition-colors cursor-pointer text-left {isActive ? 'bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/15' : 'hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'}"
+                          class="group w-full flex items-start justify-between gap-2 px-2.5 py-2 rounded-md transition-colors cursor-pointer text-left {isActive ? 'bg-black/5 dark:bg-white/10 text-foreground dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground dark:hover:text-white'}"
                         >
                           <div class="flex-1 min-w-0">
-                            <div class="font-medium text-foreground dark:text-white truncate text-[12px] leading-snug">
+                            <div class="font-medium {isActive ? 'text-foreground dark:text-white font-semibold' : 'text-foreground/90 dark:text-neutral-200'} truncate text-[12px] leading-snug">
                               {conv.title || 'Discussion sans titre'}
                             </div>
-                            <div class="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                            <div class="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
                               <span>{formatConversationDate(conv.lastMessageAt || conv.createdAt)}</span>
                               <span>•</span>
                               <span>{conv.messageCount} msg{conv.messageCount > 1 ? 's' : ''}</span>
@@ -1848,7 +1848,7 @@
                   {/if}
 
                   {#if msg.content}
-                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed px-2 sm:px-2.5
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed px-2 sm:px-2.5 py-1 sm:py-1.5
                       prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
                       prose-strong:text-foreground dark:prose-strong:text-white
                       prose-a:text-brand dark:prose-a:text-indigo-400
@@ -2407,14 +2407,14 @@
       class="{showPreview ? 'flex' : 'hidden'} flex-col h-full overflow-hidden bg-surface/30 flex-1 w-full min-w-0"
     >
       <!-- Preview Toolbar -->
-      <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-3 text-xs font-mono shrink-0 gap-2 overflow-x-auto no-scrollbar">
+      <div class="h-10 border-b border-black/10 dark:border-white/10 bg-surface/60 dark:bg-[#16161c] flex items-center justify-between px-3 text-xs font-mono shrink-0 gap-2 overflow-x-auto no-scrollbar">
         <!-- Viewport & Environment Switchers -->
         <div class="flex items-center gap-2 shrink-0">
           <!-- Viewport Switcher: ONLY Desktop or Mobile -->
-          <div class="flex items-center gap-[2px] bg-surface/80 p-[2px] rounded-full border border-black/10 shrink-0 shadow-retro-sm">
+          <div class="flex items-center gap-[2px] bg-surface/80 dark:bg-[#121217] p-[2px] rounded-full border border-black/10 dark:border-white/10 shrink-0 shadow-retro-sm dark:shadow-none">
             <button
               onclick={() => viewportMode = "desktop"}
-              class="px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'desktop' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              class="px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'desktop' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
               title="Vue Bureau"
             >
               <span>🖥</span>
@@ -2422,7 +2422,7 @@
             </button>
             <button
               onclick={() => viewportMode = "mobile"}
-              class="px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'mobile' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              class="px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'mobile' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
               title="Vue Mobile"
             >
               <span>📱</span>

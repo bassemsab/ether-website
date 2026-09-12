@@ -14,6 +14,7 @@ const retroui = plugin(({ addBase }) => {
       "--card": "46 56% 96%",
       "--card-foreground": "249 37% 17%",
       "--surface": "50 30% 96%",
+      "--border": "240 5% 88%",
       "--brand": "259 45% 15%",
       "--brand-foreground": "0 0% 100%",
       "--accent": "16 100% 64%",
@@ -28,6 +29,7 @@ const retroui = plugin(({ addBase }) => {
       "--card": "240 8% 13%",
       "--card-foreground": "0 0% 98%",
       "--surface": "240 8% 16%",
+      "--border": "240 5% 18%",
       "--brand": "250 85% 65%",
       "--brand-foreground": "0 0% 100%",
       "--accent": "16 100% 64%",
@@ -70,6 +72,7 @@ const config: Config = {
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular"],
       },
       colors: {
+        border: "hsl(var(--border) / <alpha-value>)",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         brand: {
