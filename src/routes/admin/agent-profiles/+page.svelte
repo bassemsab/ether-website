@@ -133,7 +133,7 @@
   <header class="h-16 border-b border-black/10 bg-surface/80 backdrop-blur px-6 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <a href="/admin" class="hover:opacity-80 transition-opacity">
-        <BrandMark class="h-8 w-auto" />
+        <BrandMark class="h-8 w-8" />
       </a>
       <span class="text-black/20">/</span>
       <span class="font-display font-medium text-sm">Profils Google & Runner IA</span>

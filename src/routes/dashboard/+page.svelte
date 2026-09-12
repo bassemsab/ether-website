@@ -184,7 +184,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <a href="/" class="transition-opacity hover:opacity-80">
-          <BrandMark class="h-9 w-auto" />
+          <BrandMark class="h-9 w-9" />
         </a>
         <span class="hidden sm:inline-block text-xs px-3 py-1 rounded-full border border-black/10 bg-surface uppercase tracking-[0.2em] font-mono text-muted-foreground">
           Studio &amp; Sites

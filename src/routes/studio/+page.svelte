@@ -1402,7 +1402,7 @@
   <header class="h-14 border-b border-black/10 bg-surface/90 backdrop-blur px-4 flex items-center justify-between shrink-0 z-30">
     <div class="flex items-center gap-3">
       <a href="/dashboard" class="transition-opacity hover:opacity-80 flex items-center gap-2">
-        <BrandMark class="h-7 w-auto" />
+        <BrandMark class="h-8 w-8" />
       </a>
       <span class="text-black/20">/</span>
       <div class="flex items-center gap-2">

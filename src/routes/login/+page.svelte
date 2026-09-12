@@ -121,7 +121,7 @@
   <!-- Brand logo header -->
   <div class="mb-8 text-center">
     <a href="/" class="transition-opacity hover:opacity-80 inline-block">
-      <BrandMark class="h-16 w-auto" />
+      <BrandMark class="h-16 w-16" />
     </a>
   </div>
 
