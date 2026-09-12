@@ -1,4 +1,12 @@
 <script lang="ts">
+  import { EditorView, keymap, placeholder } from "@codemirror/view";
+  import { EditorState, Compartment } from "@codemirror/state";
+  import { minimalSetup } from "codemirror";
+  import { sql, SQLite } from "@codemirror/lang-sql";
+  import { oneDark } from "@codemirror/theme-one-dark";
+  import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+  import { theme } from "$lib/stores/theme";
+
   interface TableColumn {
     cid: number;
     name: string;
@@ -48,11 +56,139 @@
   let tableLoading = $state(false);
   let filterQuery = $state("");
 
-  // SQL Console state
+  // SQL Console state & CodeMirror Editor
   let customSql = $state("SELECT * FROM items LIMIT 20;");
   let queryLoading = $state(false);
   let queryError = $state<string | null>(null);
   let queryResult = $state<QueryResult | null>(null);
+
+  let sqlEditorView = $state<EditorView | null>(null);
+  const sqlThemeCompartment = new Compartment();
+  const sqlLangCompartment = new Compartment();
+
+  const sqlSchema = $derived.by(() => {
+    const map: Record<string, string[]> = {};
+    for (const t of tables) {
+      map[t.name] = t.columns ? t.columns.map((c) => c.name) : [];
+    }
+    return map;
+  });
+
+  const baseSqlTheme = EditorView.theme({
+    "&": {
+      height: "auto",
+      minHeight: "68px",
+      maxHeight: "180px",
+      fontSize: "12px",
+      fontFamily: "'Space Grotesk', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      backgroundColor: "transparent",
+    },
+    ".cm-content": {
+      padding: "8px 12px",
+      lineHeight: "1.5",
+      fontFamily: "inherit",
+      caretColor: "currentColor",
+    },
+    ".cm-scroller": {
+      overflow: "auto",
+      fontFamily: "inherit",
+    },
+    "&.cm-focused": {
+      outline: "none",
+    },
+    ".cm-placeholder": {
+      color: "hsl(var(--muted-foreground))",
+      opacity: "0.6",
+    },
+  });
+
+  function getSqlThemeExtensions(isDark: boolean) {
+    if (isDark) {
+      return [
+        oneDark,
+        baseSqlTheme,
+        EditorView.theme({
+          "&": {
+            color: "hsl(var(--foreground))",
+          },
+          ".cm-cursor": {
+            borderLeftColor: "hsl(var(--brand))",
+            borderLeftWidth: "2px",
+          },
+          "&.cm-focused .cm-selectionBackground, ::selection": {
+            backgroundColor: "rgba(255, 255, 255, 0.15)",
+          },
+        }),
+      ];
+    }
+    return [
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      baseSqlTheme,
+      EditorView.theme({
+        "&": {
+          color: "#1E1B39",
+        },
+        ".cm-cursor": {
+          borderLeftColor: "#1E1B39",
+          borderLeftWidth: "2px",
+        },
+        "&.cm-focused .cm-selectionBackground, ::selection": {
+          backgroundColor: "rgba(30, 27, 57, 0.15)",
+        },
+      }),
+    ];
+  }
+
+  function sqlEditorAction(container: HTMLElement) {
+    const isDark = $theme === "dark";
+    const state = EditorState.create({
+      doc: customSql,
+      extensions: [
+        minimalSetup,
+        EditorView.lineWrapping,
+        placeholder("Entrez votre requête SQL (ex: SELECT * FROM items LIMIT 10;)"),
+        keymap.of([
+          {
+            key: "Mod-Enter",
+            run: () => {
+              executeQuery();
+              return true;
+            },
+          },
+          {
+            key: "Ctrl-Enter",
+            run: () => {
+              executeQuery();
+              return true;
+            },
+          },
+        ]),
+        sqlLangCompartment.of(sql({ dialect: SQLite, schema: sqlSchema })),
+        sqlThemeCompartment.of(getSqlThemeExtensions(isDark)),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            customSql = update.state.doc.toString();
+          }
+        }),
+      ],
+    });
+
+    const view = new EditorView({
+      state,
+      parent: container,
+    });
+
+    sqlEditorView = view;
+
+    return {
+      destroy() {
+        view.destroy();
+        if (sqlEditorView === view) {
+          sqlEditorView = null;
+        }
+      },
+    };
+  }
 
   const selectedTable = $derived(
     tables.find((t) => t.name === selectedTableName) || tables[0] || null
@@ -181,6 +317,41 @@
     // Re-fetch schema when dbPath or projectSlug changes
     if (projectSlug && dbPath) {
       loadSchema();
+    }
+  });
+
+  $effect(() => {
+    // Sync external customSql changes to CodeMirror editor
+    if (sqlEditorView) {
+      const currentDoc = sqlEditorView.state.doc.toString();
+      if (customSql !== currentDoc) {
+        sqlEditorView.dispatch({
+          changes: {
+            from: 0,
+            to: currentDoc.length,
+            insert: customSql,
+          },
+        });
+      }
+    }
+  });
+
+  $effect(() => {
+    // React to theme changes (light/dark)
+    const isDark = $theme === "dark";
+    if (sqlEditorView) {
+      sqlEditorView.dispatch({
+        effects: sqlThemeCompartment.reconfigure(getSqlThemeExtensions(isDark)),
+      });
+    }
+  });
+
+  $effect(() => {
+    // Update SQL dialect schema autocompletion when tables reload
+    if (sqlEditorView) {
+      sqlEditorView.dispatch({
+        effects: sqlLangCompartment.reconfigure(sql({ dialect: SQLite, schema: sqlSchema })),
+      });
     }
   });
 </script>
@@ -434,30 +605,27 @@
         {:else if activeSubTab === "query"}
           <!-- SQL Query Console -->
           <div class="flex-1 flex flex-col overflow-hidden">
-            <div class="p-3 border-b border-black/10 bg-surface/20 space-y-2 shrink-0">
+            <div class="p-3 border-b border-black/10 dark:border-white/10 bg-surface/20 dark:bg-background/90 space-y-2 shrink-0">
               <div class="flex items-center justify-between">
                 <span class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Requête SQL (Bun SQLite)
                 </span>
                 <span class="text-[10px] text-muted-foreground">
-                  Raccourci : <kbd class="px-1 py-0.5 rounded bg-black/10">⌘ + Entrée</kbd>
+                  Raccourci : <kbd class="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-300 font-mono text-[9px]">⌘ + Entrée</kbd>
                 </span>
               </div>
-              <textarea
-                bind:value={customSql}
-                onkeydown={handleKeyDown}
-                rows={3}
-                class="w-full p-2.5 rounded-lg border border-black/10 bg-card text-foreground font-mono text-xs focus:outline-none focus:border-brand resize-none shadow-sm"
-                placeholder="Entrez votre requête SQL (ex: SELECT * FROM items LIMIT 10;)"
-              ></textarea>
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-1.5 overflow-x-auto text-[10px] text-muted-foreground">
-                  <span>Exemples :</span>
-                  {#each tables.slice(0, 3) as t}
+              <div
+                use:sqlEditorAction
+                class="w-full rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-[#121217] overflow-hidden shadow-sm focus-within:border-brand dark:focus-within:border-brand/70 focus-within:ring-1 focus-within:ring-brand/20 transition-all cursor-text"
+              ></div>
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 overflow-x-auto text-[10px] text-muted-foreground no-scrollbar">
+                  <span class="shrink-0">Exemples :</span>
+                  {#each tables.slice(0, 4) as t}
                     <button
                       type="button"
                       onclick={() => customSql = `SELECT * FROM "${t.name}" LIMIT 20;`}
-                      class="px-1.5 py-0.5 rounded bg-black/5 hover:bg-black/10 text-foreground cursor-pointer"
+                      class="px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-foreground dark:text-neutral-200 cursor-pointer transition-colors whitespace-nowrap"
                     >
                       SELECT {t.name}
                     </button>
@@ -467,7 +635,7 @@
                   type="button"
                   onclick={executeQuery}
                   disabled={queryLoading || !customSql.trim()}
-                  class="px-3.5 py-1.5 rounded-full bg-brand text-white font-medium text-xs hover:bg-brand/90 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  class="px-3.5 py-1.5 rounded-full bg-brand text-white font-medium text-xs hover:bg-brand/90 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 shrink-0 shadow-retro-sm dark:shadow-none"
                 >
                   {#if queryLoading}
                     <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -482,7 +650,7 @@
             <!-- Query Output Area -->
             <div class="flex-1 overflow-auto p-3">
               {#if queryError}
-                <div class="p-3 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-600 text-xs">
+                <div class="p-3 rounded-lg border border-rose-500/20 bg-rose-500/5 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs">
                   <p class="font-semibold mb-1">Erreur SQL :</p>
                   <p class="font-mono">{queryError}</p>
                 </div>
@@ -496,29 +664,29 @@
                     <span>Temps : {queryResult.executionTimeMs} ms</span>
                     {#if queryResult.changes !== undefined}
                       <span>·</span>
-                      <span class="text-emerald-600 font-medium">
+                      <span class="text-emerald-600 dark:text-emerald-400 font-medium">
                         {queryResult.changes} modification(s)
                       </span>
                     {/if}
                   </div>
 
                   {#if queryResult.rows && queryResult.rows.length > 0}
-                    <div class="border border-black/10 rounded-lg overflow-hidden">
+                    <div class="border border-black/10 dark:border-white/10 rounded-lg overflow-hidden">
                       <table class="w-full text-left border-collapse font-mono text-[11px]">
-                        <thead class="bg-surface/80 border-b border-black/10">
+                        <thead class="bg-surface/80 dark:bg-[#18181f] border-b border-black/10 dark:border-white/10">
                           <tr>
                             {#each queryResult.columns as col}
-                              <th class="p-2 font-semibold text-foreground border-r border-black/5 whitespace-nowrap">
+                              <th class="p-2 font-semibold text-foreground dark:text-neutral-200 border-r border-black/5 dark:border-white/5 whitespace-nowrap">
                                 {col}
                               </th>
                             {/each}
                           </tr>
                         </thead>
-                        <tbody class="divide-y divide-black/5">
+                        <tbody class="divide-y divide-black/5 dark:divide-white/5">
                           {#each queryResult.rows as row, idx}
-                            <tr class="hover:bg-brand/5 {idx % 2 === 0 ? 'bg-card' : 'bg-surface/20'}">
+                            <tr class="hover:bg-brand/5 dark:hover:bg-white/[0.04] transition-colors {idx % 2 === 0 ? 'bg-card dark:bg-card' : 'bg-surface/20 dark:bg-surface/10'}">
                               {#each queryResult.columns as col}
-                                <td class="p-2 border-r border-black/5 whitespace-pre-wrap max-w-xs truncate text-foreground">
+                                <td class="p-2 border-r border-black/5 dark:border-white/5 whitespace-pre-wrap max-w-xs truncate text-foreground dark:text-neutral-200">
                                   {#if row[col] === null}
                                     <span class="text-muted-foreground italic text-[10px]">NULL</span>
                                   {:else}
