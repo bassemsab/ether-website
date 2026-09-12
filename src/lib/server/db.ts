@@ -945,18 +945,36 @@ export interface StudioChatMessageUI {
   imageUrl?: string | null;
 }
 
+export interface StudioConversationSummary {
+  conversationId: string;
+  title: string;
+  messageCount: number;
+  lastMessageAt: string;
+  firstMessageAt: string;
+}
+
 export function getStudioChatHistory(
   tenantSlug: string,
   limit = 50,
+  conversationId?: string | null,
 ): StudioChatMessageUI[] {
   if (!db) return [];
 
   try {
-    const rows = db
-      .prepare(
-        `SELECT * FROM studio_chat_messages WHERE tenant_slug = ? ORDER BY id ASC LIMIT ?`,
-      )
-      .all(tenantSlug, limit) as StudioChatMessageRecord[];
+    let query = `SELECT * FROM studio_chat_messages WHERE tenant_slug = ?`;
+    const params: any[] = [tenantSlug];
+    if (conversationId) {
+      if (conversationId === "default") {
+        query += ` AND conversation_id IS NULL`;
+      } else {
+        query += ` AND conversation_id = ?`;
+        params.push(conversationId);
+      }
+    }
+    query += ` ORDER BY id ASC LIMIT ?`;
+    params.push(limit);
+
+    const rows = db.prepare(query).all(...params) as StudioChatMessageRecord[];
 
     return rows.map((r) => {
       let steps = undefined;
@@ -992,6 +1010,67 @@ export function getStudioChatHistory(
   } catch (err) {
     console.error("Failed to get studio chat history:", err);
     return [];
+  }
+}
+
+export function getStudioConversations(tenantSlug: string): StudioConversationSummary[] {
+  if (!db) return [];
+  try {
+    const rows = db
+      .prepare(
+        `SELECT 
+          COALESCE(conversation_id, 'default') as conv_id,
+          MIN(id) as first_id,
+          MAX(id) as last_id,
+          COUNT(*) as message_count,
+          MIN(created_at) as first_at,
+          MAX(created_at) as last_at
+        FROM studio_chat_messages
+        WHERE tenant_slug = ?
+        GROUP BY COALESCE(conversation_id, 'default')
+        ORDER BY MAX(id) DESC`,
+      )
+      .all(tenantSlug) as any[];
+
+    return rows.map((r) => {
+      const firstUserMsg = db
+        .prepare(
+          `SELECT content FROM studio_chat_messages
+           WHERE tenant_slug = ? AND (conversation_id = ? OR (? = 'default' AND conversation_id IS NULL)) AND role = 'user'
+           ORDER BY id ASC LIMIT 1`,
+        )
+        .get(tenantSlug, r.conv_id, r.conv_id) as any;
+
+      const title = firstUserMsg?.content
+        ? firstUserMsg.content.slice(0, 60).replace(/\n/g, " ").trim()
+        : "Conversation";
+
+      return {
+        conversationId: r.conv_id,
+        title,
+        messageCount: r.message_count,
+        lastMessageAt: r.last_at,
+        firstMessageAt: r.first_at,
+      };
+    });
+  } catch (err) {
+    console.error("Failed to get studio conversations:", err);
+    return [];
+  }
+}
+
+export function deleteStudioConversation(tenantSlug: string, conversationId: string): boolean {
+  if (!db) return false;
+  try {
+    if (conversationId === "default") {
+      db.prepare(`DELETE FROM studio_chat_messages WHERE tenant_slug = ? AND conversation_id IS NULL`).run(tenantSlug);
+    } else {
+      db.prepare(`DELETE FROM studio_chat_messages WHERE tenant_slug = ? AND conversation_id = ?`).run(tenantSlug, conversationId);
+    }
+    return true;
+  } catch (err) {
+    console.error("Failed to delete studio conversation:", err);
+    return false;
   }
 }
 

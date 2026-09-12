@@ -6,6 +6,8 @@ import {
   checkTenantPromptLimit,
   incrementTenantPromptCount,
   saveStudioChatMessage,
+  getStudioChatHistory,
+  getStudioConversations,
 } from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
@@ -45,6 +47,19 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     );
   }
 
+  const conversationsOnly = url.searchParams.get("conversations") === "true";
+  const conversationId = url.searchParams.get("conversationId");
+
+  if (conversationsOnly) {
+    const conversations = getStudioConversations(projectSlug);
+    return json({ success: true, conversations });
+  }
+
+  if (conversationId) {
+    const history = getStudioChatHistory(projectSlug, 100, conversationId);
+    return json({ success: true, history });
+  }
+
   const plan = tenant?.plan || "demo";
   const quota = checkTenantPromptLimit(projectSlug, plan);
 
@@ -70,7 +85,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const prompt = (body.prompt || "").trim();
     const image = body.image; // Optional image attachment { name, type, base64, dataUrl }
     const projectSlug = (body.projectSlug || "tester").trim();
-    const conversationId = body.conversationId;
+    const conversationId =
+      (body.conversationId && typeof body.conversationId === "string" && body.conversationId.trim())
+        ? body.conversationId.trim()
+        : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const preferredProfile = body.profile === "auto" ? undefined : body.profile;
 
     const tenant = await getTenantBySlug(projectSlug);

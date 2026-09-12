@@ -147,19 +147,20 @@
     return `Agent ${profileName}`;
   }
 
-  // Profile Custom Dropdown State
-  let profileMenuOpen = $state(false);
-  let profileMenuContainer = $state<HTMLDivElement | null>(null);
+  // Conversations History Dropdown State
+  let historyMenuOpen = $state(false);
+  let historyMenuContainer = $state<HTMLDivElement | null>(null);
+  let conversations = $state<any[]>(data.conversations || []);
 
   function handleWindowClick(event: MouseEvent) {
-    if (profileMenuOpen && profileMenuContainer && !profileMenuContainer.contains(event.target as Node)) {
-      profileMenuOpen = false;
+    if (historyMenuOpen && historyMenuContainer && !historyMenuContainer.contains(event.target as Node)) {
+      historyMenuOpen = false;
     }
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && profileMenuOpen) {
-      profileMenuOpen = false;
+    if (event.key === "Escape" && historyMenuOpen) {
+      historyMenuOpen = false;
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
@@ -182,24 +183,78 @@
         ]
   );
 
-  async function handleClearChat() {
-    if (confirm("Voulez-vous vraiment réinitialiser la conversation ?")) {
-      try {
-        await fetch("/api/studio/chat/clear", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectSlug }),
-        });
-      } catch {}
-      conversationId = null;
-      messages = [
-        {
-          role: "assistant",
-          content: `Bonjour ! Je suis votre assistant Ether Studio pour **${tenant.brand_name || projectSlug}**.\n\nDites-moi simplement ce que vous souhaitez ajouter ou modifier sur votre site et je m'en occupe !`,
-          profile: "primary",
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ];
+  function handleStartNewChat() {
+    conversationId = null;
+    messages = [
+      {
+        role: "assistant",
+        content: `Bonjour ! Je suis votre assistant Ether Studio pour **${tenant.brand_name || projectSlug}**.\n\nDites-moi simplement ce que vous souhaitez ajouter ou modifier sur votre site et je m'en occupe !`,
+        profile: "primary",
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ];
+    historyMenuOpen = false;
+  }
+
+  async function selectConversation(convId: string) {
+    try {
+      const res = await fetch(`/api/studio/chat?project=${projectSlug}&conversationId=${encodeURIComponent(convId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.history) {
+          messages = json.history;
+          conversationId = convId === "default" ? null : convId;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load conversation:", err);
+    }
+    historyMenuOpen = false;
+  }
+
+  async function handleDeleteConversation(convId: string, event: MouseEvent) {
+    event.stopPropagation();
+    if (!confirm("Supprimer cette conversation de l'historique ?")) return;
+    try {
+      await fetch("/api/studio/chat/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectSlug, conversationId: convId }),
+      });
+      conversations = conversations.filter((c) => c.conversationId !== convId);
+      if (conversationId === convId || (convId === "default" && !conversationId)) {
+        handleStartNewChat();
+      }
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+    }
+  }
+
+  async function refreshConversations() {
+    try {
+      const res = await fetch(`/api/studio/chat?project=${projectSlug}&conversations=true`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.conversations) {
+          conversations = json.conversations;
+        }
+      }
+    } catch {}
+  }
+
+  function formatConversationDate(isoString?: string): string {
+    if (!isoString) return "";
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "";
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      if (isToday) {
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+      return d.toLocaleDateString([], { month: "short", day: "numeric" });
+    } catch {
+      return "";
     }
   }
 
@@ -1169,6 +1224,10 @@
     isThinking = true;
     scrollToBottom();
 
+    if (!conversationId) {
+      conversationId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `conv_${Date.now()}`;
+    }
+
     try {
       const res = await fetch("/api/studio/chat", {
         method: "POST",
@@ -1330,6 +1389,7 @@
       isThinking = false;
       await loadTenantFiles();
       refreshPreview();
+      await refreshConversations();
     }
   }
 
@@ -1526,12 +1586,12 @@
             Assistant Studio
           </span>
           <div class="flex items-center gap-1.5">
-            <!-- New Chat / Reset Conversation Button -->
+            <!-- New Conversation Button -->
             <button
               type="button"
-              onclick={handleClearChat}
+              onclick={handleStartNewChat}
               class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 py-1 text-muted-foreground hover:text-foreground dark:hover:text-white cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm dark:shadow-none"
-              title="Nouvelle conversation (réinitialise le contexte de discussion)"
+              title="Nouvelle conversation"
             >
               <svg class="w-3 h-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -1539,28 +1599,29 @@
               <span class="hidden xl:inline">Nouveau</span>
             </button>
 
-            <!-- Custom Styled Agent Dropdown Menu -->
-            <div bind:this={profileMenuContainer} class="relative">
+            <!-- Conversations History Dropdown Menu -->
+            <div bind:this={historyMenuContainer} class="relative">
               <button
                 type="button"
                 onclick={(e) => {
                   e.stopPropagation();
-                  profileMenuOpen = !profileMenuOpen;
+                  historyMenuOpen = !historyMenuOpen;
                 }}
                 class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2.5 py-1 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center gap-1.5 shadow-retro-sm dark:shadow-none"
-                title="Sélectionner l'agent actif"
-                aria-expanded={profileMenuOpen}
-                aria-haspopup="listbox"
+                title="Historique des conversations"
+                aria-expanded={historyMenuOpen}
               >
-                {#if activeProfile === 'auto'}
-                  <span class="text-amber-500 font-medium">⚡</span>
-                  <span class="font-medium">Auto</span>
-                {:else}
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span class="font-medium">{getProfileLabel(activeProfile)}</span>
+                <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="font-medium">Historique</span>
+                {#if conversations.length > 0}
+                  <span class="text-[10px] px-1.5 py-0.2 bg-black/5 dark:bg-white/10 rounded-full text-muted-foreground font-mono">
+                    {conversations.length}
+                  </span>
                 {/if}
                 <svg
-                  class="w-3 h-3 text-muted-foreground transition-transform duration-200 {profileMenuOpen ? 'rotate-180' : ''}"
+                  class="w-3 h-3 text-muted-foreground transition-transform duration-200 {historyMenuOpen ? 'rotate-180' : ''}"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1569,57 +1630,60 @@
                 </svg>
               </button>
 
-              {#if profileMenuOpen}
+              {#if historyMenuOpen}
                 <div
-                  class="absolute right-0 top-full mt-1.5 w-44 bg-card dark:bg-[#18181f] border border-black/10 dark:border-white/10 rounded-2xl shadow-retro dark:shadow-xl p-1.5 text-xs font-mono z-50 divide-y divide-black/5 dark:divide-white/10"
-                  role="listbox"
+                  class="absolute right-0 top-full mt-1.5 w-72 bg-card dark:bg-[#18181f] border border-black/10 dark:border-white/10 rounded-2xl shadow-retro dark:shadow-xl p-2 text-xs font-mono z-50 flex flex-col gap-1 max-h-[360px] overflow-hidden"
                 >
-                  <div class="p-0.5">
+                  <div class="px-2 py-1.5 flex items-center justify-between border-b border-black/5 dark:border-white/10 text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
+                    <span>Conversations</span>
                     <button
                       type="button"
-                      role="option"
-                      aria-selected={activeProfile === 'auto'}
-                      onclick={() => {
-                        activeProfile = 'auto';
-                        profileMenuOpen = false;
-                      }}
-                      class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 dark:bg-white/10 font-semibold text-foreground dark:text-white' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
+                      onclick={handleStartNewChat}
+                      class="text-brand hover:underline flex items-center gap-1 text-[11px] cursor-pointer"
                     >
-                      <div class="flex items-center gap-2">
-                        <span class="text-amber-500">⚡</span>
-                        <span>Auto</span>
-                      </div>
-                      {#if activeProfile === 'auto'}
-                        <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-                        </svg>
-                      {/if}
+                      <span>+ Nouveau</span>
                     </button>
                   </div>
 
-                  <div class="p-0.5 space-y-0.5">
-                    {#each availableProfiles as prof, idx}
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={activeProfile === prof.name}
-                        onclick={() => {
-                          activeProfile = prof.name;
-                          profileMenuOpen = false;
-                        }}
-                        class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 dark:bg-white/10 font-semibold text-foreground dark:text-white' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
-                      >
-                        <div class="flex items-center gap-2">
-                          <span class="w-1.5 h-1.5 rounded-full {activeProfile === prof.name ? 'bg-emerald-500' : 'bg-black/20 dark:bg-white/20'}"></span>
-                          <span>{prof.label || `Agent ${idx + 1}`}</span>
+                  <div class="overflow-y-auto flex-1 space-y-1 py-1 pr-0.5">
+                    {#if conversations.length === 0}
+                      <div class="px-3 py-4 text-center text-muted-foreground text-xs">
+                        Aucun historique pour le moment.
+                      </div>
+                    {:else}
+                      {#each conversations as conv}
+                        {@const isActive = (conversationId === conv.conversationId) || (!conversationId && conv.conversationId === 'default')}
+                        <div
+                          role="button"
+                          tabindex="0"
+                          onclick={() => selectConversation(conv.conversationId)}
+                          onkeydown={(e) => { if (e.key === 'Enter') selectConversation(conv.conversationId); }}
+                          class="group w-full flex items-start justify-between gap-2 p-2 rounded-xl transition-colors cursor-pointer text-left {isActive ? 'bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/15' : 'hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'}"
+                        >
+                          <div class="flex-1 min-w-0">
+                            <div class="font-medium text-foreground dark:text-white truncate text-[12px] leading-snug">
+                              {conv.title || 'Discussion sans titre'}
+                            </div>
+                            <div class="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                              <span>{formatConversationDate(conv.lastMessageAt || conv.createdAt)}</span>
+                              <span>•</span>
+                              <span>{conv.messageCount} msg{conv.messageCount > 1 ? 's' : ''}</span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onclick={(e) => handleDeleteConversation(conv.conversationId, e)}
+                            class="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-500 rounded transition-opacity cursor-pointer shrink-0"
+                            title="Supprimer la conversation"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
                         </div>
-                        {#if activeProfile === prof.name}
-                          <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-                          </svg>
-                        {/if}
-                      </button>
-                    {/each}
+                      {/each}
+                    {/if}
                   </div>
                 </div>
               {/if}

@@ -4,6 +4,7 @@ import {
   getTenantBySlug,
   checkTenantPromptLimit,
   getStudioChatHistory,
+  getStudioConversations,
 } from "$lib/server/db";
 import { processPromptTopupCheckoutSession } from "$lib/server/stripe";
 import { getRunnerProfiles } from "$lib/server/agent-bridge";
@@ -102,12 +103,11 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
     }
   } catch {}
 
-  // Chat history and last active conversation ID from SQLite
-  const chatHistory = getStudioChatHistory(projectSlug);
-  const lastConversationId =
-    chatHistory.length > 0
-      ? chatHistory[chatHistory.length - 1].conversationId || null
-      : null;
+  // Chat history and conversations list from SQLite
+  const conversations = getStudioConversations(projectSlug);
+  const activeConvId = url.searchParams.get("conversation") || (conversations.length > 0 ? conversations[0].conversationId : null);
+  const chatHistory = activeConvId ? getStudioChatHistory(projectSlug, 50, activeConvId) : getStudioChatHistory(projectSlug, 50);
+  const lastConversationId = activeConvId || (chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].conversationId || null : null);
 
   return {
     tenant: tenantData,
@@ -119,6 +119,7 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
       plan,
     },
     availableProfiles,
+    conversations,
     chatHistory,
     lastConversationId,
     initialFiles,

@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { clearStudioChatHistory, getTenantBySlug } from "$lib/server/db";
+import { clearStudioChatHistory, deleteStudioConversation, getTenantBySlug } from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   if (!locals.user) return false;
@@ -29,6 +29,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   try {
     const body = await request.json();
     const projectSlug = (body.projectSlug || "tester").trim();
+    const conversationId = body.conversationId ? String(body.conversationId).trim() : null;
     const tenant = await getTenantBySlug(projectSlug);
     if (!tenant) {
       return json({ success: false, error: "Site introuvable." }, { status: 404 });
@@ -41,9 +42,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       );
     }
 
-    clearStudioChatHistory(projectSlug);
+    if (conversationId) {
+      deleteStudioConversation(projectSlug, conversationId);
+    } else {
+      clearStudioChatHistory(projectSlug);
+    }
 
-    return json({ success: true, projectSlug });
+    return json({ success: true, projectSlug, conversationId });
   } catch (err: any) {
     return json({ success: false, error: err.message }, { status: 500 });
   }
