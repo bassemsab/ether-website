@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { listTenantFiles, saveTenantFile } from "$lib/server/tenant-files";
+import { isBinaryFile, listTenantFiles, saveTenantFile } from "$lib/server/tenant-files";
 import { getTenantBySlug } from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
@@ -102,6 +102,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     if (!filePath) {
       return json(
         { success: false, error: "Chemin de fichier requis" },
+        { status: 400 },
+      );
+    }
+
+    if (isBinaryFile(filePath)) {
+      return json(
+        { success: false, error: "Impossible d'écraser un fichier binaire avec du texte brut." },
         { status: 400 },
       );
     }

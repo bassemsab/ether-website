@@ -7,6 +7,7 @@ import {
   statSync,
 } from "fs";
 import { join, relative, dirname, resolve } from "path";
+import { Database } from "bun:sqlite";
 import {
   listStoredProfiles,
   generateAuthUrl,
@@ -19,6 +20,44 @@ import {
   getNextHealthyProfile,
   incrementProfileTurnCount,
 } from "./auth-helper";
+
+const SQLITE_EXTENSIONS = new Set(["db", "sqlite", "sqlite3"]);
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "svg"]);
+const MEDIA_EXTENSIONS = new Set(["mp4", "webm", "ogg", "mp3", "wav", "m4a"]);
+const OTHER_BINARY_EXTENSIONS = new Set([
+  "woff", "woff2", "ttf", "eot", "otf",
+  "wasm", "pdf", "zip", "tar", "gz", "rar", "7z", "iso", "bin", "exe", "so", "dylib", "dll"
+]);
+
+function getFileCategory(filename: string): "code" | "sqlite" | "image" | "media" | "binary" {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  if (SQLITE_EXTENSIONS.has(ext)) return "sqlite";
+  if (IMAGE_EXTENSIONS.has(ext)) return "image";
+  if (MEDIA_EXTENSIONS.has(ext)) return "media";
+  if (OTHER_BINARY_EXTENSIONS.has(ext)) return "binary";
+  return "code";
+}
+
+function isBinaryFile(filename: string): boolean {
+  const cat = getFileCategory(filename);
+  if (cat === "image" && filename.toLowerCase().endsWith(".svg")) return false;
+  return cat !== "code";
+}
+
+function getImageMime(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  switch (ext) {
+    case "png": return "image/png";
+    case "jpg":
+    case "jpeg": return "image/jpeg";
+    case "gif": return "image/gif";
+    case "webp": return "image/webp";
+    case "svg": return "image/svg+xml";
+    case "ico": return "image/x-icon";
+    case "bmp": return "image/bmp";
+    default: return "application/octet-stream";
+  }
+}
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
 const DATA_DIR =
@@ -824,6 +863,7 @@ const server = Bun.serve({
               if (ignoredFiles.has(entry.name) || entry.name.startsWith("."))
                 continue;
               const rel = relative(codeDir, fullPath).replace(/\\/g, "/");
+              const category = getFileCategory(entry.name);
               let lang = "html";
               if (
                 rel.endsWith(".ts") ||
@@ -832,9 +872,62 @@ const server = Bun.serve({
               )
                 lang = "typescript";
               else if (rel.endsWith(".json")) lang = "json";
+              else if (rel.endsWith(".css")) lang = "css";
 
               try {
                 const stat = statSync(fullPath);
+                if (category === "sqlite") {
+                  files[rel] = {
+                    name: entry.name,
+                    path: rel,
+                    lang: "html",
+                    content: "",
+                    size: stat.size,
+                    category: "sqlite",
+                    isBinary: true,
+                  };
+                  continue;
+                }
+
+                if (category === "image") {
+                  let dataUrl: string | undefined;
+                  let content = "";
+                  try {
+                    if (entry.name.toLowerCase().endsWith(".svg")) {
+                      content = readFileSync(fullPath, "utf-8");
+                      dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(content)}`;
+                    } else if (stat.size <= 2 * 1024 * 1024) {
+                      const buffer = readFileSync(fullPath);
+                      dataUrl = `data:${getImageMime(entry.name)};base64,${buffer.toString("base64")}`;
+                    }
+                  } catch {}
+
+                  files[rel] = {
+                    name: entry.name,
+                    path: rel,
+                    lang: "html",
+                    content,
+                    size: stat.size,
+                    category: "image",
+                    isBinary: true,
+                    dataUrl,
+                  };
+                  continue;
+                }
+
+                if (category === "media" || category === "binary") {
+                  files[rel] = {
+                    name: entry.name,
+                    path: rel,
+                    lang: "html",
+                    content: "",
+                    size: stat.size,
+                    category,
+                    isBinary: true,
+                  };
+                  continue;
+                }
+
                 if (stat.size <= 500 * 1024) {
                   files[rel] = {
                     name: entry.name,
@@ -842,6 +935,8 @@ const server = Bun.serve({
                     lang,
                     content: readFileSync(fullPath, "utf-8"),
                     size: stat.size,
+                    category: "code",
+                    isBinary: false,
                   };
                 }
               } catch {}
@@ -869,11 +964,29 @@ const server = Bun.serve({
             );
           }
 
+          if (isBinaryFile(relPath)) {
+            return Response.json(
+              {
+                success: false,
+                error:
+                  "Impossible d'écraser un fichier binaire avec du texte brut.",
+              },
+              { status: 400, headers: corsHeaders },
+            );
+          }
+
           const resolvedCodeDir = resolve(codeDir);
           const fullPath = resolve(codeDir, relPath);
-          if (!fullPath.startsWith(resolvedCodeDir + "/") && fullPath !== resolvedCodeDir) {
+          if (
+            !fullPath.startsWith(resolvedCodeDir + "/") &&
+            fullPath !== resolvedCodeDir
+          ) {
             return Response.json(
-              { success: false, error: "Accès refusé : chemin en dehors de l'espace de travail du site" },
+              {
+                success: false,
+                error:
+                  "Accès refusé : chemin en dehors de l'espace de travail du site",
+              },
               { status: 403, headers: corsHeaders },
             );
           }
@@ -896,6 +1009,166 @@ const server = Bun.serve({
             { status: 500, headers: corsHeaders },
           );
         }
+      }
+    }
+
+    // SQLite Database Inspector & Runner Endpoint
+    const sqliteMatch = path.match(/^\/sqlite\/([a-zA-Z0-9_-]+)$/);
+    if (sqliteMatch && req.method === "POST") {
+      const tenantSlug = sqliteMatch[1];
+      const codeDir = ensureTenantCodebase(tenantSlug);
+
+      try {
+        const body = (await req.json().catch(() => ({}))) as any;
+        const dbRelPath = (body.dbPath || "data.db").trim().replace(/^\/+/, "");
+        const action = body.action || "schema"; // "schema" | "query"
+
+        const resolvedCodeDir = resolve(codeDir);
+        const fullDbPath = resolve(codeDir, dbRelPath);
+        if (
+          !fullDbPath.startsWith(resolvedCodeDir + "/") &&
+          fullDbPath !== resolvedCodeDir
+        ) {
+          return Response.json(
+            {
+              success: false,
+              error: "Accès refusé : chemin en dehors de l'espace de travail",
+            },
+            { status: 403, headers: corsHeaders },
+          );
+        }
+
+        if (!existsSync(fullDbPath)) {
+          return Response.json(
+            {
+              success: false,
+              error: `Base de données introuvable : ${dbRelPath}`,
+            },
+            { status: 404, headers: corsHeaders },
+          );
+        }
+
+        if (action === "schema") {
+          const db = new Database(fullDbPath, { readonly: true });
+          try {
+            const rawTables = db
+              .query(
+                `SELECT name, type, sql FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name ASC`,
+              )
+              .all() as Array<{ name: string; type: string; sql: string }>;
+
+            const tables = rawTables.map((t) => {
+              let columns: any[] = [];
+              let rowCount = 0;
+              try {
+                columns = db
+                  .query(`PRAGMA table_info("${t.name.replace(/"/g, '""')}")`)
+                  .all();
+              } catch {}
+              try {
+                const countRes = db
+                  .query(
+                    `SELECT COUNT(*) as count FROM "${t.name.replace(/"/g, '""')}"`,
+                  )
+                  .get() as any;
+                rowCount = countRes ? countRes.count : 0;
+              } catch {}
+              return {
+                name: t.name,
+                type: t.type,
+                sql: t.sql,
+                columns,
+                rowCount,
+              };
+            });
+
+            return Response.json(
+              {
+                success: true,
+                projectSlug: tenantSlug,
+                dbPath: dbRelPath,
+                tables,
+              },
+              { headers: corsHeaders },
+            );
+          } finally {
+            db.close();
+          }
+        }
+
+        if (action === "query") {
+          const sqlQuery = (body.sql || "").trim();
+          if (!sqlQuery) {
+            return Response.json(
+              { success: false, error: "Requête SQL requise" },
+              { status: 400, headers: corsHeaders },
+            );
+          }
+
+          const isReadOnly = /^\s*(SELECT|PRAGMA|EXPLAIN|WITH)\b/i.test(sqlQuery);
+          const db = new Database(fullDbPath, { readonly: isReadOnly });
+          try {
+            const startTime = performance.now();
+            if (isReadOnly) {
+              let finalQuery = sqlQuery;
+              if (
+                /^\s*SELECT\b/i.test(finalQuery) &&
+                !/\bLIMIT\b/i.test(finalQuery)
+              ) {
+                finalQuery += " LIMIT 100";
+              }
+              const stmt = db.query(finalQuery);
+              const rows = stmt.all() as Record<string, any>[];
+              const columns =
+                rows.length > 0 ? Object.keys(rows[0]) : stmt.columnNames || [];
+              const executionTimeMs =
+                Math.round((performance.now() - startTime) * 100) / 100;
+              return Response.json(
+                {
+                  success: true,
+                  columns,
+                  rows,
+                  rowCount: rows.length,
+                  executionTimeMs,
+                  readonly: true,
+                },
+                { headers: corsHeaders },
+              );
+            } else {
+              const stmt = db.query(sqlQuery);
+              const result = stmt.run();
+              const executionTimeMs =
+                Math.round((performance.now() - startTime) * 100) / 100;
+              return Response.json(
+                {
+                  success: true,
+                  columns: [],
+                  rows: [],
+                  changes: result.changes,
+                  lastInsertRowid: result.lastInsertRowid,
+                  executionTimeMs,
+                  readonly: false,
+                },
+                { headers: corsHeaders },
+              );
+            }
+          } finally {
+            db.close();
+          }
+        }
+
+        return Response.json(
+          { success: false, error: `Action inconnue : ${action}` },
+          { status: 400, headers: corsHeaders },
+        );
+      } catch (err: any) {
+        return Response.json(
+          {
+            success: false,
+            error: err.message || "Erreur de base de données",
+          },
+          { status: 500, headers: corsHeaders },
+        );
       }
     }
 

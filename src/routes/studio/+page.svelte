@@ -12,13 +12,16 @@
   import { css } from "@codemirror/lang-css";
   import { EditorState, Compartment } from "@codemirror/state";
   import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+  import SqliteInspector from "$lib/components/studio/SqliteInspector.svelte";
+  import ImagePreviewer from "$lib/components/studio/ImagePreviewer.svelte";
+  import { getFileCategory, isBinaryFile } from "$lib/utils/file-types";
 
   function isFilePath(str: string): boolean {
     if (!str || typeof str !== "string") return false;
     const clean = str.trim().replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "");
     if (clean.includes("\n") || clean.length > 100) return false;
     return (
-      /\.(svelte|ts|js|mjs|json|html|css|md|yaml|yml|sql)$/i.test(clean) ||
+      /\.(svelte|ts|js|mjs|json|html|css|md|yaml|yml|sql|db|sqlite|sqlite3|png|jpg|jpeg|gif|webp|svg|ico)$/i.test(clean) ||
       clean.startsWith("src/") ||
       clean.startsWith("/src/") ||
       clean.startsWith("+") ||
@@ -644,6 +647,8 @@
   let activeFile = $state(
     Object.keys(files)[0] || "src/routes/+page.svelte"
   );
+  const activeFileCategory = $derived(getFileCategory(activeFile));
+  const isCurrentFileBinary = $derived(isBinaryFile(activeFile));
   let openTabs = $state<string[]>([
     Object.keys(files)[0] || "src/routes/+page.svelte"
   ]);
@@ -956,21 +961,21 @@
 
   function switchFile(filePath: string) {
     if (filePath === activeFile) {
-      if (editorView) {
+      if (editorView && !isBinaryFile(filePath)) {
         editorView.focus();
       }
       return;
     }
 
-    // Persist current file content before switching
-    if (editorView && files[activeFile]) {
+    // Persist current file content before switching if it was editable text
+    if (editorView && files[activeFile] && !isBinaryFile(activeFile)) {
       files[activeFile].content = editorView.state.doc.toString();
     }
 
     activeFile = filePath;
     const target = files[filePath];
 
-    if (editorView && target) {
+    if (editorView && target && !isBinaryFile(filePath)) {
       editorView.dispatch({
         changes: { from: 0, to: editorView.state.doc.length, insert: target.content },
         effects: languageCompartment.reconfigure(getLangExtension(target.lang)),
@@ -1236,6 +1241,8 @@
   }
 
   async function handleSaveCode() {
+    if (!files[activeFile] || isCurrentFileBinary) return;
+
     if (editorView && files[activeFile]) {
       files[activeFile].content = editorView.state.doc.toString();
     }
@@ -1833,6 +1840,14 @@
                 <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
               {:else if path.endsWith('.css')}
                 <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
+              {:else if path.endsWith('.db') || path.endsWith('.sqlite') || path.endsWith('.sqlite3')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 shrink-0">DB</span>
+              {:else if path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.gif') || path.endsWith('.webp') || path.endsWith('.ico')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 shrink-0">IMG</span>
+              {:else if path.endsWith('.svg')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 shrink-0">SVG</span>
+              {:else if path.endsWith('.md')}
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 shrink-0">MD</span>
               {:else}
                 <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
               {/if}
@@ -1855,19 +1870,33 @@
         </div>
 
         <div class="flex items-center gap-1.5 shrink-0">
-          <button
-            onclick={handleSaveCode}
-            class="px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
-            title="Sauvegarder les modifications (Cmd+S ou Ctrl+S)"
-          >
-            {#if editorSaved}
-              <span class="text-emerald-600 font-bold">✓</span>
-              <span>Sauvegardé</span>
-            {:else}
-              <span>Sauvegarder</span>
-              <kbd class="text-[9px] bg-black/5 px-1 py-0.2 rounded text-muted-foreground font-mono">⌘S</kbd>
-            {/if}
-          </button>
+          {#if activeFileCategory === 'code'}
+            <button
+              onclick={handleSaveCode}
+              class="px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+              title="Sauvegarder les modifications (Cmd+S ou Ctrl+S)"
+            >
+              {#if editorSaved}
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span>Sauvegardé</span>
+              {:else}
+                <span>Sauvegarder</span>
+                <kbd class="text-[9px] bg-black/5 px-1 py-0.2 rounded text-muted-foreground font-mono">⌘S</kbd>
+              {/if}
+            </button>
+          {:else if activeFileCategory === 'sqlite'}
+            <span class="px-2.5 py-1 rounded-full border border-cyan-500/20 bg-cyan-500/10 text-cyan-700 text-[10px] font-mono font-medium">
+              Base SQLite
+            </span>
+          {:else if activeFileCategory === 'image'}
+            <span class="px-2.5 py-1 rounded-full border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 text-[10px] font-mono font-medium">
+              Aperçu Image
+            </span>
+          {:else}
+            <span class="px-2.5 py-1 rounded-full border border-black/10 bg-black/5 text-muted-foreground text-[10px] font-mono">
+              Binaire protégé
+            </span>
+          {/if}
           <button
             onclick={() => showEditor = false}
             class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
@@ -1983,6 +2012,14 @@
                     <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
                   {:else if node.path.endsWith('.css')}
                     <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
+                  {:else if node.path.endsWith('.db') || node.path.endsWith('.sqlite') || node.path.endsWith('.sqlite3')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 shrink-0">DB</span>
+                  {:else if node.path.endsWith('.png') || node.path.endsWith('.jpg') || node.path.endsWith('.jpeg') || node.path.endsWith('.gif') || node.path.endsWith('.webp') || node.path.endsWith('.ico')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 shrink-0">IMG</span>
+                  {:else if node.path.endsWith('.svg')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 shrink-0">SVG</span>
+                  {:else if node.path.endsWith('.md')}
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 shrink-0">MD</span>
                   {:else}
                     <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
                   {/if}
@@ -2007,14 +2044,54 @@
           </div>
         {/if}
 
-        <!-- CodeMirror Editor Container -->
-        <div class="flex-1 overflow-hidden bg-card relative" bind:this={editorContainer}>
+        <!-- CodeMirror Editor Container (Kept mounted for CodeMirror persistence) -->
+        <div class="flex-1 overflow-hidden bg-card relative {activeFileCategory === 'code' ? 'flex flex-col' : 'hidden'}" bind:this={editorContainer}>
           {#if editorSaved}
             <div class="absolute bottom-3 right-3 bg-foreground text-background text-[11px] font-mono px-3 py-1.5 rounded-full shadow-retro z-20 pointer-events-none flex items-center gap-1.5">
               <span>✓ Sauvegardé</span>
             </div>
           {/if}
         </div>
+
+        <!-- Dedicated SQLite Inspector -->
+        {#if activeFileCategory === 'sqlite'}
+          <div class="flex-1 overflow-hidden">
+            <SqliteInspector
+              projectSlug={projectSlug}
+              dbPath={activeFile}
+              fileSize={files[activeFile]?.size || 0}
+            />
+          </div>
+        {/if}
+
+        <!-- Dedicated Image Previewer -->
+        {#if activeFileCategory === 'image'}
+          <div class="flex-1 overflow-hidden">
+            <ImagePreviewer
+              path={activeFile}
+              name={files[activeFile]?.name || activeFile.split('/').pop() || activeFile}
+              size={files[activeFile]?.size || 0}
+              dataUrl={files[activeFile]?.dataUrl}
+              previewUrl={files[activeFile]?.previewUrl}
+            />
+          </div>
+        {/if}
+
+        <!-- Protected Binary / Media View -->
+        {#if activeFileCategory === 'binary' || activeFileCategory === 'media'}
+          <div class="flex-1 overflow-hidden flex flex-col items-center justify-center p-8 text-center font-mono text-xs bg-card">
+            <div class="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center text-2xl mb-3">
+              📦
+            </div>
+            <p class="font-semibold text-foreground text-sm mb-1">{files[activeFile]?.name || activeFile}</p>
+            <p class="text-muted-foreground text-[11px] max-w-sm mb-4">
+              Fichier binaire protégé ({activeFile.split('.').pop()?.toUpperCase() || 'BIN'}). La modification directe en texte brut est désactivée pour éviter toute altération.
+            </p>
+            <div class="px-3 py-1.5 rounded-full bg-surface border border-black/10 text-[11px] text-muted-foreground">
+              Taille : {((files[activeFile]?.size || 0) / 1024).toFixed(1)} KB
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
 

@@ -48,6 +48,34 @@ describe("Tenant Files System", () => {
       saveTenantFile("tester", "../../etc/passwd", "hack");
     }).toThrow();
   });
+
+  it("should classify files correctly and prevent binary overwrite", () => {
+    const { getFileCategory, isBinaryFile } = require("../src/lib/utils/file-types");
+
+    expect(getFileCategory("data.db")).toBe("sqlite");
+    expect(getFileCategory("store.sqlite3")).toBe("sqlite");
+    expect(getFileCategory("avatar.png")).toBe("image");
+    expect(getFileCategory("hero.webp")).toBe("image");
+    expect(getFileCategory("icon.svg")).toBe("image");
+    expect(getFileCategory("font.woff2")).toBe("binary");
+    expect(getFileCategory("module.wasm")).toBe("binary");
+    expect(getFileCategory("+page.svelte")).toBe("code");
+    expect(getFileCategory("index.ts")).toBe("code");
+
+    expect(isBinaryFile("data.db")).toBe(true);
+    expect(isBinaryFile("avatar.png")).toBe(true);
+    expect(isBinaryFile("font.woff2")).toBe(true);
+    expect(isBinaryFile("icon.svg")).toBe(false); // SVG is text-editable
+    expect(isBinaryFile("+page.svelte")).toBe(false);
+
+    expect(() => {
+      saveTenantFile("tester", "data.db", "corrupt binary data");
+    }).toThrow("Impossible d'écraser un fichier binaire");
+
+    expect(() => {
+      saveTenantFile("tester", "static/uploads/image.png", "not an image");
+    }).toThrow("Impossible d'écraser un fichier binaire");
+  });
 });
 
 describe("Studio Chat History Persistence", () => {

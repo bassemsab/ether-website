@@ -9,6 +9,20 @@ import {
 import { join, normalize, relative, resolve } from "path";
 
 export type SupportedEditorLang = "html" | "typescript" | "json" | "css";
+export {
+  type FileCategory,
+  SQLITE_EXTENSIONS,
+  IMAGE_EXTENSIONS,
+  MEDIA_EXTENSIONS,
+  OTHER_BINARY_EXTENSIONS,
+  getFileCategory,
+  isBinaryFile,
+} from "../utils/file-types";
+import {
+  type FileCategory,
+  getFileCategory,
+  isBinaryFile,
+} from "../utils/file-types";
 
 export interface TenantFileSummary {
   name: string;
@@ -16,6 +30,10 @@ export interface TenantFileSummary {
   lang: SupportedEditorLang;
   content: string;
   size: number;
+  category?: FileCategory;
+  isBinary?: boolean;
+  previewUrl?: string;
+  dataUrl?: string;
 }
 
 const IGNORED_DIRS = new Set([
@@ -65,6 +83,21 @@ export function detectFileLang(filename: string): SupportedEditorLang {
   return "html";
 }
 
+function getImageMime(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  switch (ext) {
+    case "png": return "image/png";
+    case "jpg":
+    case "jpeg": return "image/jpeg";
+    case "gif": return "image/gif";
+    case "webp": return "image/webp";
+    case "svg": return "image/svg+xml";
+    case "ico": return "image/x-icon";
+    case "bmp": return "image/bmp";
+    default: return "application/octet-stream";
+  }
+}
+
 /**
  * Recursively scans the tenant code directory and returns all editable source files.
  */
@@ -92,11 +125,65 @@ export function listTenantFiles(
         }
 
         const stat = statSync(fullPath);
-        // Exclude files larger than 500KB (e.g. bundle outputs or media)
-        if (stat.size > 500 * 1024) continue;
-
         const relPath = relative(rootDir, fullPath).replace(/\\/g, "/");
+        const category = getFileCategory(entryName);
         const lang = detectFileLang(entryName);
+        const binary = isBinaryFile(entryName);
+
+        if (category === "sqlite") {
+          result[relPath] = {
+            name: entryName,
+            path: relPath,
+            lang: "html",
+            content: "",
+            size: stat.size,
+            category: "sqlite",
+            isBinary: true,
+          };
+          continue;
+        }
+
+        if (category === "image") {
+          let dataUrl: string | undefined;
+          let content = "";
+          try {
+            if (entryName.toLowerCase().endsWith(".svg")) {
+              content = readFileSync(fullPath, "utf-8");
+              dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(content)}`;
+            } else if (stat.size <= 2 * 1024 * 1024) {
+              const buffer = readFileSync(fullPath);
+              dataUrl = `data:${getImageMime(entryName)};base64,${buffer.toString("base64")}`;
+            }
+          } catch {}
+
+          result[relPath] = {
+            name: entryName,
+            path: relPath,
+            lang: "html",
+            content,
+            size: stat.size,
+            category: "image",
+            isBinary: true,
+            dataUrl,
+          };
+          continue;
+        }
+
+        if (category === "media" || category === "binary") {
+          result[relPath] = {
+            name: entryName,
+            path: relPath,
+            lang: "html",
+            content: "",
+            size: stat.size,
+            category,
+            isBinary: true,
+          };
+          continue;
+        }
+
+        // Exclude text/code files larger than 500KB (e.g. bundle outputs)
+        if (stat.size > 500 * 1024) continue;
 
         try {
           const content = readFileSync(fullPath, "utf-8");
@@ -106,6 +193,8 @@ export function listTenantFiles(
             lang,
             content,
             size: stat.size,
+            category: "code",
+            isBinary: false,
           };
         } catch {
           // Binary or non-UTF8 file, skip
@@ -174,6 +263,13 @@ export function saveTenantFile(
   if (!targetPath.startsWith(rootDir + "/") && targetPath !== rootDir) {
     throw new Error(
       "Tentative d'accès non autorisé en dehors de l'espace de travail du site.",
+    );
+  }
+
+  // Reject overwriting binary files as plain text
+  if (isBinaryFile(relPath)) {
+    throw new Error(
+      "Impossible d'écraser un fichier binaire avec du texte brut.",
     );
   }
 
