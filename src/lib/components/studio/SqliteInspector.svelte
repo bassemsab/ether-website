@@ -185,45 +185,43 @@
 </script>
 
 <div class="w-full h-full flex flex-col bg-background text-foreground overflow-hidden font-mono text-xs">
-  <!-- Inspector Top Bar -->
-  <div class="h-10 border-b border-black/10 bg-surface/70 px-4 flex items-center justify-between shrink-0">
-    <div class="flex items-center gap-2 min-w-0">
-      <span class="w-5 h-5 rounded flex items-center justify-center bg-cyan-500/15 text-cyan-600 font-bold text-[10px]">
-        DB
-      </span>
-      <span class="font-semibold text-foreground truncate">{dbPath}</span>
+  <!-- Inspector Top Bar (Split to match sidebar & content columns) -->
+  <div class="h-10 border-b border-black/10 bg-surface/70 flex items-stretch shrink-0">
+    <!-- Left column: Tables header & DB size -->
+    <div class="w-48 border-r border-black/10 px-3 flex items-center justify-between shrink-0 bg-surface/50">
+      <div class="flex items-center gap-1.5 min-w-0">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Bun SQLite Connecté"></span>
+        <span class="font-semibold text-foreground truncate text-[11px]">Tables ({tables.length})</span>
+      </div>
       {#if fileSize > 0}
-        <span class="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded bg-black/5">
+        <span class="text-[10px] text-muted-foreground shrink-0 font-mono">
           {formatSize(fileSize)}
         </span>
       {/if}
-      <span class="inline-flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        Bun SQLite Connecté
-      </span>
     </div>
 
-    <div class="flex items-center gap-2">
+    <!-- Right column: Navigation tabs & Refresh -->
+    <div class="flex-1 flex items-center justify-between gap-2 px-3 overflow-x-auto min-w-0 bg-surface/30">
       <!-- Sub Tabs -->
-      <div class="flex items-center bg-black/5 p-0.5 rounded-lg">
+      <div class="flex items-center bg-black/5 p-0.5 rounded-lg shrink-0">
         <button
           type="button"
           onclick={() => activeSubTab = "browse"}
-          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all {activeSubTab === 'browse' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer {activeSubTab === 'browse' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
         >
           Données
         </button>
         <button
           type="button"
           onclick={() => activeSubTab = "query"}
-          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all {activeSubTab === 'query' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer {activeSubTab === 'query' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
         >
           Console SQL
         </button>
         <button
           type="button"
           onclick={() => activeSubTab = "schema"}
-          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all {activeSubTab === 'schema' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer {activeSubTab === 'schema' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
         >
           Schéma DDL
         </button>
@@ -233,7 +231,7 @@
         type="button"
         onclick={loadSchema}
         disabled={loading}
-        class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
         title="Actualiser la base"
       >
         <svg class="w-4 h-4 {loading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,9 +281,6 @@
     <div class="flex-1 flex overflow-hidden">
       <!-- Tables Sidebar -->
       <div class="w-48 border-r border-black/10 bg-surface/30 flex flex-col shrink-0">
-        <div class="p-2 border-b border-black/10 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-          <span>Tables ({tables.length})</span>
-        </div>
         <div class="flex-1 overflow-y-auto p-1 space-y-0.5">
           {#each tables as table}
             <button

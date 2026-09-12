@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import Button from './button.svelte';
+  import ThemeToggle from './theme-toggle.svelte';
   import { cn } from '$utils/cn';
   import { locales, localeAbbreviations, isLocale, localeDirections } from '$lib/i18n/config';
   import type { Locale } from '$lib/i18n/config';
@@ -104,6 +105,7 @@
     </nav>
 
     <div class="hidden items-center gap-3 md:flex">
+      <ThemeToggle />
       <div class="relative inline-flex items-center text-xs">
         <label for="desktop-language" class="sr-only">
           {languageLabel}
@@ -177,6 +179,10 @@
     )}
   >
     <nav class="space-y-3 rounded-3xl border border-black/5 bg-surface p-6 shadow-retro-sm md:bg-surface/80 md:backdrop-blur-md">
+      <div class="flex items-center justify-between pb-2 border-b border-black/5">
+        <span class="text-xs uppercase tracking-[0.3em] text-muted-foreground">Mode</span>
+        <ThemeToggle />
+      </div>
       <div class="space-y-2 text-xs">
         <label
           for="mobile-language"

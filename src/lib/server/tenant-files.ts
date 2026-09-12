@@ -45,6 +45,7 @@ const IGNORED_DIRS = new Set([
   "dist",
   "build",
   ".local-data",
+  "uploads",
 ]);
 
 const IGNORED_FILES = new Set([

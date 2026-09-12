@@ -14,6 +14,9 @@
   import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
   import SqliteInspector from "$lib/components/studio/SqliteInspector.svelte";
   import ImagePreviewer from "$lib/components/studio/ImagePreviewer.svelte";
+  import ThemeToggle from "$lib/components/theme-toggle.svelte";
+  import { theme } from "$lib/stores/theme";
+  import { oneDark } from "@codemirror/theme-one-dark";
   import { getFileCategory, isBinaryFile } from "$lib/utils/file-types";
 
   function isFilePath(str: string): boolean {
@@ -894,6 +897,69 @@
     },
   });
 
+  const darkEditorTheme = EditorView.theme({
+    "&": {
+      height: "100%",
+      fontSize: "12px",
+      fontFamily: "'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      backgroundColor: "hsl(var(--card))",
+      color: "hsl(var(--foreground))",
+    },
+    ".cm-content": {
+      padding: "16px 0",
+      caretColor: "hsl(var(--brand))",
+      lineHeight: "1.6",
+    },
+    ".cm-cursor": {
+      borderLeftColor: "hsl(var(--brand))",
+      borderLeftWidth: "2px",
+    },
+    ".cm-gutters": {
+      backgroundColor: "hsl(var(--surface))",
+      color: "hsl(var(--muted-foreground))",
+      borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+      borderLeft: "none",
+      borderTop: "none",
+      borderBottom: "none",
+      paddingRight: "6px",
+      userSelect: "none",
+      zIndex: "5",
+    },
+    ".cm-lineNumbers .cm-gutterElement": {
+      paddingLeft: "10px",
+      paddingRight: "8px",
+      minWidth: "32px",
+      textAlign: "right",
+    },
+    ".cm-activeLineGutter": {
+      backgroundColor: "rgba(255, 255, 255, 0.06)",
+      color: "#ffffff",
+      fontWeight: "bold",
+    },
+    ".cm-activeLine": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+    ".cm-scroller": {
+      overflow: "auto",
+      fontFamily: "inherit",
+    },
+    "&.cm-focused": {
+      outline: "none",
+    },
+  });
+
+  const themeCompartment = new Compartment();
+
+  function getEditorThemeExtensions(isDark: boolean) {
+    if (isDark) {
+      return [oneDark, darkEditorTheme];
+    }
+    return [
+      retroEditorTheme,
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true })
+    ];
+  }
+
   onMount(() => {
     if (typeof window !== "undefined") {
       if (data.sessionToken) {
@@ -938,8 +1004,7 @@
             },
           },
         ]),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        retroEditorTheme,
+        themeCompartment.of(getEditorThemeExtensions($theme === "dark")),
         languageCompartment.of(getLangExtension(initialFile.lang)),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && files[activeFile]) {
@@ -957,6 +1022,15 @@
     return () => {
       editorView?.destroy();
     };
+  });
+
+  $effect(() => {
+    const isDark = $theme === "dark";
+    if (editorView) {
+      editorView.dispatch({
+        effects: themeCompartment.reconfigure(getEditorThemeExtensions(isDark)),
+      });
+    }
   });
 
   function switchFile(filePath: string) {
@@ -1356,6 +1430,8 @@
           <span>Publier</span>
         {/if}
       </button>
+
+      <ThemeToggle />
 
       <a
         href="/dashboard"
@@ -2322,7 +2398,7 @@
             type="button"
             disabled={topupLoading !== null}
             onclick={() => handleTopup("starter")}
-            class="mt-4 w-full py-2 px-3 rounded-lg border border-black/15 bg-white hover:bg-black/5 text-foreground text-xs font-medium transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+            class="mt-4 w-full py-2 px-3 rounded-lg border border-black/15 bg-card hover:bg-surface text-foreground text-xs font-medium transition-all shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {#if topupLoading === "starter"}
               Chargement...
@@ -2369,7 +2445,7 @@
             type="button"
             disabled={topupLoading !== null}
             onclick={() => handleTopup("agency")}
-            class="mt-4 w-full py-2 px-3 rounded-lg border border-black/15 bg-white hover:bg-black/5 text-foreground text-xs font-medium transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+            class="mt-4 w-full py-2 px-3 rounded-lg border border-black/15 bg-card hover:bg-surface text-foreground text-xs font-medium transition-all shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {#if topupLoading === "agency"}
               Chargement...

@@ -741,6 +741,23 @@ const server = Bun.serve({
       const tenantSlug = hostTenantSlug || devMatch![1];
       const subPath = hostTenantSlug ? (path + url.search) : ((devMatch![2] || "/") + url.search);
 
+      // Serve user uploads from persistent directory outside git (/data/tenants/{tenant}/uploads/)
+      if (subPath.startsWith("/uploads/")) {
+        const uploadFileName = subPath.replace(/^\/uploads\//, "").split("?")[0];
+        const uploadFilePath = join(DATA_DIR, "tenants", tenantSlug, "uploads", uploadFileName);
+        if (existsSync(uploadFilePath)) {
+          const fileBuffer = readFileSync(uploadFilePath);
+          const mime = getImageMime(uploadFileName);
+          return new Response(fileBuffer, {
+            headers: {
+              "Content-Type": mime,
+              "Cache-Control": "public, max-age=3600",
+              "Access-Control-Allow-Origin": "*",
+            },
+          });
+        }
+      }
+
       try {
         const devPort = await getOrLaunchTenantDevServer(tenantSlug);
 
@@ -848,6 +865,7 @@ const server = Bun.serve({
           ".gemini-sandbox",
           "dist",
           "build",
+          "uploads",
         ]);
         const ignoredFiles = new Set(["bun.lock", ".DS_Store", "thumbs.db"]);
 
@@ -1525,8 +1543,12 @@ const server = Bun.serve({
         let savedImageUrl = "";
         if (image && image.base64) {
           try {
-            const uploadsDir = join(tenantCodeDir, "static", "uploads");
+            const uploadsDir = join(DATA_DIR, "tenants", project, "uploads");
             mkdirSync(uploadsDir, { recursive: true });
+            if (isLinuxRoot()) {
+              const tenantUser = ensureTenantSystemUser(project);
+              Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, uploadsDir]);
+            }
 
             let ext = "png";
             if (image.name && image.name.includes(".")) {
