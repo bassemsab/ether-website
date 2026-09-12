@@ -1699,7 +1699,7 @@
                   {/if}
                 </div>
               {:else}
-                <div class="w-full text-left p-4 sm:p-5 rounded-2xl leading-relaxed border border-black/10 dark:border-white/15 bg-card dark:bg-[#1a1a24] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none">
+                <div class="w-full text-left p-4 sm:p-5 dark:p-2.5 dark:sm:p-2.5 rounded-2xl dark:rounded-xl leading-relaxed border border-black/10 dark:border-white/15 bg-card dark:bg-[#1a1a24] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none">
                   {#if msg.imageUrl}
                     <div class="mb-2">
                       <button
@@ -1733,7 +1733,7 @@
 
                   {#if msg.steps && msg.steps.length > 0}
                     <details
-                      class="mb-3.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-[11px] font-mono overflow-hidden group"
+                      class="mb-3.5 dark:mb-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-[11px] font-mono overflow-hidden group"
                       open={Boolean(isThinking && msg === messages[messages.length - 1])}
                     >
                       <summary class="flex items-center justify-between p-2.5 cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-muted-foreground font-medium">
