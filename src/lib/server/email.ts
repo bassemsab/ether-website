@@ -417,56 +417,402 @@ export async function sendOtpEmail(email: string, code: string) {
     </html>
   `;
 
-  // Prefer internal SMTP
+  return sendSystemEmail({
+    from,
+    to: email,
+    subject,
+    html,
+  });
+}
+
+/**
+ * Robust email dispatcher: tries cluster SMTP first, then Resend API fallback.
+ */
+export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
+  const from = options.from || "ether <contact@ether.paris>";
+
+  // 1. Try internal cluster SMTP first
   try {
     await sendSmtpEmail({
+      ...options,
       from,
-      to: email,
-      subject,
-      html,
     });
-    console.log(`[sendOtpEmail] Sent OTP to ${email} via SMTP`);
-    return;
+    console.log(`[sendSystemEmail] Sent email to ${options.to} via SMTP: "${options.subject}"`);
+    return { success: true, provider: "smtp" };
   } catch (smtpErr) {
     console.warn(
-      "[sendOtpEmail] SMTP send failed, falling back to Resend:",
+      "[sendSystemEmail] SMTP send failed, falling back to Resend:",
       smtpErr,
     );
-    const resendToken =
-      process.env.RESEND_EMAIL_TOKEN ||
-      process.env.RESEND_API_KEY ||
-      process.env.RESEDN_EMAIL_TOKEN;
-    if (resendToken && !resendToken.includes("replace_with")) {
-      try {
-        const resend = new Resend(resendToken);
-        const { data, error } = await resend.emails.send({
-          from,
-          to: email,
-          subject,
-          html,
-        });
-        if (!error) return data;
-        console.warn("[sendOtpEmail] Resend error:", error);
-      } catch (rErr) {
-        console.warn("[sendOtpEmail] Resend send threw:", rErr);
-      }
-    }
-
-    // In local development, never block login: print the code to the terminal
-    const isLocal =
-      process.env.NODE_ENV !== "production" ||
-      (process.env.BASE_URL || "").includes("localhost") ||
-      process.platform === "darwin";
-
-    if (isLocal) {
-      console.log("\n==================================================");
-      console.log(`🔑 [CODE DE CONNEXION LOCAL]`);
-      console.log(`   Email : ${email}`);
-      console.log(`   Code  : ${code}`);
-      console.log("==================================================\n");
-      return;
-    }
-
-    throw smtpErr;
   }
+
+  // 2. Fallback to Resend
+  const resendToken =
+    process.env.RESEND_EMAIL_TOKEN ||
+    process.env.RESEND_API_KEY ||
+    process.env.RESEDN_EMAIL_TOKEN;
+
+  if (resendToken && !resendToken.includes("replace_with")) {
+    try {
+      const resend = new Resend(resendToken);
+      const { data, error } = await resend.emails.send({
+        from,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      });
+      if (!error) {
+        console.log(`[sendSystemEmail] Sent email to ${options.to} via Resend: "${options.subject}"`);
+        return { success: true, provider: "resend", data };
+      }
+      console.warn("[sendSystemEmail] Resend error:", error);
+    } catch (rErr) {
+      console.warn("[sendSystemEmail] Resend send threw:", rErr);
+    }
+  }
+
+  // 3. In local development or testing, log instead of failing
+  const isLocal =
+    process.env.NODE_ENV !== "production" ||
+    (process.env.BASE_URL || "").includes("localhost") ||
+    process.platform === "darwin";
+
+  if (isLocal) {
+    console.log("\n==================================================");
+    console.log(`📧 [EMAIL MOCK / DEV DISPATCH]`);
+    console.log(`   To     : ${options.to}`);
+    console.log(`   Subject: ${options.subject}`);
+    console.log("==================================================\n");
+    return { success: true, provider: "mock" };
+  }
+
+  throw new Error(`Failed to deliver email to ${options.to} via SMTP and Resend`);
+}
+
+export interface PromptTopupEmailParams {
+  email: string;
+  tenantSlug: string;
+  packName: string;
+  prompts: number;
+  priceFormatted: string;
+  orderDate?: string;
+}
+
+/**
+ * Sends a confirmation email to the user when they purchase a prompt top-up pack.
+ */
+export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailParams) {
+  const from = "ether · studio <contact@ether.paris>";
+  const subject = `Confirmation de commande · ${params.packName}`;
+  const studioUrl = `https://studio.ether.paris/studio?project=${encodeURIComponent(params.tenantSlug)}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Confirmation de commande · ether studio</title>
+      <style>
+        body {
+          margin: 0;
+          padding: 0;
+          background-color: #FBF9F5;
+          font-family: -apple-system, BlinkMacSystemFont, "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #1E1B39;
+        }
+        .email-table {
+          width: 100%;
+          border-collapse: collapse;
+          background-color: #FBF9F5;
+          padding: 32px 16px;
+        }
+        .email-card {
+          max-width: 520px;
+          margin: 0 auto;
+          background-color: #FFFFFF;
+          border: 1.5px solid #1E1B39;
+          border-radius: 20px;
+          box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15);
+          padding: 36px 32px;
+          text-align: left;
+        }
+        .badge {
+          display: inline-block;
+          background-color: #FAF7F2;
+          border: 1px solid #1E1B39;
+          padding: 4px 10px;
+          border-radius: 9999px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: #FF5500;
+        }
+        .title {
+          font-size: 22px;
+          font-weight: 700;
+          margin-top: 16px;
+          margin-bottom: 8px;
+          color: #1E1B39;
+        }
+        .text {
+          font-size: 14px;
+          line-height: 1.6;
+          color: #4B5563;
+        }
+        .receipt-box {
+          margin: 24px 0;
+          padding: 20px;
+          background-color: #FAF7F2;
+          border: 1.5px solid #1E1B39;
+          border-radius: 14px;
+          box-shadow: 3px 3px 0px 0px #1E1B39;
+        }
+        .button {
+          display: inline-block;
+          background-color: #FF5500;
+          color: #FFFFFF !important;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 13px;
+          padding: 12px 24px;
+          border-radius: 10px;
+          border: 1.5px solid #1E1B39;
+          box-shadow: 2px 2px 0px 0px #1E1B39;
+          text-align: center;
+          margin-top: 16px;
+        }
+        .footer {
+          margin-top: 32px;
+          padding-top: 20px;
+          border-top: 1px solid #E5E7EB;
+          font-size: 11px;
+          color: #9CA3AF;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <table class="email-table" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center">
+            <div class="email-card">
+              <span class="badge">ether · studio</span>
+              <h1 class="title">Paiement confirmé 🎉</h1>
+              <p class="text">
+                Merci pour votre achat ! Votre solde de prompts a été crédité avec succès et est immédiatement disponible dans votre espace Studio.
+              </p>
+
+              <div class="receipt-box">
+                <table width="100%" style="border-collapse: collapse; font-size: 13px;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #6B7280;">Article</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: 600; color: #1E1B39;">${params.packName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #6B7280;">Prompts ajoutés</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: 600; color: #059669;">+${params.prompts} prompts</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #6B7280;">Validité</td>
+                    <td style="padding: 6px 0; text-align: right; color: #1E1B39;">Sans expiration</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #6B7280;">Site associé</td>
+                    <td style="padding: 6px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.tenantSlug}</td>
+                  </tr>
+                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
+                    <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 14px; color: #1E1B39;">Total réglé</td>
+                    <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 15px; color: #1E1B39;">${params.priceFormatted} TTC</td>
+                  </tr>
+                </table>
+              </div>
+
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="${studioUrl}" class="button" target="_blank">Ouvrir le Studio &rarr;</a>
+              </div>
+
+              <p class="text" style="font-size: 12px; color: #6B7280;">
+                Une question ou besoin d'aide ? Répondez directement à cet email ou contactez notre équipe à <a href="mailto:contact@ether.paris" style="color: #FF5500;">contact@ether.paris</a>.
+              </p>
+
+              <div class="footer">
+                © ether · plateforme &amp; studio web · paris
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  return sendSystemEmail({
+    from,
+    to: params.email,
+    subject,
+    html,
+  });
+}
+
+export interface DomainPurchaseEmailParams {
+  email: string;
+  domain: string;
+  tenantSlug: string;
+  priceFormatted: string;
+}
+
+/**
+ * Sends a confirmation email to the user when they purchase a custom domain.
+ */
+export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchaseEmailParams) {
+  const from = "ether · domaines <contact@ether.paris>";
+  const subject = `Activation de votre domaine · ${params.domain}`;
+  const siteUrl = `https://${params.domain}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Activation de votre domaine · ether</title>
+      <style>
+        body {
+          margin: 0;
+          padding: 0;
+          background-color: #FBF9F5;
+          font-family: -apple-system, BlinkMacSystemFont, "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #1E1B39;
+        }
+        .email-table {
+          width: 100%;
+          border-collapse: collapse;
+          background-color: #FBF9F5;
+          padding: 32px 16px;
+        }
+        .email-card {
+          max-width: 520px;
+          margin: 0 auto;
+          background-color: #FFFFFF;
+          border: 1.5px solid #1E1B39;
+          border-radius: 20px;
+          box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15);
+          padding: 36px 32px;
+          text-align: left;
+        }
+        .badge {
+          display: inline-block;
+          background-color: #FAF7F2;
+          border: 1px solid #1E1B39;
+          padding: 4px 10px;
+          border-radius: 9999px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: #FF5500;
+        }
+        .title {
+          font-size: 22px;
+          font-weight: 700;
+          margin-top: 16px;
+          margin-bottom: 8px;
+          color: #1E1B39;
+        }
+        .text {
+          font-size: 14px;
+          line-height: 1.6;
+          color: #4B5563;
+        }
+        .receipt-box {
+          margin: 24px 0;
+          padding: 20px;
+          background-color: #FAF7F2;
+          border: 1.5px solid #1E1B39;
+          border-radius: 14px;
+          box-shadow: 3px 3px 0px 0px #1E1B39;
+        }
+        .button {
+          display: inline-block;
+          background-color: #FF5500;
+          color: #FFFFFF !important;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 13px;
+          padding: 12px 24px;
+          border-radius: 10px;
+          border: 1.5px solid #1E1B39;
+          box-shadow: 2px 2px 0px 0px #1E1B39;
+          text-align: center;
+          margin-top: 16px;
+        }
+        .footer {
+          margin-top: 32px;
+          padding-top: 20px;
+          border-top: 1px solid #E5E7EB;
+          font-size: 11px;
+          color: #9CA3AF;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <table class="email-table" width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center">
+            <div class="email-card">
+              <span class="badge">ether · domaines</span>
+              <h1 class="title">Domaine réservé et actif 🎉</h1>
+              <p class="text">
+                Félicitations ! Votre nom de domaine personnalisé <strong>${params.domain}</strong> a été réservé et relié à votre site.
+              </p>
+
+              <div class="receipt-box">
+                <table width="100%" style="border-collapse: collapse; font-size: 13px;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #6B7280;">Domaine</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: 600; font-family: monospace; color: #1E1B39;">${params.domain}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #6B7280;">Protection DNS</td>
+                    <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600;">Cloudflare Edge SSL</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #6B7280;">Email professionnel</td>
+                    <td style="padding: 6px 0; text-align: right; font-family: monospace; color: #1E1B39;">contact@${params.domain}</td>
+                  </tr>
+                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
+                    <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 14px; color: #1E1B39;">Abonnement</td>
+                    <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 15px; color: #1E1B39;">${params.priceFormatted}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="${siteUrl}" class="button" target="_blank">Voir mon site en ligne &rarr;</a>
+              </div>
+
+              <p class="text" style="font-size: 12px; color: #6B7280;">
+                La propagation DNS mondiale s'effectue généralement en quelques minutes.
+              </p>
+
+              <div class="footer">
+                © ether · plateforme &amp; studio web · paris
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  return sendSystemEmail({
+    from,
+    to: params.email,
+    subject,
+    html,
+  });
 }

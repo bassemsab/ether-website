@@ -3,11 +3,16 @@ import Stripe from "stripe";
 import {
   updateDomainOrderStatus,
   getTenantById,
+  getTenantBySlug,
   updateTenantStatus,
   addTenantExtraPrompts,
 } from "./db";
 import { updateTenantCustomDomainIngress } from "./k8s-tenant";
 import { provisionBookedDomain } from "./domains";
+import {
+  sendPromptTopupConfirmationEmail,
+  sendDomainPurchaseConfirmationEmail,
+} from "./email";
 
 const STRIPE_SECRET_KEY =
   env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY || "";
@@ -28,34 +33,69 @@ export interface CreateCheckoutParams {
   cancelUrl: string;
 }
 
+export type TopupPackId =
+  | "starter"
+  | "creator"
+  | "agency"
+  | "pack_20"
+  | "pack_50"
+  | "pack_150";
+
 export interface CreateTopupCheckoutParams {
   tenantSlug: string;
   tenantId: number;
-  packId: "pack_20" | "pack_50" | "pack_150";
+  packId: TopupPackId;
   customerEmail: string;
   successUrl: string;
   cancelUrl: string;
 }
 
 export const TOPUP_PACKS: Record<
-  "pack_20" | "pack_50" | "pack_150",
-  { name: string; prompts: number; priceCents: number; description: string }
+  TopupPackId,
+  { id: TopupPackId; name: string; prompts: number; priceCents: number; description: string }
 > = {
-  pack_20: {
+  starter: {
+    id: "starter",
     name: "Pack Starter · 20 Prompts Studio",
     prompts: 20,
     priceCents: 500, // 5.00 €
     description:
       "20 modifications IA supplémentaires sans expiration pour continuer à faire évoluer votre site.",
   },
-  pack_50: {
+  pack_20: {
+    id: "starter",
+    name: "Pack Starter · 20 Prompts Studio",
+    prompts: 20,
+    priceCents: 500, // 5.00 €
+    description:
+      "20 modifications IA supplémentaires sans expiration pour continuer à faire évoluer votre site.",
+  },
+  creator: {
+    id: "creator",
     name: "Pack Créateur · 50 Prompts Studio (Populaire)",
     prompts: 50,
     priceCents: 1000, // 10.00 €
     description:
       "50 modifications IA supplémentaires pour concevoir, peaufiner et publier un site complet.",
   },
+  pack_50: {
+    id: "creator",
+    name: "Pack Créateur · 50 Prompts Studio (Populaire)",
+    prompts: 50,
+    priceCents: 1000, // 10.00 €
+    description:
+      "50 modifications IA supplémentaires pour concevoir, peaufiner et publier un site complet.",
+  },
+  agency: {
+    id: "agency",
+    name: "Pack Agence · 150 Prompts Studio",
+    prompts: 150,
+    priceCents: 2500, // 25.00 €
+    description:
+      "150 modifications IA au tarif préférentiel pour les projets ambitieux et créateurs exigeants.",
+  },
   pack_150: {
+    id: "agency",
     name: "Pack Agence · 150 Prompts Studio",
     prompts: 150,
     priceCents: 2500, // 25.00 €
@@ -70,13 +110,25 @@ export const TOPUP_PACKS: Record<
 export async function createPromptTopupCheckoutSession(
   params: CreateTopupCheckoutParams,
 ): Promise<{ url: string; sessionId: string }> {
-  const pack = TOPUP_PACKS[params.packId] || TOPUP_PACKS.pack_20;
+  const pack = TOPUP_PACKS[params.packId] || TOPUP_PACKS.starter;
 
   if (!stripe) {
     console.warn(
       "[Stripe] STRIPE_SECRET_KEY not set, auto-crediting and generating mock checkout link for dev",
     );
     addTenantExtraPrompts(params.tenantSlug, pack.prompts);
+
+    // Send confirmation email in mock mode too if customer email is provided
+    if (params.customerEmail) {
+      sendPromptTopupConfirmationEmail({
+        email: params.customerEmail,
+        tenantSlug: params.tenantSlug,
+        packName: pack.name,
+        prompts: pack.prompts,
+        priceFormatted: `${(pack.priceCents / 100).toFixed(2).replace(".", ",")} €`,
+      }).catch((e) => console.warn("[Stripe Mock] Confirmation email error:", e.message));
+    }
+
     return {
       url: `${params.successUrl}&mock_topup=true&prompts=${pack.prompts}`,
       sessionId: `mock_topup_${Date.now()}`,
@@ -193,11 +245,42 @@ export async function handleStripeWebhookEvent(
     if (session.metadata?.type === "prompt_topup") {
       const tenantSlug = session.metadata.tenant_slug;
       const promptsToAdd = parseInt(session.metadata.prompts || "0", 10);
+      const packId = session.metadata.pack_id as TopupPackId;
+      const pack = TOPUP_PACKS[packId] || TOPUP_PACKS.starter;
+
       if (tenantSlug && promptsToAdd > 0) {
         console.log(
           `[Stripe Webhook] Processing prompt top-up: +${promptsToAdd} prompts for ${tenantSlug}`,
         );
         addTenantExtraPrompts(tenantSlug, promptsToAdd);
+
+        // Send purchase confirmation email
+        const tenant = await getTenantBySlug(tenantSlug);
+        const customerEmail =
+          session.customer_details?.email ||
+          session.customer_email ||
+          tenant?.email;
+
+        if (customerEmail) {
+          try {
+            await sendPromptTopupConfirmationEmail({
+              email: customerEmail,
+              tenantSlug,
+              packName: pack.name,
+              prompts: promptsToAdd,
+              priceFormatted: `${(pack.priceCents / 100).toFixed(2).replace(".", ",")} €`,
+            });
+            console.log(
+              `[Stripe Webhook] Sent top-up confirmation email to ${customerEmail}`,
+            );
+          } catch (emailErr: any) {
+            console.error(
+              `[Stripe Webhook] Failed to send top-up email to ${customerEmail}:`,
+              emailErr.message,
+            );
+          }
+        }
+
         return { received: true, action: "prompt_topup_credited" };
       }
     }
@@ -242,6 +325,38 @@ export async function handleStripeWebhookEvent(
 
         // 5. Automate domain provisioning, DNS and Email routing
         await provisionBookedDomain(domain, provider, tenant.email);
+
+        // 6. Send domain purchase confirmation email
+        const customerEmail =
+          session.customer_details?.email ||
+          session.customer_email ||
+          tenant.email;
+
+        if (customerEmail) {
+          try {
+            const priceCents = parseInt(
+              session.metadata?.price_cents || "0",
+              10,
+            );
+            await sendDomainPurchaseConfirmationEmail({
+              email: customerEmail,
+              domain,
+              tenantSlug: tenant.slug || "",
+              priceFormatted:
+                priceCents > 0
+                  ? `${(priceCents / 100).toFixed(2).replace(".", ",")} € / an`
+                  : "payé",
+            });
+            console.log(
+              `[Stripe Webhook] Sent domain purchase confirmation email to ${customerEmail}`,
+            );
+          } catch (emailErr: any) {
+            console.error(
+              `[Stripe Webhook] Failed to send domain purchase email:`,
+              emailErr.message,
+            );
+          }
+        }
       }
 
       return { received: true, action: "domain_activated" };
