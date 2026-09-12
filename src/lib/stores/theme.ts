@@ -5,7 +5,8 @@ export type Theme = "light" | "dark";
 
 function getInitialTheme(): Theme {
   if (!browser) return "light";
-  if (document.documentElement.classList.contains("dark")) return "dark";
+  const isStudio = window.location.pathname.startsWith("/studio");
+  if (!isStudio) return "light";
   const saved = localStorage.getItem("ether_theme");
   if (saved === "dark" || saved === "light") return saved;
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -21,7 +22,8 @@ function createThemeStore() {
     setTheme: (t: Theme) => {
       if (browser) {
         localStorage.setItem("ether_theme", t);
-        if (t === "dark") {
+        const isStudio = window.location.pathname.startsWith("/studio");
+        if (isStudio && t === "dark") {
           document.documentElement.classList.add("dark");
         } else {
           document.documentElement.classList.remove("dark");
@@ -34,7 +36,8 @@ function createThemeStore() {
         const next = current === "dark" ? "light" : "dark";
         if (browser) {
           localStorage.setItem("ether_theme", next);
-          if (next === "dark") {
+          const isStudio = window.location.pathname.startsWith("/studio");
+          if (isStudio && next === "dark") {
             document.documentElement.classList.add("dark");
           } else {
             document.documentElement.classList.remove("dark");
@@ -45,6 +48,12 @@ function createThemeStore() {
     },
     init: () => {
       if (browser) {
+        const isStudio = window.location.pathname.startsWith("/studio");
+        if (!isStudio) {
+          document.documentElement.classList.remove("dark");
+          set("light");
+          return;
+        }
         const t = getInitialTheme();
         if (t === "dark") {
           document.documentElement.classList.add("dark");

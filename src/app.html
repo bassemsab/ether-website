@@ -39,13 +39,18 @@
     />
     <script>
       try {
-        const storedTheme = localStorage.getItem("ether_theme");
-        if (
-          storedTheme === "dark" ||
-          (!storedTheme &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches)
-        ) {
-          document.documentElement.classList.add("dark");
+        const isStudio = window.location.pathname.startsWith("/studio");
+        if (isStudio) {
+          const storedTheme = localStorage.getItem("ether_theme");
+          if (
+            storedTheme === "dark" ||
+            (!storedTheme &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches)
+          ) {
+            document.documentElement.classList.add("dark");
+          } else {
+            document.documentElement.classList.remove("dark");
+          }
         } else {
           document.documentElement.classList.remove("dark");
         }

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { browser } from "$app/environment";
   import BrandMark from "$lib/components/brand-mark.svelte";
   import type { PageData } from "./$types";
   import { marked } from "marked";
@@ -1053,7 +1054,14 @@
     ];
   }
 
+  onDestroy(() => {
+    if (browser) {
+      document.documentElement.classList.remove("dark");
+    }
+  });
+
   onMount(() => {
+    theme.init();
     if (typeof window !== "undefined") {
       if (data.sessionToken) {
         try {
