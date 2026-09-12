@@ -7,6 +7,16 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      force_runner:
+        description: 'Force rebuild and restart agent-runner'
+        type: boolean
+        default: false
+      force_website:
+        description: 'Force rebuild and redeploy ether-website'
+        type: boolean
+        default: true
 
 env:
   REGISTRY: ghcr.io
@@ -15,22 +25,68 @@ env:
 jobs:
   docker:
     runs-on: ubuntu-24.04-arm
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Workflow dispatch triggered."
+            echo "runner_changed=${{ inputs.force_runner }}" >> $GITHUB_OUTPUT
+            echo "website_changed=${{ inputs.force_website }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          BEFORE="${{ github.event.before }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+            DIFF_BASE="HEAD~1"
+          else
+            DIFF_BASE="$BEFORE"
+          fi
+
+          echo "Diffing against base: $DIFF_BASE"
+          CHANGED_FILES=$(git diff --name-only $DIFF_BASE ${{ github.sha }} 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          RUNNER_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -q -E '^(runner/|k8s/studio/)'; then
+            RUNNER_CHANGED=true
+          fi
+
+          WEBSITE_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -v -E '^(runner/|k8s/studio/)' | grep -q .; then
+            WEBSITE_CHANGED=true
+          fi
+
+          echo "Detected RUNNER_CHANGED: $RUNNER_CHANGED"
+          echo "Detected WEBSITE_CHANGED: $WEBSITE_CHANGED"
+
+          echo "runner_changed=$RUNNER_CHANGED" >> $GITHUB_OUTPUT
+          echo "website_changed=$WEBSITE_CHANGED" >> $GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry
+        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
+      - name: Set up Docker Buildx
+        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Website Docker metadata
+        if: steps.changes.outputs.website_changed == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -40,10 +96,8 @@ jobs:
             type=sha,prefix=,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push Docker image
+      - name: Build and push Website Docker image
+        if: steps.changes.outputs.website_changed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -53,6 +107,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Build and push Runner Docker image
+        if: steps.changes.outputs.runner_changed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -66,22 +121,25 @@ jobs:
             ${{ env.REGISTRY }}/bassemsab/agy-runner:${{ github.sha }}
 
       - name: Set up Kubeconfig
+        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true'
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
 
-      - name: Apply K8s Configs
+      - name: Deploy ether-website
+        if: steps.changes.outputs.website_changed == 'true'
         run: |
           kubectl apply -f k8s/
-          kubectl apply -f k8s/studio/
           kubectl set image deployment/ether-website ether-website=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n ether
           kubectl set env deployment/ether-website -n ether APP_RELEASE=${{ github.sha }}
-          kubectl set image deployment/agent-runner agy-runner=${{ env.REGISTRY }}/bassemsab/agy-runner:${{ github.sha }} -n ether
-
-      - name: Trigger Rollout Restart
-        run: |
           kubectl rollout restart deployment ether-website -n ether
           kubectl rollout status deployment ether-website -n ether
+
+      - name: Deploy agent-runner
+        if: steps.changes.outputs.runner_changed == 'true'
+        run: |
+          kubectl apply -f k8s/studio/
+          kubectl set image deployment/agent-runner agy-runner=${{ env.REGISTRY }}/bassemsab/agy-runner:${{ github.sha }} -n ether
           kubectl rollout restart deployment agent-runner -n ether
           kubectl rollout status deployment agent-runner -n ether
