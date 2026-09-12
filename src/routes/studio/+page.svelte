@@ -2205,14 +2205,14 @@
       class="{showPreview ? 'flex' : 'hidden'} flex-col h-full overflow-hidden bg-surface/30 flex-1 w-full min-w-0"
     >
       <!-- Preview Toolbar -->
-      <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-3 text-xs font-mono shrink-0">
+      <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-3 text-xs font-mono shrink-0 gap-2 overflow-x-auto no-scrollbar">
         <!-- Viewport & Environment Switchers -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 shrink-0">
           <!-- Viewport Switcher: ONLY Desktop or Mobile -->
-          <div class="flex items-center gap-1 bg-surface/80 p-0.5 rounded-lg border border-black/10">
+          <div class="flex items-center gap-[2px] bg-surface/80 p-[2px] rounded-full border border-black/10 shrink-0 shadow-retro-sm">
             <button
               onclick={() => viewportMode = "desktop"}
-              class="px-2.5 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'desktop' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              class="px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'desktop' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
               title="Vue Bureau"
             >
               <span>🖥</span>
@@ -2220,7 +2220,7 @@
             </button>
             <button
               onclick={() => viewportMode = "mobile"}
-              class="px-2.5 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'mobile' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+              class="px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer {viewportMode === 'mobile' ? 'bg-brand text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
               title="Vue Mobile"
             >
               <span>📱</span>
@@ -2230,11 +2230,11 @@
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 shrink-0">
           <!-- Fullscreen / Expand preview toggle -->
           <button
             onclick={togglePreviewFullscreen}
-            class="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors cursor-pointer"
+            class="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors cursor-pointer shrink-0"
             title={!showChat && !showEditor ? "Restaurer les volets" : "Agrandir l'aperçu"}
           >
             {#if !showChat && !showEditor}
@@ -2250,7 +2250,7 @@
 
           <button
             onclick={refreshPreview}
-            class="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-black/5 cursor-pointer"
+            class="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-black/5 cursor-pointer shrink-0"
             title="Rafraîchir l'aperçu"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2262,15 +2262,15 @@
             href={previewUrl}
             target="_blank"
             rel="noopener"
-            class="text-[11px] text-brand hover:underline font-mono inline-flex items-center gap-1"
+            class="text-[11px] text-brand hover:underline font-mono inline-flex items-center gap-1 whitespace-nowrap shrink-0 px-1 py-0.5 rounded hover:bg-brand/5"
             title="Ouvrir l'aperçu du code dans un nouvel onglet"
           >
-            Ouvrir ↗
+            <span>Ouvrir</span><span class="text-xs leading-none">↗</span>
           </a>
 
           <button
             onclick={() => showPreview = false}
-            class="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors cursor-pointer"
+            class="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors cursor-pointer shrink-0"
             title="Masquer l'aperçu"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
