@@ -47,9 +47,9 @@
   customRenderer.codespan = ({ text }) => {
     if (isFilePath(text)) {
       const path = text.replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "");
-      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${path} dans l'éditeur">📄 <span>${path}</span></button>`;
+      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand dark:text-indigo-300 dark:bg-indigo-500/15 px-2 py-0.5 rounded-md border border-brand/20 dark:border-indigo-400/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${path} dans l'éditeur">📄 <span>${path}</span></button>`;
     }
-    return `<code class="text-foreground bg-black/5 px-1 py-0.5 rounded font-mono text-[11px]">${text}</code>`;
+    return `<code class="text-foreground dark:text-neutral-100 bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-[11px]">${text}</code>`;
   };
 
   marked.use({
@@ -1473,11 +1473,11 @@
     <!-- Left Panel: AI Prompt & Chat -->
     {#if showChat}
       <div
-        class="border-r border-black/10 bg-surface/40 flex flex-col h-full overflow-hidden shrink-0 w-full lg:w-auto"
+        class="border-r border-black/10 dark:border-white/10 bg-surface/40 dark:bg-background flex flex-col h-full overflow-hidden shrink-0 w-full lg:w-auto"
         style="width: {chatWidth}px;"
       >
-        <div class="p-3 border-b border-black/10 bg-surface/80 flex items-center justify-between text-xs font-mono">
-          <span class="font-semibold text-foreground uppercase tracking-widest flex items-center gap-2">
+        <div class="p-3 border-b border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-center justify-between text-xs font-mono">
+          <span class="font-semibold text-foreground dark:text-white uppercase tracking-widest flex items-center gap-2">
             <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
@@ -1488,7 +1488,7 @@
             <button
               type="button"
               onclick={handleClearChat}
-              class="text-[11px] font-mono bg-card hover:bg-surface border border-black/10 hover:border-black/20 rounded-md px-2 py-1 text-muted-foreground hover:text-foreground cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm"
+              class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 py-1 text-muted-foreground hover:text-foreground dark:hover:text-white cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm dark:shadow-none"
               title="Nouvelle conversation (réinitialise le contexte de discussion)"
             >
               <svg class="w-3 h-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1505,7 +1505,7 @@
                   e.stopPropagation();
                   profileMenuOpen = !profileMenuOpen;
                 }}
-                class="text-[11px] font-mono bg-card hover:bg-surface border border-black/10 hover:border-black/20 rounded-md px-2.5 py-1 text-foreground cursor-pointer outline-none transition-all flex items-center gap-1.5 shadow-retro-sm"
+                class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2.5 py-1 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center gap-1.5 shadow-retro-sm dark:shadow-none"
                 title="Sélectionner l'agent actif"
                 aria-expanded={profileMenuOpen}
                 aria-haspopup="listbox"
@@ -1529,7 +1529,7 @@
 
               {#if profileMenuOpen}
                 <div
-                  class="absolute right-0 top-full mt-1.5 w-44 bg-card border border-black/10 rounded-2xl shadow-retro p-1.5 text-xs font-mono z-50 divide-y divide-black/5"
+                  class="absolute right-0 top-full mt-1.5 w-44 bg-card dark:bg-[#18181f] border border-black/10 dark:border-white/10 rounded-2xl shadow-retro dark:shadow-xl p-1.5 text-xs font-mono z-50 divide-y divide-black/5 dark:divide-white/10"
                   role="listbox"
                 >
                   <div class="p-0.5">
@@ -1541,7 +1541,7 @@
                         activeProfile = 'auto';
                         profileMenuOpen = false;
                       }}
-                      class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                      class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer text-left {activeProfile === 'auto' ? 'bg-black/5 dark:bg-white/10 font-semibold text-foreground dark:text-white' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
                     >
                       <div class="flex items-center gap-2">
                         <span class="text-amber-500">⚡</span>
@@ -1565,10 +1565,10 @@
                           activeProfile = prof.name;
                           profileMenuOpen = false;
                         }}
-                        class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+                        class="w-full flex items-center justify-between px-3 py-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer text-left {activeProfile === prof.name ? 'bg-black/5 dark:bg-white/10 font-semibold text-foreground dark:text-white' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
                       >
                         <div class="flex items-center gap-2">
-                          <span class="w-1.5 h-1.5 rounded-full {activeProfile === prof.name ? 'bg-emerald-500' : 'bg-black/20'}"></span>
+                          <span class="w-1.5 h-1.5 rounded-full {activeProfile === prof.name ? 'bg-emerald-500' : 'bg-black/20 dark:bg-white/20'}"></span>
                           <span>{prof.label || `Agent ${idx + 1}`}</span>
                         </div>
                         {#if activeProfile === prof.name}
@@ -1630,7 +1630,7 @@
                   </span>
                 {/if}
               </div>
-              <div class="inline-block text-left p-3.5 rounded-lg max-w-[90%] leading-relaxed {msg.role === 'user' ? 'bg-brand text-white shadow-retro-sm' : 'retro-card bg-card text-foreground'}">
+              <div class="inline-block text-left p-4 rounded-xl max-w-[95%] sm:max-w-[90%] leading-relaxed {msg.role === 'user' ? 'bg-brand text-white shadow-retro-sm dark:shadow-none' : 'border border-black/10 dark:border-white/10 bg-card dark:bg-[#18181f] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none'}">
                 {#if msg.imageUrl}
                   <div class="mb-2">
                     <button
@@ -1664,10 +1664,10 @@
 
                 {#if msg.role === 'assistant' && msg.steps && msg.steps.length > 0}
                   <details
-                    class="mb-3 rounded-lg bg-black/[0.03] border border-black/5 text-[11px] font-mono overflow-hidden group"
+                    class="mb-3 rounded-lg bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-[11px] font-mono overflow-hidden group"
                     open={Boolean(isThinking && msg === messages[messages.length - 1])}
                   >
-                    <summary class="flex items-center justify-between p-2.5 cursor-pointer select-none hover:bg-black/[0.02] transition-colors text-muted-foreground font-medium">
+                    <summary class="flex items-center justify-between p-2.5 cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-muted-foreground font-medium">
                       <div class="flex items-center gap-2">
                         {#if isThinking && msg === messages[messages.length - 1]}
                           <svg class="animate-spin h-3 w-3 text-brand" fill="none" viewBox="0 0 24 24">
@@ -1686,7 +1686,7 @@
                     </summary>
                     <div
                       use:autoScrollSteps={msg.steps.length}
-                      class="px-3 pb-2.5 pt-1 space-y-1 max-h-48 overflow-y-auto border-t border-black/5 scroll-smooth"
+                      class="px-3 pb-2.5 pt-1 space-y-1 max-h-48 overflow-y-auto border-t border-black/5 dark:border-white/10 scroll-smooth"
                     >
                       {#each msg.steps as step}
                         <div class="flex items-center gap-2">
@@ -1710,7 +1710,16 @@
                     <div class="whitespace-pre-wrap">{msg.content}</div>
                   {/if}
                 {:else if msg.content}
-                  <div class="prose prose-sm max-w-none text-foreground leading-relaxed prose-headings:font-display prose-headings:text-foreground prose-a:text-brand prose-code:text-foreground prose-code:bg-black/5 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                  <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed
+                    prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
+                    prose-strong:text-foreground dark:prose-strong:text-white prose-strong:font-bold
+                    prose-a:text-brand dark:prose-a:text-indigo-400
+                    prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                    prose-ol:pl-5 prose-ul:pl-5 prose-li:my-0.5
+                    prose-counters:text-muted-foreground dark:prose-counters:text-neutral-300 font-semibold
+                    prose-bullets:text-muted-foreground dark:prose-bullets:text-neutral-400
+                    prose-li:text-foreground/90 dark:prose-li:text-neutral-200
+                    prose-p:text-foreground/90 dark:prose-p:text-neutral-200">
                     {@html renderMarkdown(msg.content)}
                   </div>
                 {/if}
@@ -1720,13 +1729,13 @@
         </div>
 
         <!-- Dynamic AI Suggestion Chips -->
-        <div class="px-3 py-2 border-t border-black/5 bg-surface/30 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div class="px-3 py-2 border-t border-black/5 dark:border-white/10 bg-surface/30 dark:bg-background/90 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <span class="text-[10px] text-muted-foreground font-mono shrink-0 mr-0.5 select-none">✨ Suggestions :</span>
           {#each dynamicSuggestions as suggestion}
             <button
               type="button"
               onclick={() => { promptInput = suggestion; }}
-              class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-brand/10 hover:border-brand/30 text-muted-foreground hover:text-brand transition-all cursor-pointer truncate max-w-[280px]"
+              class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 dark:border-white/10 bg-surface dark:bg-white/[0.04] hover:bg-brand/10 dark:hover:bg-brand/20 hover:border-brand/30 dark:hover:border-brand/40 text-muted-foreground hover:text-brand dark:hover:text-indigo-300 transition-all cursor-pointer truncate max-w-[280px]"
               title={suggestion}
             >
               + {suggestion.replace(/^\+\s*/, '')}
@@ -1778,7 +1787,7 @@
         <!-- Prompt Input Form -->
         <form
           onsubmit={handleSendPrompt}
-          class="p-3 border-t border-black/10 bg-surface/80 flex items-center gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
+          class="p-3 border-t border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-center gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
         >
           <!-- Hidden file input -->
           <input
@@ -1794,7 +1803,7 @@
             type="button"
             onclick={() => fileInputRef?.click()}
             disabled={isThinking || promptQuota.remaining <= 0}
-            class="p-2 rounded-lg border border-black/10 bg-card hover:bg-black/5 text-muted-foreground hover:text-foreground transition-all cursor-pointer disabled:opacity-40 shrink-0"
+            class="p-2 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer disabled:opacity-40 shrink-0"
             title="Joindre une image (PNG, JPG, WebP, SVG, max 5Mo)"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1808,7 +1817,7 @@
             onpaste={handleChatPaste}
             placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint — Cliquez sur Recharger")}
             disabled={isThinking || promptQuota.remaining <= 0}
-            class="flex-1 rounded-lg border border-black/10 bg-card px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
+            class="flex-1 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] px-3.5 py-2 text-xs text-foreground dark:text-white placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
           />
           <button
             type="submit"
@@ -1820,14 +1829,14 @@
         </form>
 
         <!-- Quota Status Bar -->
-        <div class="px-3 py-1.5 border-t border-black/5 bg-surface/30 flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+        <div class="px-3 py-1.5 border-t border-black/5 dark:border-white/10 bg-surface/30 dark:bg-background flex items-center justify-between text-[10px] font-mono text-muted-foreground">
           <div class="flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full {promptQuota.remaining > 0 ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
             <span>Prompts ({promptQuota.plan}) :</span>
-            <span class="font-semibold {promptQuota.remaining > 0 ? 'text-foreground' : 'text-amber-600'}">
+            <span class="font-semibold {promptQuota.remaining > 0 ? 'text-foreground dark:text-neutral-200' : 'text-amber-600'}">
               {promptQuota.remaining} restant{promptQuota.remaining > 1 ? 's' : ''}
               {#if promptQuota.extraPrompts && promptQuota.extraPrompts > 0}
-                <span class="text-brand font-normal">({promptQuota.extraPrompts} extra)</span>
+                <span class="text-brand dark:text-indigo-400 font-normal">({promptQuota.extraPrompts} extra)</span>
               {/if}
             </span>
           </div>
@@ -1872,14 +1881,14 @@
 
     <!-- Center Panel: Code Editor (Kept mounted for CodeMirror persistence) -->
     <div
-      class="{showEditor ? 'flex' : 'hidden'} flex-col h-full overflow-hidden border-r border-black/10 bg-card {showPreview ? 'shrink-0' : 'flex-1 w-full min-w-0'}"
+      class="{showEditor ? 'flex' : 'hidden'} flex-col h-full overflow-hidden border-r border-black/10 dark:border-white/10 bg-card {showPreview ? 'shrink-0' : 'flex-1 w-full min-w-0'}"
       style={showPreview ? `width: ${editorWidth}px; max-width: calc(100% - 320px); min-width: 320px;` : ''}
     >
       <!-- File Tabs & Editor Controls -->
-      <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
+      <div class="h-10 border-b border-black/10 dark:border-white/10 bg-surface/60 dark:bg-background flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
         <button
           onclick={() => showExplorer = !showExplorer}
-          class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 text-brand' : ''}"
+          class="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 dark:bg-white/10 text-brand dark:text-white' : ''}"
           title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1900,7 +1909,7 @@
           {#each openTabs as path}
             {@const file = files[path] || { name: path.split('/').pop() || path, path }}
             <div
-              class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand bg-card font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-black/5'}"
+              class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand dark:text-white dark:border-brand bg-card dark:bg-[#121217] font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'}"
               role="tab"
               aria-selected={activeFile === path}
               tabindex="0"
@@ -1909,27 +1918,27 @@
               title={path}
             >
               {#if path.endsWith('.svelte')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 shrink-0">S</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
               {:else if path.endsWith('.ts')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 shrink-0">TS</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
               {:else if path.endsWith('.js') || path.endsWith('.mjs')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 shrink-0">JS</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
               {:else if path.endsWith('.json')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 shrink-0">{"{}"}</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
               {:else if path.endsWith('.html')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-400 shrink-0">&lt;&gt;</span>
               {:else if path.endsWith('.css')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
               {:else if path.endsWith('.db') || path.endsWith('.sqlite') || path.endsWith('.sqlite3')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 shrink-0">DB</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
               {:else if path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.gif') || path.endsWith('.webp') || path.endsWith('.ico')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 shrink-0">IMG</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
               {:else if path.endsWith('.svg')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 shrink-0">SVG</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400 shrink-0">SVG</span>
               {:else if path.endsWith('.md')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 shrink-0">MD</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400 shrink-0">MD</span>
               {:else}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-400 shrink-0">📄</span>
               {/if}
 
               <span class="truncate max-w-[130px]">{file.name}</span>
@@ -1938,7 +1947,7 @@
               <button
                 type="button"
                 onclick={(e) => closeTab(e, path)}
-                class="p-0.5 rounded hover:bg-black/10 text-muted-foreground hover:text-foreground opacity-50 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                class="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white opacity-50 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
                 title="Fermer l'onglet"
               >
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1993,11 +2002,11 @@
       <div class="flex-1 flex overflow-hidden min-h-0">
         <!-- File Explorer Sidebar -->
         {#if showExplorer}
-          <div class="w-44 sm:w-48 border-r border-black/10 bg-surface/40 flex flex-col shrink-0 overflow-hidden select-none">
+          <div class="w-44 sm:w-48 border-r border-black/10 dark:border-white/10 bg-background dark:bg-background flex flex-col shrink-0 overflow-hidden select-none">
             <!-- Explorer Header & Filter -->
-            <div class="p-2 border-b border-black/10 space-y-1.5 shrink-0 bg-surface/60">
+            <div class="p-2 border-b border-black/10 dark:border-white/10 space-y-1.5 shrink-0 bg-background/90 dark:bg-background">
               <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                <span class="flex items-center gap-1.5 font-semibold text-foreground/80">
+                <span class="flex items-center gap-1.5 font-semibold text-foreground/80 dark:text-neutral-300">
                   <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
@@ -2007,7 +2016,7 @@
                   <span class="text-[10px] text-muted-foreground">({Object.keys(files).length})</span>
                   <button
                     onclick={loadTenantFiles}
-                    class="p-0.5 rounded hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
+                    class="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
                     title="Recharger l'arborescence"
                   >
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2021,7 +2030,7 @@
                   type="text"
                   bind:value={fileSearchQuery}
                   placeholder="Filtrer les fichiers..."
-                  class="w-full bg-card border border-black/10 rounded px-2 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:border-brand"
+                  class="w-full bg-card dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded px-2 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 text-foreground dark:text-white focus:outline-none focus:border-brand dark:focus:border-brand/70"
                 />
                 {#if fileSearchQuery}
                   <button
@@ -2042,26 +2051,26 @@
                   <button
                     type="button"
                     onclick={() => toggleFolder(node.path)}
-                    class="w-full text-left py-1 px-1 rounded flex items-center gap-1.5 hover:bg-black/5 transition-colors cursor-pointer text-xs group select-none"
+                    class="w-full text-left py-1 px-1 rounded-md flex items-center gap-1.5 bg-transparent hover:bg-black/5 dark:hover:bg-white/[0.06] text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer text-xs group select-none focus:outline-none"
                     style="padding-left: {node.depth * 14 + 6}px"
                     title={node.path}
                   >
-                    <svg class="w-3 h-3 text-muted-foreground/80 transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3 h-3 text-muted-foreground/80 group-hover:text-foreground dark:group-hover:text-white transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
                     </svg>
 
                     {#if isCollapsed}
-                      <svg class="w-3.5 h-3.5 text-amber-600/85 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <svg class="w-3.5 h-3.5 text-amber-500/90 dark:text-amber-400/90 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                       </svg>
                     {:else}
-                      <svg class="w-3.5 h-3.5 text-amber-600/85 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <svg class="w-3.5 h-3.5 text-amber-500/90 dark:text-amber-400/90 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v4.5A1.5 1.5 0 013.5 18H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
                         <path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H8a2 2 0 01-2-2v-2z" />
                       </svg>
                     {/if}
 
-                    <span class="truncate font-medium text-foreground text-[11px]">{node.name}</span>
+                    <span class="truncate font-medium text-foreground/90 dark:text-neutral-200 group-hover:text-foreground dark:group-hover:text-white text-[11px]">{node.name}</span>
                   </button>
 
                   {#if !isCollapsed}
@@ -2076,41 +2085,41 @@
                 <button
                   type="button"
                   onclick={() => selectAndOpenFile(node.path)}
-                  class="w-full text-left py-1 px-1 rounded flex items-center gap-1.5 transition-colors cursor-pointer text-xs group {activeFile === node.path ? 'bg-brand/10 text-brand font-medium' : 'text-muted-foreground hover:bg-black/5 hover:text-foreground'}"
+                  class="w-full text-left py-1 px-1 rounded-md flex items-center gap-1.5 transition-colors cursor-pointer text-xs group focus:outline-none {activeFile === node.path ? 'bg-brand/10 text-brand dark:bg-white/[0.12] dark:text-white font-medium shadow-sm' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-foreground dark:hover:text-white'}"
                   style="padding-left: {node.depth * 14 + 18}px"
                   title={node.path}
                 >
                   {#if node.path.endsWith('.svelte')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 shrink-0">S</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
                   {:else if node.path.endsWith('.ts')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 shrink-0">TS</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
                   {:else if node.path.endsWith('.js') || node.path.endsWith('.mjs')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 shrink-0">JS</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
                   {:else if node.path.endsWith('.json')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 shrink-0">{"{}"}</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
                   {:else if node.path.endsWith('.html')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 shrink-0">&lt;&gt;</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-400 shrink-0">&lt;&gt;</span>
                   {:else if node.path.endsWith('.css')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 shrink-0">#</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
                   {:else if node.path.endsWith('.db') || node.path.endsWith('.sqlite') || node.path.endsWith('.sqlite3')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 shrink-0">DB</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
                   {:else if node.path.endsWith('.png') || node.path.endsWith('.jpg') || node.path.endsWith('.jpeg') || node.path.endsWith('.gif') || node.path.endsWith('.webp') || node.path.endsWith('.ico')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 shrink-0">IMG</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
                   {:else if node.path.endsWith('.svg')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 shrink-0">SVG</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400 shrink-0">SVG</span>
                   {:else if node.path.endsWith('.md')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 shrink-0">MD</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400 shrink-0">MD</span>
                   {:else}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 text-muted-foreground shrink-0">📄</span>
+                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-400 shrink-0">📄</span>
                   {/if}
 
-                  <span class="truncate text-[11px] {activeFile === node.path ? 'font-semibold' : ''}">{node.name}</span>
+                  <span class="truncate text-[11px] {activeFile === node.path ? 'font-semibold text-brand dark:text-white' : 'text-foreground/80 dark:text-neutral-300 group-hover:text-foreground dark:group-hover:text-white'}">{node.name}</span>
                 </button>
               {/if}
             {/snippet}
 
             <!-- Tree View Nodes -->
-            <div class="flex-1 overflow-y-auto p-1 font-mono text-xs space-y-0.5">
+            <div class="flex-1 overflow-y-auto p-1 font-mono text-xs space-y-0.5 bg-transparent">
               {#if fileTree.length === 0}
                 <div class="p-4 text-[11px] text-muted-foreground text-center">
                   Aucun fichier trouvé
