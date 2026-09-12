@@ -204,6 +204,37 @@
   }
 
   let promptInput = $state("");
+  let promptTextareaRef = $state<HTMLTextAreaElement | null>(null);
+
+  function adjustPromptTextareaHeight() {
+    if (!promptTextareaRef) return;
+    promptTextareaRef.style.height = "auto";
+    const maxHeight = 160;
+    const scrollHeight = promptTextareaRef.scrollHeight;
+    if (scrollHeight > maxHeight) {
+      promptTextareaRef.style.height = `${maxHeight}px`;
+      promptTextareaRef.style.overflowY = "auto";
+    } else {
+      promptTextareaRef.style.height = `${Math.max(38, scrollHeight)}px`;
+      promptTextareaRef.style.overflowY = "hidden";
+    }
+  }
+
+  function handlePromptKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      handleSendPrompt();
+    }
+  }
+
+  $effect(() => {
+    if (promptInput !== undefined) {
+      queueMicrotask(() => {
+        adjustPromptTextareaHeight();
+      });
+    }
+  });
+
   let isThinking = $state(false);
   let activeProfile = $state<string>("auto");
   let promptQuota = $state(
@@ -502,6 +533,9 @@
     } else if (panel === "editor") {
       if (showEditor && !showChat && !showPreview) return;
       showEditor = !showEditor;
+      if (showEditor && openTabs.length === 0) {
+        showExplorer = true;
+      }
     } else if (panel === "preview") {
       if (showPreview && !showChat && !showEditor) return;
       const willOpen = !showPreview;
@@ -681,12 +715,12 @@
     e.stopPropagation();
     const remaining = openTabs.filter((p) => p !== filePath);
     if (remaining.length === 0) {
-      const allKeys = Object.keys(files);
-      const fallback = allKeys.find((k) => k !== filePath) || allKeys[0];
-      if (fallback) {
-        openTabs = [fallback];
-        switchFile(fallback);
-      }
+      openTabs = [];
+      activeFile = "";
+      showExplorer = true;
+      showEditor = false;
+      showPreview = true;
+      showChat = true;
       return;
     }
     openTabs = remaining;
@@ -716,8 +750,8 @@
         const json = await res.json();
         if (json.success && json.files) {
           files = json.files;
-          if (!files[activeFile]) {
-            activeFile = Object.keys(files)[0] || "src/routes/+page.svelte";
+          if (openTabs.length > 0 && !files[activeFile]) {
+            activeFile = openTabs[0] || Object.keys(files)[0] || "";
           }
           if (editorView && files[activeFile]) {
             const currentDoc = editorView.state.doc.toString();
@@ -1038,6 +1072,7 @@
   });
 
   function switchFile(filePath: string) {
+    if (!filePath) return;
     if (filePath === activeFile) {
       if (editorView && !isBinaryFile(filePath)) {
         editorView.focus();
@@ -1058,7 +1093,10 @@
         changes: { from: 0, to: editorView.state.doc.length, insert: target.content },
         effects: languageCompartment.reconfigure(getLangExtension(target.lang)),
       });
-      editorView.focus();
+      requestAnimationFrame(() => {
+        editorView?.requestMeasure();
+        editorView?.focus();
+      });
     }
   }
 
@@ -1106,6 +1144,10 @@
     promptInput = "";
     attachedImage = null;
     if (fileInputRef) fileInputRef.value = "";
+    if (promptTextareaRef) {
+      promptTextareaRef.style.height = "38px";
+      promptTextareaRef.style.overflowY = "hidden";
+    }
 
     messages.push({
       role: "user",
@@ -1787,7 +1829,7 @@
         <!-- Prompt Input Form -->
         <form
           onsubmit={handleSendPrompt}
-          class="p-3 border-t border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-center gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
+          class="p-3 border-t border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-end gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
         >
           <!-- Hidden file input -->
           <input
@@ -1803,7 +1845,7 @@
             type="button"
             onclick={() => fileInputRef?.click()}
             disabled={isThinking || promptQuota.remaining <= 0}
-            class="p-2 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer disabled:opacity-40 shrink-0"
+            class="h-[38px] w-[38px] flex items-center justify-center rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer disabled:opacity-40 shrink-0 self-end"
             title="Joindre une image (PNG, JPG, WebP, SVG, max 5Mo)"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1811,18 +1853,21 @@
             </svg>
           </button>
 
-          <input
-            type="text"
+          <textarea
+            bind:this={promptTextareaRef}
             bind:value={promptInput}
+            oninput={adjustPromptTextareaHeight}
+            onkeydown={handlePromptKeydown}
             onpaste={handleChatPaste}
+            rows="1"
             placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint — Cliquez sur Recharger")}
             disabled={isThinking || promptQuota.remaining <= 0}
-            class="flex-1 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] px-3.5 py-2 text-xs text-foreground dark:text-white placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
-          />
+            class="flex-1 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] px-3.5 py-2 text-xs text-foreground dark:text-white placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-[border-color,box-shadow] disabled:opacity-50 resize-none min-h-[38px] max-h-[160px] leading-relaxed select-text"
+          ></textarea>
           <button
             type="submit"
             disabled={(!promptInput.trim() && !attachedImage) || isThinking || promptQuota.remaining <= 0}
-            class="focus-ring px-4 py-2 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0"
+            class="focus-ring h-[38px] px-4 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0 self-end flex items-center justify-center"
           >
             Envoyer
           </button>
@@ -1868,14 +1913,25 @@
     <!-- Docked Middle Strip: Reopen Editor -->
     {#if !showEditor}
       <button
-        onclick={() => showEditor = true}
+        onclick={() => {
+          showEditor = true;
+          if (openTabs.length === 0) {
+            showExplorer = true;
+          }
+        }}
         class="hidden lg:flex w-9 h-full border-r border-black/10 bg-surface/60 hover:bg-surface flex-col items-center justify-start py-4 gap-3 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer group"
-        title="Déplier l'éditeur de code"
+        title={openTabs.length === 0 ? "Déplier l'explorateur de fichiers" : "Déplier l'éditeur de code"}
       >
         <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          {#if openTabs.length === 0}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          {:else}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          {/if}
         </svg>
-        <span class="[writing-mode:vertical-lr] rotate-180 uppercase tracking-widest text-[10px] font-medium group-hover:text-brand transition-colors">Code</span>
+        <span class="[writing-mode:vertical-lr] rotate-180 uppercase tracking-widest text-[10px] font-medium group-hover:text-brand transition-colors">
+          {openTabs.length === 0 ? "Fichiers" : "Code"}
+        </span>
       </button>
     {/if}
 
@@ -1886,145 +1942,178 @@
     >
       <!-- File Tabs & Editor Controls -->
       <div class="h-10 border-b border-black/10 dark:border-white/10 bg-surface/60 dark:bg-background flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
-        <button
-          onclick={() => showExplorer = !showExplorer}
-          class="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 dark:bg-white/10 text-brand dark:text-white' : ''}"
-          title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-        </button>
+        {#if openTabs.length === 0}
+          <div class="flex items-center gap-2 px-1 text-foreground font-medium text-xs">
+            <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <span class="font-semibold text-xs text-foreground/90 dark:text-neutral-200">Explorateur de fichiers</span>
+            <span class="text-[10px] text-muted-foreground">({Object.keys(files).length} fichiers)</span>
+          </div>
 
-        <!-- Horizontally Scrollable Tab Strip with Close Buttons -->
-        <div
-          class="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 py-1 select-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-          onwheel={(e) => {
-            if (e.deltaY !== 0) {
-              e.preventDefault();
-              (e.currentTarget as HTMLElement).scrollLeft += e.deltaY;
-            }
-          }}
-        >
-          {#each openTabs as path}
-            {@const file = files[path] || { name: path.split('/').pop() || path, path }}
-            <div
-              class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand dark:text-white dark:border-brand bg-card dark:bg-[#121217] font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'}"
-              role="tab"
-              aria-selected={activeFile === path}
-              tabindex="0"
-              onclick={() => switchFile(path)}
-              onkeydown={(e) => e.key === 'Enter' && switchFile(path)}
-              title={path}
-            >
-              {#if path.endsWith('.svelte')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
-              {:else if path.endsWith('.ts')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
-              {:else if path.endsWith('.js') || path.endsWith('.mjs')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
-              {:else if path.endsWith('.json')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
-              {:else if path.endsWith('.html')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-400 shrink-0">&lt;&gt;</span>
-              {:else if path.endsWith('.css')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
-              {:else if path.endsWith('.db') || path.endsWith('.sqlite') || path.endsWith('.sqlite3')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
-              {:else if path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.gif') || path.endsWith('.webp') || path.endsWith('.ico')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
-              {:else if path.endsWith('.svg')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400 shrink-0">SVG</span>
-              {:else if path.endsWith('.md')}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400 shrink-0">MD</span>
-              {:else}
-                <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-400 shrink-0">📄</span>
-              {/if}
-
-              <span class="truncate max-w-[130px]">{file.name}</span>
-
-              <!-- Close Tab Button -->
-              <button
-                type="button"
-                onclick={(e) => closeTab(e, path)}
-                class="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white opacity-50 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
-                title="Fermer l'onglet"
-              >
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          {/each}
-        </div>
-
-        <div class="flex items-center gap-1.5 shrink-0">
-          {#if activeFileCategory === 'code'}
+          <div class="flex items-center gap-1.5 shrink-0">
             <button
-              onclick={handleSaveCode}
-              class="px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
-              title="Sauvegarder les modifications (Cmd+S ou Ctrl+S)"
+              onclick={loadTenantFiles}
+              class="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
+              title="Recharger l'arborescence"
             >
-              {#if editorSaved}
-                <span class="text-emerald-600 font-bold">✓</span>
-                <span>Sauvegardé</span>
-              {:else}
-                <span>Sauvegarder</span>
-                <kbd class="text-[9px] bg-black/5 px-1 py-0.2 rounded text-muted-foreground font-mono">⌘S</kbd>
-              {/if}
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             </button>
-          {:else if activeFileCategory === 'sqlite'}
-            <span class="px-2.5 py-1 rounded-full border border-cyan-500/20 bg-cyan-500/10 text-cyan-700 text-[10px] font-mono font-medium">
-              Base SQLite
-            </span>
-          {:else if activeFileCategory === 'image'}
-            <span class="px-2.5 py-1 rounded-full border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 text-[10px] font-mono font-medium">
-              Aperçu Image
-            </span>
-          {:else}
-            <span class="px-2.5 py-1 rounded-full border border-black/10 bg-black/5 text-muted-foreground text-[10px] font-mono">
-              Binaire protégé
-            </span>
-          {/if}
+            <button
+              onclick={() => showEditor = false}
+              class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Masquer l'explorateur de fichiers"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        {:else}
           <button
-            onclick={() => showEditor = false}
-            class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            title="Masquer l'éditeur de code"
+            onclick={() => showExplorer = !showExplorer}
+            class="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 dark:bg-white/10 text-brand dark:text-white' : ''}"
+            title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
           </button>
-        </div>
+
+          <!-- Horizontally Scrollable Tab Strip with Close Buttons -->
+          <div
+            class="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 py-1 select-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            onwheel={(e) => {
+              if (e.deltaY !== 0) {
+                e.preventDefault();
+                (e.currentTarget as HTMLElement).scrollLeft += e.deltaY;
+              }
+            }}
+          >
+            {#each openTabs as path}
+              {@const file = files[path] || { name: path.split('/').pop() || path, path }}
+              <div
+                class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand dark:text-white dark:border-brand bg-card dark:bg-[#121217] font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'}"
+                role="tab"
+                aria-selected={activeFile === path}
+                tabindex="0"
+                onclick={() => switchFile(path)}
+                onkeydown={(e) => e.key === 'Enter' && switchFile(path)}
+                title={path}
+              >
+                {#if path.endsWith('.svelte')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
+                {:else if path.endsWith('.ts')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
+                {:else if path.endsWith('.js') || path.endsWith('.mjs')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
+                {:else if path.endsWith('.json')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
+                {:else if path.endsWith('.html')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-400 shrink-0">&lt;&gt;</span>
+                {:else if path.endsWith('.css')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
+                {:else if path.endsWith('.db') || path.endsWith('.sqlite') || path.endsWith('.sqlite3')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
+                {:else if path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.gif') || path.endsWith('.webp') || path.endsWith('.ico')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
+                {:else if path.endsWith('.svg')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400 shrink-0">SVG</span>
+                {:else if path.endsWith('.md')}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400 shrink-0">MD</span>
+                {:else}
+                  <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-400 shrink-0">📄</span>
+                {/if}
+
+                <span class="truncate max-w-[130px]">{file.name}</span>
+
+                <!-- Close Tab Button -->
+                <button
+                  type="button"
+                  onclick={(e) => closeTab(e, path)}
+                  class="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white opacity-50 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                  title="Fermer l'onglet"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            {/each}
+          </div>
+
+          <div class="flex items-center gap-1.5 shrink-0">
+            {#if activeFileCategory === 'code'}
+              <button
+                onclick={handleSaveCode}
+                class="px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+                title="Sauvegarder les modifications (Cmd+S ou Ctrl+S)"
+              >
+                {#if editorSaved}
+                  <span class="text-emerald-600 font-bold">✓</span>
+                  <span>Sauvegardé</span>
+                {:else}
+                  <span>Sauvegarder</span>
+                  <kbd class="text-[9px] bg-black/5 px-1 py-0.2 rounded text-muted-foreground font-mono">⌘S</kbd>
+                {/if}
+              </button>
+            {:else if activeFileCategory === 'sqlite'}
+              <span class="px-2.5 py-1 rounded-full border border-cyan-500/20 bg-cyan-500/10 text-cyan-700 text-[10px] font-mono font-medium">
+                Base SQLite
+              </span>
+            {:else if activeFileCategory === 'image'}
+              <span class="px-2.5 py-1 rounded-full border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 text-[10px] font-mono font-medium">
+                Aperçu Image
+              </span>
+            {:else}
+              <span class="px-2.5 py-1 rounded-full border border-black/10 bg-black/5 text-muted-foreground text-[10px] font-mono">
+                Binaire protégé
+              </span>
+            {/if}
+            <button
+              onclick={() => showEditor = false}
+              class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Masquer l'éditeur de code"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        {/if}
       </div>
 
       <!-- Main Editor Area with Tree-based Explorer Sidebar -->
       <div class="flex-1 flex overflow-hidden min-h-0">
         <!-- File Explorer Sidebar -->
-        {#if showExplorer}
-          <div class="w-44 sm:w-48 border-r border-black/10 dark:border-white/10 bg-background dark:bg-background flex flex-col shrink-0 overflow-hidden select-none">
+        {#if showExplorer || openTabs.length === 0}
+          <div class="{openTabs.length === 0 ? 'w-full flex-1 border-r-0' : 'w-44 sm:w-48 border-r border-black/10 dark:border-white/10'} bg-background dark:bg-background flex flex-col shrink-0 overflow-hidden select-none">
             <!-- Explorer Header & Filter -->
             <div class="p-2 border-b border-black/10 dark:border-white/10 space-y-1.5 shrink-0 bg-background/90 dark:bg-background">
-              <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                <span class="flex items-center gap-1.5 font-semibold text-foreground/80 dark:text-neutral-300">
-                  <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                  <span>Explorateur</span>
-                </span>
-                <div class="flex items-center gap-1">
-                  <span class="text-[10px] text-muted-foreground">({Object.keys(files).length})</span>
-                  <button
-                    onclick={loadTenantFiles}
-                    class="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
-                    title="Recharger l'arborescence"
-                  >
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              {#if openTabs.length > 0}
+                <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                  <span class="flex items-center gap-1.5 font-semibold text-foreground/80 dark:text-neutral-300">
+                    <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                  </button>
+                    <span>Explorateur</span>
+                  </span>
+                  <div class="flex items-center gap-1">
+                    <span class="text-[10px] text-muted-foreground">({Object.keys(files).length})</span>
+                    <button
+                      onclick={loadTenantFiles}
+                      class="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
+                      title="Recharger l'arborescence"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              {/if}
               <div class="relative">
                 <input
                   type="text"
@@ -2134,7 +2223,7 @@
         {/if}
 
         <!-- CodeMirror Editor Container (Kept mounted for CodeMirror persistence) -->
-        <div class="flex-1 overflow-hidden bg-card relative {activeFileCategory === 'code' ? 'flex flex-col' : 'hidden'}" bind:this={editorContainer}>
+        <div class="flex-1 overflow-hidden bg-card relative {openTabs.length > 0 && activeFileCategory === 'code' ? 'flex flex-col' : 'hidden'}" bind:this={editorContainer}>
           {#if editorSaved}
             <div class="absolute bottom-3 right-3 bg-foreground text-background text-[11px] font-mono px-3 py-1.5 rounded-full shadow-retro z-20 pointer-events-none flex items-center gap-1.5">
               <span>✓ Sauvegardé</span>
@@ -2142,44 +2231,46 @@
           {/if}
         </div>
 
-        <!-- Dedicated SQLite Inspector -->
-        {#if activeFileCategory === 'sqlite'}
-          <div class="flex-1 overflow-hidden">
-            <SqliteInspector
-              projectSlug={projectSlug}
-              dbPath={activeFile}
-              fileSize={files[activeFile]?.size || 0}
-            />
-          </div>
-        {/if}
-
-        <!-- Dedicated Image Previewer -->
-        {#if activeFileCategory === 'image'}
-          <div class="flex-1 overflow-hidden">
-            <ImagePreviewer
-              path={activeFile}
-              name={files[activeFile]?.name || activeFile.split('/').pop() || activeFile}
-              size={files[activeFile]?.size || 0}
-              dataUrl={files[activeFile]?.dataUrl}
-              previewUrl={files[activeFile]?.previewUrl}
-            />
-          </div>
-        {/if}
-
-        <!-- Protected Binary / Media View -->
-        {#if activeFileCategory === 'binary' || activeFileCategory === 'media'}
-          <div class="flex-1 overflow-hidden flex flex-col items-center justify-center p-8 text-center font-mono text-xs bg-card">
-            <div class="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center text-2xl mb-3">
-              📦
+        {#if openTabs.length > 0}
+          <!-- Dedicated SQLite Inspector -->
+          {#if activeFileCategory === 'sqlite'}
+            <div class="flex-1 overflow-hidden">
+              <SqliteInspector
+                projectSlug={projectSlug}
+                dbPath={activeFile}
+                fileSize={files[activeFile]?.size || 0}
+              />
             </div>
-            <p class="font-semibold text-foreground text-sm mb-1">{files[activeFile]?.name || activeFile}</p>
-            <p class="text-muted-foreground text-[11px] max-w-sm mb-4">
-              Fichier binaire protégé ({activeFile.split('.').pop()?.toUpperCase() || 'BIN'}). La modification directe en texte brut est désactivée pour éviter toute altération.
-            </p>
-            <div class="px-3 py-1.5 rounded-full bg-surface border border-black/10 text-[11px] text-muted-foreground">
-              Taille : {((files[activeFile]?.size || 0) / 1024).toFixed(1)} KB
+          {/if}
+
+          <!-- Dedicated Image Previewer -->
+          {#if activeFileCategory === 'image'}
+            <div class="flex-1 overflow-hidden">
+              <ImagePreviewer
+                path={activeFile}
+                name={files[activeFile]?.name || activeFile.split('/').pop() || activeFile}
+                size={files[activeFile]?.size || 0}
+                dataUrl={files[activeFile]?.dataUrl}
+                previewUrl={files[activeFile]?.previewUrl}
+              />
             </div>
-          </div>
+          {/if}
+
+          <!-- Protected Binary / Media View -->
+          {#if activeFileCategory === 'binary' || activeFileCategory === 'media'}
+            <div class="flex-1 overflow-hidden flex flex-col items-center justify-center p-8 text-center font-mono text-xs bg-card">
+              <div class="w-12 h-12 rounded-2xl bg-black/5 flex items-center justify-center text-2xl mb-3">
+                📦
+              </div>
+              <p class="font-semibold text-foreground text-sm mb-1">{files[activeFile]?.name || activeFile}</p>
+              <p class="text-muted-foreground text-[11px] max-w-sm mb-4">
+                Fichier binaire protégé ({activeFile.split('.').pop()?.toUpperCase() || 'BIN'}). La modification directe en texte brut est désactivée pour éviter toute altération.
+              </p>
+              <div class="px-3 py-1.5 rounded-full bg-surface border border-black/10 text-[11px] text-muted-foreground">
+                Taille : {((files[activeFile]?.size || 0) / 1024).toFixed(1)} KB
+              </div>
+            </div>
+          {/if}
         {/if}
       </div>
     </div>

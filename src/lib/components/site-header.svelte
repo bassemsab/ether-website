@@ -89,7 +89,7 @@
         alt={logoAlt}
         width={50}
         height={50}
-        class="ml-4"
+        class="ml-4 rounded-full bg-white p-0.5 shadow-sm"
       />
     </a>
 
