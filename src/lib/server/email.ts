@@ -430,6 +430,10 @@ export async function sendOtpEmail(email: string, code: string) {
  */
 export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
   const from = options.from || "ether <contact@ether.paris>";
+  const isLocal =
+    process.env.NODE_ENV !== "production" ||
+    (process.env.BASE_URL || "").includes("localhost") ||
+    process.platform === "darwin";
 
   // 1. Try internal cluster SMTP first
   try {
@@ -439,11 +443,15 @@ export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
     });
     console.log(`[sendSystemEmail] Sent email to ${options.to} via SMTP: "${options.subject}"`);
     return { success: true, provider: "smtp" };
-  } catch (smtpErr) {
-    console.warn(
-      "[sendSystemEmail] SMTP send failed, falling back to Resend:",
-      smtpErr,
-    );
+  } catch (smtpErr: any) {
+    if (isLocal && smtpErr?.code === "ECONNREFUSED") {
+      console.log(`[sendSystemEmail] Local SMTP (${process.env.SMTP_HOST || "127.0.0.1"}:${process.env.SMTP_PORT || "2587"}) not reachable.`);
+    } else {
+      console.warn(
+        "[sendSystemEmail] SMTP send failed, falling back to Resend:",
+        smtpErr,
+      );
+    }
   }
 
   // 2. Fallback to Resend
@@ -465,23 +473,28 @@ export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
         console.log(`[sendSystemEmail] Sent email to ${options.to} via Resend: "${options.subject}"`);
         return { success: true, provider: "resend", data };
       }
-      console.warn("[sendSystemEmail] Resend error:", error);
+      if (isLocal) {
+        console.log(`[sendSystemEmail] Resend API key inactive (${error.message || error.name}).`);
+      } else {
+        console.warn("[sendSystemEmail] Resend error:", error);
+      }
     } catch (rErr) {
-      console.warn("[sendSystemEmail] Resend send threw:", rErr);
+      if (!isLocal) {
+        console.warn("[sendSystemEmail] Resend send threw:", rErr);
+      }
     }
   }
 
   // 3. In local development or testing, log instead of failing
-  const isLocal =
-    process.env.NODE_ENV !== "production" ||
-    (process.env.BASE_URL || "").includes("localhost") ||
-    process.platform === "darwin";
-
   if (isLocal) {
     console.log("\n==================================================");
     console.log(`📧 [EMAIL MOCK / DEV DISPATCH]`);
     console.log(`   To     : ${options.to}`);
     console.log(`   Subject: ${options.subject}`);
+    const codeMatch = options.subject.match(/(\d{6})/);
+    if (codeMatch) {
+      console.log(`   👉 LOGIN CODE: ${codeMatch[1]}`);
+    }
     console.log("==================================================\n");
     return { success: true, provider: "mock" };
   }

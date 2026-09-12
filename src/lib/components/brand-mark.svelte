@@ -3,7 +3,7 @@
 </script>
 
 <span
-  class={`inline-flex items-center justify-center bg-white rounded-lg aspect-square shadow-sm shrink-0 p-1 select-none overflow-hidden ${className}`}
+  class={`inline-flex items-center justify-center aspect-square shrink-0 select-none overflow-hidden dark:bg-white dark:rounded-lg dark:shadow-sm dark:p-1 ${className}`}
 >
   <img
     src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
