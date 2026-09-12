@@ -425,11 +425,16 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
       try {
         const raw = JSON.parse(readFileSync(tokenPath, "utf-8"));
         const token = raw.token || raw;
-        if (token && token.access_token) {
+        if (token && (token.access_token || token.refresh_token)) {
           hasToken = true;
           expiryDate = token.expiry || null;
-          if (expiryDate) {
+          // If a refresh token is present, Google OAuth tokens can be refreshed automatically by agy!
+          // Only mark as expired if there is NO refresh token AND the access token has expired.
+          const hasRefreshToken = Boolean(token.refresh_token);
+          if (expiryDate && !hasRefreshToken) {
             isExpired = new Date(expiryDate).getTime() <= Date.now();
+          } else {
+            isExpired = false;
           }
         }
       } catch (e) {
@@ -465,6 +470,13 @@ export function listStoredProfiles(dataDir: string): ProfileStatus[] {
       turnsCount,
     });
   }
+
+  // Sort profiles so 'primary' is always first, then alphabetical
+  result.sort((a, b) => {
+    if (a.name === "primary") return -1;
+    if (b.name === "primary") return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return result;
 }

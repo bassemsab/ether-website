@@ -365,9 +365,17 @@ async function enqueueTenantTurn<T>(
  * Resolves the best initial Google profile for execution.
  */
 function resolveInitialProfile(requestedProfile?: string): string {
-  const next = getNextHealthyProfile(DATA_DIR, requestedProfile);
-  if (next) return next;
+  // 1. If requestedProfile was explicitly provided and is healthy, use it
+  if (requestedProfile) {
+    const requestedMatch = getNextHealthyProfile(DATA_DIR, requestedProfile);
+    if (requestedMatch) return requestedMatch;
+  }
 
+  // 2. Prioritize primary profile if healthy, then any other healthy profile
+  const primaryOrHealthy = getNextHealthyProfile(DATA_DIR, "primary");
+  if (primaryOrHealthy) return primaryOrHealthy;
+
+  // 3. Fall back to sorted list of profiles (with primary first)
   const profiles = listStoredProfiles(DATA_DIR);
   if (profiles.length > 0) return profiles[0].name;
 
@@ -385,7 +393,8 @@ function isQuotaError(output: string): boolean {
     lower.includes("quota exceeded") ||
     lower.includes("rate limit") ||
     lower.includes("too many requests") ||
-    lower.includes("exhausted resource")
+    lower.includes("exhausted resource") ||
+    lower.includes("individual quota reached")
   );
 }
 
@@ -1739,6 +1748,7 @@ const server = Bun.serve({
                     let fullOutput = "";
                     let lineBuffer = "";
                     let capturedConvId = conversationId;
+                    let cliResultError = "";
 
                     try {
                       while (true) {
@@ -1799,6 +1809,14 @@ const server = Bun.serve({
                                 fullOutput = parsed.result.response;
                                 sendEvent("chunk", { text: fullOutput });
                               }
+                              if (
+                                parsed.result?.status === "ERROR" ||
+                                parsed.result?.error
+                              ) {
+                                cliResultError =
+                                  parsed.result.error ||
+                                  "CLI returned error status";
+                              }
                             }
                           } catch {
                             // Plain text or unexpected non-JSON output
@@ -1814,13 +1832,14 @@ const server = Bun.serve({
                     const stderrText = await new Response(proc.stderr).text();
                     await proc.exited;
 
-                    const combinedOutput = `${fullOutput} ${stderrText}`;
+                    const combinedOutput = `${fullOutput} ${stderrText} ${cliResultError}`;
+                    const quotaHit = isQuotaError(combinedOutput);
 
-                    if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
+                    if (quotaHit) {
                       console.warn(
                         `[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`,
                       );
-                      markProfileThrottled(activeProfile);
+                      markProfileThrottled(activeProfile, 60 * 60 * 1000);
 
                       const nextProfile = getNextHealthyProfile(
                         DATA_DIR,
@@ -1828,17 +1847,27 @@ const server = Bun.serve({
                         triedProfiles,
                       );
                       if (nextProfile) {
+                        sendEvent("chunk", {
+                          text: `\n🔄 *Quota Google atteint sur le profil [${activeProfile}]. Basculement automatique vers le profil sain [${nextProfile}]...*\n\n`,
+                        });
                         activeProfile = nextProfile;
                         continue; // Retry with next profile
                       }
                     }
 
-                    success = proc.exitCode === 0;
+                    success =
+                      proc.exitCode === 0 && !cliResultError && !quotaHit;
                     if (success) {
                       incrementProfileTurnCount(activeProfile);
-                    } else if (!fullOutput && stderrText) {
+                    } else if (!fullOutput) {
+                      const errMessage =
+                        cliResultError ||
+                        stderrText.trim() ||
+                        (quotaHit
+                          ? "Toutes les clés de quota Google configurées ont été atteintes."
+                          : "Une erreur est survenue lors de l'exécution.");
                       sendEvent("chunk", {
-                        text: `\n⚠️ Erreur: ${stderrText.trim()}`,
+                        text: `\n⚠️ Erreur: ${errMessage}`,
                       });
                     }
 
@@ -1849,7 +1878,7 @@ const server = Bun.serve({
                         capturedConvId ||
                         conversationId ||
                         `conv_${Date.now()}`,
-                      exitCode: proc.exitCode,
+                      exitCode: success ? 0 : (proc.exitCode || 1),
                       savedImageUrl: savedImageUrl || undefined,
                     });
                   }
@@ -1960,12 +1989,13 @@ const server = Bun.serve({
               await proc.exited;
 
               const combinedOutput = `${stdout} ${stderr}`;
+              const quotaHit = isQuotaError(combinedOutput);
 
-              if (proc.exitCode !== 0 && isQuotaError(combinedOutput)) {
+              if (quotaHit) {
                 console.warn(
                   `[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`,
                 );
-                markProfileThrottled(activeProfile);
+                markProfileThrottled(activeProfile, 60 * 60 * 1000);
 
                 const nextProfile = getNextHealthyProfile(
                   DATA_DIR,
@@ -1978,7 +2008,7 @@ const server = Bun.serve({
                 }
               }
 
-              const success = proc.exitCode === 0;
+              const success = proc.exitCode === 0 && !quotaHit;
               if (success) {
                 incrementProfileTurnCount(activeProfile);
               }
@@ -1988,7 +2018,7 @@ const server = Bun.serve({
                 response: stdout || stderr,
                 profileUsed: activeProfile,
                 conversationId: conversationId || `conv_${Date.now()}`,
-                exitCode: proc.exitCode,
+                exitCode: success ? 0 : (proc.exitCode || 1),
                 savedImageUrl: savedImageUrl || undefined,
               };
             }
