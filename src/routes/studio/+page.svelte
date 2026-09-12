@@ -1775,7 +1775,12 @@
                   {/if}
 
                   {#if msg.content}
-                    <div class="ai-chat-prose">
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed
+                      prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
+                      prose-strong:text-foreground dark:prose-strong:text-white
+                      prose-a:text-brand dark:prose-a:text-indigo-400
+                      prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                      dark:prose-counters:text-neutral-300 dark:prose-bullets:text-neutral-400 dark:prose-li:text-neutral-200">
                       {@html renderMarkdown(msg.content)}
                     </div>
                   {/if}
