@@ -74,11 +74,6 @@
   }
 
   async function handleBuy(item: any) {
-    if (item.isOwnedByAccount) {
-      await handleConnectExisting(item.domain);
-      return;
-    }
-
     buyLoading = true;
     connectError = null;
 
@@ -327,15 +322,9 @@
                 <div class="p-3.5 bg-surface dark:bg-white/[0.02] border border-black/10 dark:border-white/10 rounded-2xl flex items-center justify-between">
                   <div class="flex items-center gap-3">
                     <span class="font-mono text-sm font-semibold text-foreground">{item.domain}</span>
-                    {#if item.isOwnedByAccount}
-                      <span class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-medium">
-                        Votre Cloudflare
-                      </span>
-                    {:else}
-                      <span class="text-xs font-mono px-2.5 py-0.5 rounded-full {item.available ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20' : 'bg-surface border border-black/10 text-muted-foreground'}">
-                        {item.available ? 'Disponible' : 'Pris'}
-                      </span>
-                    {/if}
+                    <span class="text-xs font-mono px-2.5 py-0.5 rounded-full {item.available ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20' : 'bg-surface border border-black/10 text-muted-foreground'}">
+                      {item.available ? 'Disponible' : 'Pris'}
+                    </span>
                     <span class="text-xs px-2 py-0.5 rounded-full bg-surface/90 dark:bg-white/5 border border-black/10 dark:border-white/10 text-muted-foreground uppercase font-mono">
                       {item.provider}
                     </span>
@@ -343,16 +332,7 @@
 
                   <div class="flex items-center gap-3">
                     <span class="text-sm font-mono font-medium text-foreground">{item.formattedPrice}</span>
-                    {#if item.isOwnedByAccount}
-                      <button
-                        type="button"
-                        onclick={() => handleBuy(item)}
-                        disabled={connectLoading}
-                        class="focus-ring px-4 py-1.5 text-xs uppercase tracking-[0.15em] font-medium rounded-full bg-brand hover:bg-brand/90 text-white shadow-retro-sm transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        Lier
-                      </button>
-                    {:else if item.available}
+                    {#if item.available}
                       <button
                         type="button"
                         onclick={() => handleBuy(item)}

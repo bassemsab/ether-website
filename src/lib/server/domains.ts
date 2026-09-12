@@ -53,43 +53,21 @@ export async function searchDomains(
     baseName = parts[0].replace(/[^a-z0-9-]/g, "");
 
     const exactDomain = `${baseName}.${explicitTld}`;
-    let isOwned = false;
     let isAvailable = true;
 
-    // 1. Check if zone is already managed in user's Cloudflare account
-    if (cfToken) {
-      try {
-        const cfRes = await fetch(
-          `https://api.cloudflare.com/client/v4/zones?name=${exactDomain}`,
-          { headers: { Authorization: `Bearer ${cfToken}` } },
-        );
-        if (cfRes.ok) {
-          const cfData = await cfRes.json();
-          if (cfData.success && cfData.result && cfData.result.length > 0) {
-            isOwned = true;
-            isAvailable = false;
-          }
+    // Check public DNS availability
+    try {
+      const dnsRes = await fetch(
+        `https://cloudflare-dns.com/dns-query?name=${exactDomain}&type=NS`,
+        { headers: { Accept: "application/dns-json" } },
+      );
+      if (dnsRes.ok) {
+        const dnsData = await dnsRes.json();
+        if (dnsData.Answer && dnsData.Answer.length > 0) {
+          isAvailable = false;
         }
-      } catch (e: any) {
-        console.warn(`[searchDomains] Cloudflare check error for ${exactDomain}:`, e.message);
       }
-    }
-
-    // 2. If not owned in Cloudflare, check public DNS availability
-    if (!isOwned) {
-      try {
-        const dnsRes = await fetch(
-          `https://cloudflare-dns.com/dns-query?name=${exactDomain}&type=NS`,
-          { headers: { Accept: "application/dns-json" } },
-        );
-        if (dnsRes.ok) {
-          const dnsData = await dnsRes.json();
-          if (dnsData.Answer && dnsData.Answer.length > 0) {
-            isAvailable = false;
-          }
-        }
-      } catch {}
-    }
+    } catch {}
 
     const matchedTldConfig = COMMON_TLDS.find((t) => t.tld === explicitTld);
     const priceCents = matchedTldConfig ? matchedTldConfig.basePriceCents : 1499;
@@ -98,11 +76,10 @@ export async function searchDomains(
       domain: exactDomain,
       tld: explicitTld,
       available: isAvailable,
-      provider: "cloudflare",
-      priceAnnualCents: isOwned ? 0 : priceCents,
+      provider: matchedTldConfig?.provider || "cloudflare",
+      priceAnnualCents: priceCents,
       currency: "EUR",
-      formattedPrice: isOwned ? "Détecté dans votre Cloudflare" : `${(priceCents / 100).toFixed(2)} €/an`,
-      isOwnedByAccount: isOwned,
+      formattedPrice: `${(priceCents / 100).toFixed(2)} €/an`,
     });
   } else {
     baseName = rawClean.replace(/[^a-z0-9-]/g, "");
