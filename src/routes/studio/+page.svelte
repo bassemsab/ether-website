@@ -297,12 +297,108 @@
   function scrollToBottom(behavior: ScrollBehavior = "smooth") {
     if (chatContainer) {
       requestAnimationFrame(() => {
-        chatContainer?.scrollTo({
+        if (!chatContainer) return;
+        chatContainer.scrollTo({
           top: chatContainer.scrollHeight,
           behavior,
         });
+        requestAnimationFrame(() => {
+          if (!chatContainer) return;
+          chatContainer.scrollTo({
+            top: chatContainer.scrollHeight,
+            behavior: "auto",
+          });
+        });
       });
     }
+  }
+
+  /**
+   * Svelte action to auto-scroll the actions / steps container to the bottom
+   * whenever a new step is added or its state updates.
+   */
+  function autoScrollSteps(node: HTMLElement, _dep?: any) {
+    const scroll = (behavior: ScrollBehavior = "smooth") => {
+      node.scrollTo({
+        top: node.scrollHeight,
+        behavior,
+      });
+    };
+
+    // Immediate scroll on initial mount
+    requestAnimationFrame(() => scroll("auto"));
+
+    // MutationObserver to catch every newly added action step DOM element
+    const mutationObserver = new MutationObserver(() => {
+      requestAnimationFrame(() => scroll("smooth"));
+    });
+    mutationObserver.observe(node, { childList: true, subtree: true, characterData: true });
+
+    // ResizeObserver to handle container height expansion or details toggling
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        requestAnimationFrame(() => scroll("auto"));
+      });
+      resizeObserver.observe(node);
+    }
+
+    return {
+      update(_newDep?: any) {
+        requestAnimationFrame(() => scroll("smooth"));
+      },
+      destroy() {
+        mutationObserver.disconnect();
+        resizeObserver?.disconnect();
+      },
+    };
+  }
+
+  /**
+   * Svelte action to auto-scroll the main chat container to the bottom
+   * whenever new messages, text chunks, or action steps are incoming.
+   */
+  function autoScrollChat(node: HTMLElement) {
+    let userScrolledUp = false;
+
+    const onScroll = () => {
+      const distanceToBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+      userScrolledUp = distanceToBottom > 120;
+    };
+
+    node.addEventListener("scroll", onScroll, { passive: true });
+
+    const scroll = (behavior: ScrollBehavior = "smooth") => {
+      node.scrollTo({
+        top: node.scrollHeight,
+        behavior,
+      });
+    };
+
+    const mutationObserver = new MutationObserver(() => {
+      if (!userScrolledUp || isThinking) {
+        requestAnimationFrame(() => scroll("auto"));
+      }
+    });
+    mutationObserver.observe(node, { childList: true, subtree: true, characterData: true });
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        if (!userScrolledUp || isThinking) {
+          requestAnimationFrame(() => scroll("auto"));
+        }
+      });
+      resizeObserver.observe(node);
+    }
+
+    return {
+      destroy() {
+        node.removeEventListener("scroll", onScroll);
+        mutationObserver.disconnect();
+        resizeObserver?.disconnect();
+      },
+    };
   }
 
   $effect(() => {
@@ -937,18 +1033,23 @@
                   const existing = messages[assistantMsgIndex].steps.find((s) => s.id === data.id);
                   if (existing) {
                     existing.state = data.state;
+                    messages[assistantMsgIndex].steps = [...messages[assistantMsgIndex].steps];
                   } else {
-                    messages[assistantMsgIndex].steps.push({
-                      id: data.id,
-                      name: data.name,
-                      state: data.state || "running",
-                    });
+                    messages[assistantMsgIndex].steps = [
+                      ...messages[assistantMsgIndex].steps,
+                      {
+                        id: data.id,
+                        name: data.name,
+                        state: data.state || "running",
+                      },
+                    ];
                   }
                   scrollToBottom("auto");
                 } else if (data.id !== undefined && data.state === "completed") {
                   const existing = messages[assistantMsgIndex].steps?.find((s) => s.id === data.id);
                   if (existing) {
                     existing.state = "completed";
+                    messages[assistantMsgIndex].steps = [...messages[assistantMsgIndex].steps];
                   }
                   scrollToBottom("auto");
                 }
@@ -1312,8 +1413,9 @@
         <!-- Messages Stream -->
         <div
           bind:this={chatContainer}
+          use:autoScrollChat
           onclick={handleChatContainerClick}
-          class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue relative"
+          class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue relative scroll-smooth"
           ondragover={handleDragOver}
           ondragleave={handleDragLeave}
           ondrop={handleDrop}
@@ -1397,7 +1499,10 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                       </svg>
                     </summary>
-                    <div class="px-3 pb-2.5 pt-1 space-y-1 max-h-48 overflow-y-auto border-t border-black/5">
+                    <div
+                      use:autoScrollSteps={msg.steps.length}
+                      class="px-3 pb-2.5 pt-1 space-y-1 max-h-48 overflow-y-auto border-t border-black/5 scroll-smooth"
+                    >
                       {#each msg.steps as step}
                         <div class="flex items-center gap-2">
                           {#if step.state === 'running'}
