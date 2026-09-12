@@ -35,4 +35,41 @@ describe("Tenant Fair-Use Prompt Quotas", () => {
     expect(afterCheck.current).toBe(2);
     expect(afterCheck.remaining).toBe(1);
   });
+
+  it("should use extra_prompts when daily limit is exhausted", async () => {
+    const { addTenantExtraPrompts, createTenantWebsite, getOrCreateUserByEmail } = await import("./db");
+    const testSlug = `tenant-extra-${Date.now()}`;
+    const user = await getOrCreateUserByEmail(`${testSlug}@test.com`);
+    await createTenantWebsite(
+      user!.id,
+      testSlug,
+      testSlug,
+      `${testSlug}@test.com`,
+    );
+
+    // Exhaust daily 3 prompts
+    incrementTenantPromptCount(testSlug);
+    incrementTenantPromptCount(testSlug);
+    incrementTenantPromptCount(testSlug);
+
+    const exhaustedCheck = checkTenantPromptLimit(testSlug, "free");
+    expect(exhaustedCheck.allowed).toBe(false);
+    expect(exhaustedCheck.remaining).toBe(0);
+    expect(exhaustedCheck.extraPrompts).toBe(0);
+
+    // Add 20 extra prompts
+    addTenantExtraPrompts(testSlug, 20);
+
+    const topupCheck = checkTenantPromptLimit(testSlug, "free");
+    expect(topupCheck.allowed).toBe(true);
+    expect(topupCheck.remaining).toBe(20);
+    expect(topupCheck.extraPrompts).toBe(20);
+
+    // Increment prompt count and verify extra_prompts decrements
+    incrementTenantPromptCount(testSlug);
+    const afterExtraCheck = checkTenantPromptLimit(testSlug, "free");
+    expect(afterExtraCheck.allowed).toBe(true);
+    expect(afterExtraCheck.remaining).toBe(19);
+    expect(afterExtraCheck.extraPrompts).toBe(19);
+  });
 });

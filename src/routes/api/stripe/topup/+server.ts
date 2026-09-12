@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     }
 
     const origin = url.origin;
-    const successUrl = `${origin}/studio?project=${encodeURIComponent(projectSlug)}&topup_success=true&pack=${packId}`;
+    const successUrl = `${origin}/studio?project=${encodeURIComponent(projectSlug)}&topup_success=true&session_id={CHECKOUT_SESSION_ID}&pack=${packId}`;
     const cancelUrl = `${origin}/studio?project=${encodeURIComponent(projectSlug)}&topup_canceled=true`;
 
     const { url: checkoutUrl, sessionId } =

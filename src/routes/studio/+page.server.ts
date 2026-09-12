@@ -5,6 +5,7 @@ import {
   checkTenantPromptLimit,
   getStudioChatHistory,
 } from "$lib/server/db";
+import { processPromptTopupCheckoutSession } from "$lib/server/stripe";
 import { getRunnerProfiles } from "$lib/server/agent-bridge";
 import { listTenantFiles } from "$lib/server/tenant-files";
 
@@ -15,6 +16,17 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
   }
 
   const projectSlug = url.searchParams.get("project") || "tester";
+
+  // If returning from Stripe top-up checkout, synchronously verify and credit session
+  const topupSessionId = url.searchParams.get("session_id");
+  if (topupSessionId && url.searchParams.get("topup_success") === "true") {
+    try {
+      await processPromptTopupCheckoutSession(topupSessionId);
+    } catch (err: any) {
+      console.warn(`[Studio Load] Could not verify topup session ${topupSessionId}:`, err.message);
+    }
+  }
+
   let tenant = await getTenantBySlug(projectSlug);
 
   const tenantData = tenant || {

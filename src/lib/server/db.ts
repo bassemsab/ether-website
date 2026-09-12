@@ -235,6 +235,18 @@ try {
     );
   } catch {}
 
+  // Processed Stripe events for idempotency
+  db.run(`
+    CREATE TABLE IF NOT EXISTS processed_stripe_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT UNIQUE NOT NULL,
+      event_type TEXT NOT NULL,
+      tenant_slug TEXT,
+      prompts INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Safe migrations for existing SQLite schemas
   const safeAddColumn = (table: string, columnDef: string) => {
     try {
@@ -770,6 +782,7 @@ export function checkTenantPromptLimit(
   current: number;
   limit: number;
   remaining: number;
+  dailyRemaining: number;
   extraPrompts: number;
   totalRemaining: number;
 } {
@@ -780,6 +793,7 @@ export function checkTenantPromptLimit(
       current: 0,
       limit,
       remaining: limit,
+      dailyRemaining: limit,
       extraPrompts: 0,
       totalRemaining: limit,
     };
@@ -807,7 +821,8 @@ export function checkTenantPromptLimit(
       allowed,
       current,
       limit,
-      remaining: dailyRemaining,
+      remaining: totalRemaining,
+      dailyRemaining,
       extraPrompts,
       totalRemaining,
     };
@@ -818,9 +833,39 @@ export function checkTenantPromptLimit(
       current: 0,
       limit,
       remaining: limit,
+      dailyRemaining: limit,
       extraPrompts: 0,
       totalRemaining: limit,
     };
+  }
+}
+
+export function isStripeSessionProcessed(sessionId: string): boolean {
+  if (!db) return false;
+  try {
+    const row = db
+      .prepare(`SELECT id FROM processed_stripe_events WHERE session_id = ?`)
+      .get(sessionId);
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
+export function recordProcessedStripeSession(
+  sessionId: string,
+  eventType: string,
+  tenantSlug: string,
+  prompts: number = 0,
+): void {
+  if (!db) return;
+  try {
+    db.prepare(`
+      INSERT OR IGNORE INTO processed_stripe_events (session_id, event_type, tenant_slug, prompts)
+      VALUES (?, ?, ?, ?)
+    `).run(sessionId, eventType, tenantSlug, prompts);
+  } catch (err: any) {
+    console.error("Failed to record processed stripe session:", err.message);
   }
 }
 

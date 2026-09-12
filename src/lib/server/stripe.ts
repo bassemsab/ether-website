@@ -6,6 +6,8 @@ import {
   getTenantBySlug,
   updateTenantStatus,
   addTenantExtraPrompts,
+  isStripeSessionProcessed,
+  recordProcessedStripeSession,
 } from "./db";
 import { updateTenantCustomDomainIngress } from "./k8s-tenant";
 import { provisionBookedDomain } from "./domains";
@@ -222,6 +224,101 @@ export async function createDomainCheckoutSession(
 }
 
 /**
+ * Processes and credits a prompt topup session safely and idempotently.
+ * Can be called by the Stripe webhook or synchronously by the success return redirect.
+ */
+export async function processPromptTopupCheckoutSession(
+  sessionOrId: Stripe.Checkout.Session | string,
+): Promise<{
+  success: boolean;
+  tenantSlug?: string;
+  promptsAdded?: number;
+  alreadyProcessed?: boolean;
+}> {
+  if (!stripe) return { success: false };
+
+  try {
+    let session: Stripe.Checkout.Session;
+    if (typeof sessionOrId === "string") {
+      session = await stripe.checkout.sessions.retrieve(sessionOrId);
+    } else {
+      session = sessionOrId;
+    }
+
+    if (session.payment_status !== "paid" || session.status !== "complete") {
+      return { success: false };
+    }
+
+    if (session.metadata?.type !== "prompt_topup") {
+      return { success: false };
+    }
+
+    const tenantSlug = session.metadata.tenant_slug;
+    const promptsToAdd = parseInt(session.metadata.prompts || "0", 10);
+    const packId = session.metadata.pack_id as TopupPackId;
+    const pack = TOPUP_PACKS[packId] || TOPUP_PACKS.starter;
+
+    if (!tenantSlug || promptsToAdd <= 0) {
+      return { success: false };
+    }
+
+    // Idempotency check
+    if (isStripeSessionProcessed(session.id)) {
+      return {
+        success: true,
+        tenantSlug,
+        promptsAdded: promptsToAdd,
+        alreadyProcessed: true,
+      };
+    }
+
+    // Credit extra prompts in DB
+    addTenantExtraPrompts(tenantSlug, promptsToAdd);
+    recordProcessedStripeSession(
+      session.id,
+      "prompt_topup",
+      tenantSlug,
+      promptsToAdd,
+    );
+    console.log(
+      `[Stripe Top-Up] Credited +${promptsToAdd} prompts for ${tenantSlug} (session ${session.id})`,
+    );
+
+    // Send purchase confirmation email
+    const tenant = await getTenantBySlug(tenantSlug);
+    const customerEmail =
+      session.customer_details?.email ||
+      session.customer_email ||
+      tenant?.email;
+
+    if (customerEmail) {
+      try {
+        await sendPromptTopupConfirmationEmail({
+          email: customerEmail,
+          tenantSlug,
+          packName: pack.name,
+          prompts: promptsToAdd,
+          priceFormatted: `${(pack.priceCents / 100).toFixed(2).replace(".", ",")} €`,
+        });
+        console.log(
+          `[Stripe Top-Up] Sent confirmation email to ${customerEmail}`,
+        );
+      } catch (emailErr: any) {
+        console.error(
+          `[Stripe Top-Up] Failed to send email to ${customerEmail}:`,
+          emailErr.message,
+        );
+      }
+    }
+
+    return { success: true, tenantSlug, promptsAdded: promptsToAdd };
+  } catch (err: any) {
+    console.error("[Stripe Top-Up] Error processing session:", err.message);
+    return { success: false };
+  }
+}
+
+/**
  * Handles Stripe webhook events.
  */
 export async function handleStripeWebhookEvent(
@@ -243,46 +340,13 @@ export async function handleStripeWebhookEvent(
 
     // Handle prompt topup purchase
     if (session.metadata?.type === "prompt_topup") {
-      const tenantSlug = session.metadata.tenant_slug;
-      const promptsToAdd = parseInt(session.metadata.prompts || "0", 10);
-      const packId = session.metadata.pack_id as TopupPackId;
-      const pack = TOPUP_PACKS[packId] || TOPUP_PACKS.starter;
-
-      if (tenantSlug && promptsToAdd > 0) {
-        console.log(
-          `[Stripe Webhook] Processing prompt top-up: +${promptsToAdd} prompts for ${tenantSlug}`,
-        );
-        addTenantExtraPrompts(tenantSlug, promptsToAdd);
-
-        // Send purchase confirmation email
-        const tenant = await getTenantBySlug(tenantSlug);
-        const customerEmail =
-          session.customer_details?.email ||
-          session.customer_email ||
-          tenant?.email;
-
-        if (customerEmail) {
-          try {
-            await sendPromptTopupConfirmationEmail({
-              email: customerEmail,
-              tenantSlug,
-              packName: pack.name,
-              prompts: promptsToAdd,
-              priceFormatted: `${(pack.priceCents / 100).toFixed(2).replace(".", ",")} €`,
-            });
-            console.log(
-              `[Stripe Webhook] Sent top-up confirmation email to ${customerEmail}`,
-            );
-          } catch (emailErr: any) {
-            console.error(
-              `[Stripe Webhook] Failed to send top-up email to ${customerEmail}:`,
-              emailErr.message,
-            );
-          }
-        }
-
-        return { received: true, action: "prompt_topup_credited" };
-      }
+      const res = await processPromptTopupCheckoutSession(session);
+      return {
+        received: true,
+        action: res.alreadyProcessed
+          ? "already_processed"
+          : "prompt_topup_credited",
+      };
     }
 
     const tenantIdStr = session.metadata?.tenant_id;
