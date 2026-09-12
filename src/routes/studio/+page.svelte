@@ -985,12 +985,8 @@
 
   function refreshPreview() {
     if (previewIframe) {
-      try {
-        previewIframe.contentWindow?.location.reload();
-      } catch {
-        const sep = previewUrl.includes("?") ? "&" : "?";
-        previewIframe.src = `${previewUrl}${sep}_t=${Date.now()}`;
-      }
+      const sep = previewUrl.includes("?") ? "&" : "?";
+      previewIframe.src = `${previewUrl}${sep}_t=${Date.now()}`;
     }
   }
 

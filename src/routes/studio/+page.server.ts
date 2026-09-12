@@ -76,7 +76,7 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
         ? "http://agent-runner:8080"
         : "http://localhost:8085");
     const filesRes = await fetch(`${runnerUrl}/files/${projectSlug}`, {
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(8000),
     });
     if (filesRes.ok) {
       const filesJson = await filesRes.json();
