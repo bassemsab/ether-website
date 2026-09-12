@@ -1667,7 +1667,7 @@
                           tabindex="0"
                           onclick={() => selectConversation(conv.conversationId)}
                           onkeydown={(e) => { if (e.key === 'Enter') selectConversation(conv.conversationId); }}
-                          class="group w-full flex items-start justify-between gap-2 px-2.5 py-2 rounded-md transition-colors cursor-pointer text-left {isActive ? 'bg-black/5 dark:bg-white/10 text-foreground dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground dark:hover:text-white'}"
+                          class="group w-full flex items-start justify-between gap-2 px-2.5 py-2 rounded-md last:rounded-b-xl transition-colors cursor-pointer text-left {isActive ? 'bg-black/5 dark:bg-white/10 text-foreground dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground dark:hover:text-white'}"
                         >
                           <div class="flex-1 min-w-0">
                             <div class="font-medium {isActive ? 'text-foreground dark:text-white font-semibold' : 'text-foreground/90 dark:text-neutral-200'} truncate text-[12px] leading-snug">
