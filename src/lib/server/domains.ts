@@ -14,14 +14,14 @@ export interface DomainSearchResult {
 }
 
 const COMMON_TLDS = [
-  { tld: "com", basePriceCents: 1299, provider: "cloudflare" as const },
-  { tld: "fr", basePriceCents: 899, provider: "ovh" as const },
-  { tld: "paris", basePriceCents: 3999, provider: "ovh" as const },
-  { tld: "io", basePriceCents: 4500, provider: "cloudflare" as const },
-  { tld: "net", basePriceCents: 1399, provider: "cloudflare" as const },
-  { tld: "org", basePriceCents: 1299, provider: "cloudflare" as const },
-  { tld: "shop", basePriceCents: 2999, provider: "ovh" as const },
-  { tld: "tech", basePriceCents: 1999, provider: "ovh" as const },
+  { tld: "com", basePriceCents: 1499, provider: "cloudflare" as const },
+  { tld: "fr", basePriceCents: 1499, provider: "ovh" as const },
+  { tld: "net", basePriceCents: 1799, provider: "cloudflare" as const },
+  { tld: "org", basePriceCents: 1699, provider: "cloudflare" as const },
+  { tld: "paris", basePriceCents: 4999, provider: "ovh" as const },
+  { tld: "io", basePriceCents: 4999, provider: "cloudflare" as const },
+  { tld: "shop", basePriceCents: 3499, provider: "ovh" as const },
+  { tld: "tech", basePriceCents: 2499, provider: "ovh" as const },
 ];
 
 /**

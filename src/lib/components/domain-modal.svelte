@@ -59,6 +59,30 @@
     }, 2000);
   }
 
+  // DNS check state
+  let dnsCheckLoading = $state(false);
+  let dnsCheckResult = $state<{ propagated: boolean; message: string } | null>(null);
+
+  async function handleCheckDns() {
+    const domain = (existingDomainInput || currentDomain || "").trim();
+    if (!domain) return;
+
+    dnsCheckLoading = true;
+    dnsCheckResult = null;
+    try {
+      const res = await fetch(`/api/domains/check-dns?domain=${encodeURIComponent(domain)}`);
+      const json = await res.json();
+      dnsCheckResult = {
+        propagated: !!json.propagated,
+        message: json.message || (json.propagated ? "DNS actif !" : "En attente de propagation"),
+      };
+    } catch {
+      dnsCheckResult = { propagated: false, message: "Impossible de vérifier le DNS pour le moment." };
+    } finally {
+      dnsCheckLoading = false;
+    }
+  }
+
   // Unlink state
   let unlinkLoading = $state(false);
 
@@ -448,8 +472,31 @@
               </div>
               <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
                 <span><b class="text-brand">Type CNAME</b> : www</span>
-                <span class="text-foreground font-semibold">{defaultSubdomain}</span>
+                <span class="text-foreground font-semibold">{tenant.slug}.ether.paris</span>
               </div>
+            </div>
+
+            <!-- Propagation Test Button -->
+            <div class="pt-2 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onclick={handleCheckDns}
+                disabled={dnsCheckLoading || (!existingDomainInput.trim() && !currentDomain)}
+                class="px-3.5 py-1.5 text-xs font-mono rounded-lg bg-surface border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer inline-flex items-center gap-2"
+              >
+                {#if dnsCheckLoading}
+                  <div class="w-3 h-3 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
+                  <span>Test en cours...</span>
+                {:else}
+                  <span>🔍 Tester la propagation DNS</span>
+                {/if}
+              </button>
+
+              {#if dnsCheckResult}
+                <span class="text-xs font-mono {dnsCheckResult.propagated ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'} font-medium">
+                  {dnsCheckResult.message}
+                </span>
+              {/if}
             </div>
           </div>
         </div>
@@ -482,85 +529,116 @@
             </p>
           </div>
 
-          <!-- Outbound SMTP Card for Gmail -->
+          <!-- Outbound SMTP Options Card -->
           <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface dark:bg-white/[0.02] space-y-3">
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-xs font-semibold uppercase tracking-wider text-foreground">
-                  Envoi d'e-mails depuis Gmail (SMTP Maddy)
+                  Envoi d'e-mails depuis Gmail (Deux méthodes possibles)
                 </div>
                 <p class="text-[11px] text-muted-foreground mt-0.5">
-                  Pour répondre et envoyer des messages avec votre alias professionnel dans Gmail.
+                  Pour répondre avec l'adresse <code class="font-mono text-foreground">contact@{currentDomain || tenant.slug + '.com'}</code> dans Gmail.
                 </p>
               </div>
-              <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/20 font-medium shrink-0">
-                TLS 587
-              </span>
             </div>
 
-            <!-- Credentials Table -->
-            <div class="space-y-1.5 font-mono text-xs">
-              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
-                <span class="text-muted-foreground">Serveur SMTP</span>
-                <div class="flex items-center gap-2">
-                  <span class="text-foreground font-semibold">mail.ether.paris</span>
-                  <button
-                    type="button"
-                    onclick={() => copyToClipboard('mail.ether.paris', 'host')}
-                    class="px-2 py-0.5 text-[10px] rounded bg-brand/10 hover:bg-brand/20 text-brand transition-colors cursor-pointer"
-                  >
-                    {copiedField === 'host' ? 'Copié !' : 'Copier'}
-                  </button>
+            <!-- Option A: smtp.gmail.com (as in screenshot) -->
+            <div class="p-3 bg-black/5 dark:bg-white/[0.03] rounded-xl border border-black/5 dark:border-white/5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-foreground">
+                  Méthode 1 : Via les serveurs Google (<code class="font-mono text-brand font-bold">smtp.gmail.com</code>)
+                </span>
+                <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-brand/10 text-brand">
+                  Recommandé Google
+                </span>
+              </div>
+              <p class="text-[11px] text-muted-foreground leading-relaxed">
+                Google relaie directement vos messages. Nécessite un <b>Mot de passe d'application</b> (16 caractères) généré sur votre compte Google :
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono pt-1">
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 flex justify-between">
+                  <span class="text-muted-foreground">Serveur SMTP :</span>
+                  <span class="font-semibold text-foreground">smtp.gmail.com:587</span>
+                </div>
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 flex justify-between">
+                  <span class="text-muted-foreground">Utilisateur :</span>
+                  <span class="font-semibold text-foreground truncate max-w-[140px]">{tenant.email || 'votre@gmail.com'}</span>
+                </div>
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 flex justify-between col-span-1 sm:col-span-2">
+                  <span class="text-muted-foreground">Mot de passe :</span>
+                  <span class="font-semibold text-foreground">Mot de passe d'application Google</span>
                 </div>
               </div>
+              <p class="text-[10px] text-muted-foreground">
+                ➔ Générez votre mot de passe d'application sur <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" class="text-brand underline font-medium">myaccount.google.com/apppasswords</a>.
+              </p>
+            </div>
 
-              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
-                <span class="text-muted-foreground">Port / Sécurité</span>
-                <span class="text-foreground font-semibold">587 (TLS / STARTTLS)</span>
+            <!-- Option B: mail.ether.paris (via Maddy) -->
+            <div class="p-3 bg-black/5 dark:bg-white/[0.03] rounded-xl border border-black/5 dark:border-white/5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-foreground">
+                  Méthode 2 : Via le serveur SMTP Ether (<code class="font-mono text-brand font-bold">mail.ether.paris</code>)
+                </span>
+                <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  Clé-en-main Ether
+                </span>
               </div>
-
-              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
-                <span class="text-muted-foreground">Nom d'utilisateur</span>
-                <div class="flex items-center gap-2">
-                  <span class="text-foreground font-semibold truncate max-w-[180px]">
-                    {smtpInfo?.username || `contact@${currentDomain || tenant.slug + '.com'}`}
-                  </span>
-                  <button
-                    type="button"
-                    onclick={() => copyToClipboard(smtpInfo?.username || `contact@${currentDomain || tenant.slug + '.com'}`, 'user')}
-                    class="px-2 py-0.5 text-[10px] rounded bg-brand/10 hover:bg-brand/20 text-brand transition-colors cursor-pointer"
-                  >
-                    {copiedField === 'user' ? 'Copié !' : 'Copier'}
-                  </button>
+              <p class="text-[11px] text-muted-foreground leading-relaxed">
+                Pas besoin de configurer de compte Google supplémentaire. Utilisez directement ces identifiants :
+              </p>
+              <div class="space-y-1.5 font-mono text-xs">
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 flex items-center justify-between">
+                  <span class="text-muted-foreground">Serveur SMTP :</span>
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-foreground">mail.ether.paris:587</span>
+                    <button
+                      type="button"
+                      onclick={() => copyToClipboard('mail.ether.paris', 'host')}
+                      class="px-2 py-0.5 text-[10px] rounded bg-brand/10 text-brand transition-colors cursor-pointer"
+                    >
+                      {copiedField === 'host' ? 'Copié !' : 'Copier'}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
-                <span class="text-muted-foreground">Mot de passe SMTP</span>
-                <div class="flex items-center gap-2">
-                  {#if smtpInfo?.password}
-                    <span class="text-foreground font-semibold">
-                      {showPassword ? smtpInfo.password : '••••••••••••'}
-                    </span>
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 flex items-center justify-between">
+                  <span class="text-muted-foreground">Utilisateur :</span>
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-foreground truncate max-w-[160px]">{smtpInfo?.username || `contact@${currentDomain || tenant.slug + '.com'}`}</span>
                     <button
                       type="button"
-                      onclick={() => showPassword = !showPassword}
-                      class="px-2 py-0.5 text-[10px] rounded bg-surface hover:bg-surface/80 border border-black/10 text-muted-foreground transition-colors cursor-pointer"
+                      onclick={() => copyToClipboard(smtpInfo?.username || `contact@${currentDomain || tenant.slug + '.com'}`, 'user')}
+                      class="px-2 py-0.5 text-[10px] rounded bg-brand/10 text-brand transition-colors cursor-pointer"
                     >
-                      {showPassword ? 'Masquer' : 'Voir'}
+                      {copiedField === 'user' ? 'Copié !' : 'Copier'}
                     </button>
-                    <button
-                      type="button"
-                      onclick={() => copyToClipboard(smtpInfo!.password, 'pass')}
-                      class="px-2 py-0.5 text-[10px] rounded bg-brand/10 hover:bg-brand/20 text-brand transition-colors cursor-pointer"
-                    >
-                      {copiedField === 'pass' ? 'Copié !' : 'Copier'}
-                    </button>
-                  {:else}
-                    <span class="text-muted-foreground italic text-[11px]">
-                      Généré dès la liaison du domaine
-                    </span>
-                  {/if}
+                  </div>
+                </div>
+
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 flex items-center justify-between">
+                  <span class="text-muted-foreground">Mot de passe :</span>
+                  <div class="flex items-center gap-2">
+                    {#if smtpInfo?.password}
+                      <span class="font-semibold text-foreground">{showPassword ? smtpInfo.password : '••••••••••••'}</span>
+                      <button
+                        type="button"
+                        onclick={() => showPassword = !showPassword}
+                        class="px-2 py-0.5 text-[10px] rounded bg-surface border border-black/10 text-muted-foreground transition-colors cursor-pointer"
+                      >
+                        {showPassword ? 'Masquer' : 'Voir'}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={() => copyToClipboard(smtpInfo!.password, 'pass')}
+                        class="px-2 py-0.5 text-[10px] rounded bg-brand/10 text-brand transition-colors cursor-pointer"
+                      >
+                        {copiedField === 'pass' ? 'Copié !' : 'Copier'}
+                      </button>
+                    {:else}
+                      <span class="text-muted-foreground italic text-[11px]">Généré lors de la liaison</span>
+                    {/if}
+                  </div>
                 </div>
               </div>
             </div>
@@ -569,16 +647,15 @@
           <!-- Step-by-Step Gmail Setup Instructions -->
           <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface/60 dark:bg-white/[0.01] space-y-2.5">
             <div class="text-xs font-semibold uppercase tracking-wider text-foreground">
-              Comment ajouter cet alias dans Gmail (3 minutes) :
+              Guide d'installation dans Gmail (3 minutes) :
             </div>
             <ol class="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside leading-relaxed font-neue">
-              <li>Ouvrez <b>Gmail</b> ➔ cliquez sur <b>Paramètres ⚙️</b> ➔ <b>Voir tous les paramètres</b>.</li>
-              <li>Allez dans l'onglet <b>Comptes et importation</b>.</li>
+              <li>Dans <b>Gmail</b>, cliquez sur l'icône <b>Paramètres ⚙️</b> ➔ <b>Voir tous les paramètres</b> ➔ onglet <b>Comptes et importation</b>.</li>
               <li>Dans la section <i>« Envoyer des e-mails en tant que »</i>, cliquez sur <b>« Ajouter une autre adresse e-mail »</b>.</li>
-              <li>Saisissez votre nom et <code class="font-mono text-foreground">contact@{currentDomain || tenant.slug + '.com'}</code> (gardez <i>« Traiter comme un alias »</i> coché).</li>
-              <li>Renseignez le serveur <code class="font-mono">mail.ether.paris</code>, port <code class="font-mono">587</code>, et vos identifiants ci-dessus.</li>
-              <li>Cliquez sur <b>Ajouter un compte</b> : Gmail envoie un code de vérification à cette adresse.</li>
-              <li>Ce code arrive immédiatement dans votre boîte Gmail (grâce à la redirection). Entrez-le pour valider !</li>
+              <li>Entrez votre nom et <code class="font-mono text-foreground">contact@{currentDomain || tenant.slug + '.com'}</code> (gardez <i>« Traiter comme un alias »</i> coché).</li>
+              <li>Sélectionnez l'une des deux méthodes ci-dessus (<code class="font-mono">smtp.gmail.com</code> ou <code class="font-mono">mail.ether.paris</code>) avec port <code class="font-mono">587</code> et vos identifiants.</li>
+              <li>Cliquez sur <b>Ajouter un compte</b> : Gmail envoie un code de vérification qui atterrit directement dans votre boîte Gmail grâce à la redirection Cloudflare !</li>
+              <li>Copiez le code pour valider : vous pouvez désormais envoyer des emails avec votre adresse de marque !</li>
             </ol>
           </div>
         </div>
