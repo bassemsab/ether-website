@@ -13,6 +13,7 @@ export const fallback: RequestHandler = async ({ params, request, url }) => {
     const targetUrl = `${runnerUrl}/dev/${slug}${path}${url.search}`;
     const reqHeaders = new Headers(request.headers);
     reqHeaders.set("x-forwarded-host", url.host);
+    reqHeaders.set("accept-encoding", "identity");
 
     const res = await fetch(targetUrl, {
       method: request.method,
@@ -27,6 +28,8 @@ export const fallback: RequestHandler = async ({ params, request, url }) => {
     const resHeaders = new Headers(res.headers);
     resHeaders.delete("x-frame-options");
     resHeaders.delete("content-security-policy");
+    resHeaders.delete("content-encoding");
+    resHeaders.delete("content-length");
 
     return new Response(res.body, {
       status: res.status,

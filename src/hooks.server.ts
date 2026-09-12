@@ -161,6 +161,7 @@ export const handle: Handle = async ({ event, resolve }) => {
       const proxyUrl = `${runnerUrl}${devPath}`;
       const forwardHeaders = new Headers(event.request.headers);
       forwardHeaders.set("x-forwarded-host", rawHost);
+      forwardHeaders.set("accept-encoding", "identity");
 
       const devRes = await fetch(proxyUrl, {
         method: event.request.method,
@@ -176,6 +177,8 @@ export const handle: Handle = async ({ event, resolve }) => {
         const responseHeaders = new Headers(devRes.headers);
         responseHeaders.delete("x-frame-options");
         responseHeaders.delete("content-security-policy");
+        responseHeaders.delete("content-encoding");
+        responseHeaders.delete("content-length");
         responseHeaders.set(
           "cache-control",
           "no-store, no-cache, must-revalidate, max-age=0",
@@ -226,6 +229,7 @@ export const handle: Handle = async ({ event, resolve }) => {
       const proxyUrl = `${runnerUrl}${prodPath}`;
       const forwardHeaders = new Headers(event.request.headers);
       forwardHeaders.set("x-forwarded-host", rawHost);
+      forwardHeaders.set("accept-encoding", "identity");
 
       const prodRes = await fetch(proxyUrl, {
         method: event.request.method,
@@ -238,13 +242,20 @@ export const handle: Handle = async ({ event, resolve }) => {
       });
 
       if (prodRes.ok || (prodRes.status >= 300 && prodRes.status < 500)) {
+        const responseHeaders = new Headers(prodRes.headers);
+        responseHeaders.delete("content-encoding");
+        responseHeaders.delete("content-length");
         return new Response(prodRes.body, {
           status: prodRes.status,
           statusText: prodRes.statusText,
-          headers: prodRes.headers,
+          headers: responseHeaders,
         });
       }
-    } catch {
+    } catch (err: any) {
+      console.warn(
+        `[Prod Proxy] Runner prod server unreachable for ${tenantSlug}:`,
+        err.message,
+      );
       // Fall through to standard resolve(event)
     }
   }

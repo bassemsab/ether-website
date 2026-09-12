@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --bun vite dev",
-    "build": "bun --bun vite build",
+    "build": "bun --bun vite build && bun run scripts/postbuild.ts",
     "preview": "vite preview",
     "start": "bun build/index.js",
     "check": "svelte-kit sync && tsc --noEmit",

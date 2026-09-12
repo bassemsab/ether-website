@@ -135,6 +135,8 @@ jobs:
           kubectl set env deployment/ether-website -n ether APP_RELEASE=${{ github.sha }}
           kubectl rollout restart deployment ether-website -n ether
           kubectl rollout status deployment ether-website -n ether
+          # Restart any tenant web-prod deployments so they pick up the latest proxy wrapper
+          kubectl rollout restart deployment -l app=web-prod -A || true
 
       - name: Deploy agent-runner
         if: steps.changes.outputs.runner_changed == 'true'

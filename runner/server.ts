@@ -784,6 +784,7 @@ const server = Bun.serve({
 
         const reqHeaders = new Headers(req.headers);
         reqHeaders.set("host", `127.0.0.1:${devPort}`);
+        reqHeaders.set("accept-encoding", "identity");
 
         const bodyData =
           req.method !== "GET" && req.method !== "HEAD"
@@ -800,6 +801,8 @@ const server = Bun.serve({
         resHeaders.set("Access-Control-Allow-Origin", "*");
         resHeaders.delete("X-Frame-Options");
         resHeaders.delete("Content-Security-Policy");
+        resHeaders.delete("content-encoding");
+        resHeaders.delete("content-length");
         resHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
         resHeaders.set("Pragma", "no-cache");
 
@@ -828,6 +831,7 @@ const server = Bun.serve({
 
         const reqHeaders = new Headers(req.headers);
         reqHeaders.set("host", `127.0.0.1:${prodPort}`);
+        reqHeaders.set("accept-encoding", "identity");
 
         const bodyData =
           req.method !== "GET" && req.method !== "HEAD"
@@ -844,6 +848,8 @@ const server = Bun.serve({
         resHeaders.set("Access-Control-Allow-Origin", "*");
         resHeaders.delete("X-Frame-Options");
         resHeaders.delete("Content-Security-Policy");
+        resHeaders.delete("content-encoding");
+        resHeaders.delete("content-length");
 
         return new Response(proxyRes.body, {
           status: proxyRes.status,
