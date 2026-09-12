@@ -6,7 +6,7 @@ export const fallback: RequestHandler = async ({ params, request, url }) => {
   const runnerUrl =
     process.env.RUNNER_API_URL ||
     (process.env.NODE_ENV === "production"
-      ? "http://agent-runner:8080"
+      ? "http://agent-runner.ether.svc.cluster.local:8080"
       : "http://localhost:8085");
 
   try {

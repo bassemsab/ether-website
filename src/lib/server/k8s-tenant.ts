@@ -86,6 +86,16 @@ spec:
         - protocol: TCP
           port: 53
     - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ether
+          podSelector:
+            matchLabels:
+              app: agent-runner
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
             except:
@@ -109,6 +119,8 @@ metadata:
     app: web-prod
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: web-prod
@@ -136,6 +148,8 @@ spec:
               value: "${config.subdomain}"
             - name: TENANT_BRAND_NAME
               value: "${brandName}"
+            - name: RUNNER_API_URL
+              value: "http://agent-runner.ether.svc.cluster.local:8080"
           ports:
             - containerPort: 3000
           resources:
