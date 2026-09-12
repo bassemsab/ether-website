@@ -40,6 +40,7 @@
   let selectedTableName = $state<string>("");
 
   let activeSubTab = $state<"browse" | "query" | "schema">("browse");
+  let showTablesSidebar = $state(true);
 
   // Table browse state
   let tableRows = $state<Record<string, any>[]>([]);
@@ -187,57 +188,103 @@
 <div class="w-full h-full flex flex-col bg-background text-foreground overflow-hidden font-mono text-xs">
   <!-- Inspector Top Bar (Split to match sidebar & content columns) -->
   <div class="h-10 border-b border-black/10 bg-surface/70 flex items-stretch shrink-0">
-    <!-- Left column: Tables header & DB size -->
-    <div class="w-48 border-r border-black/10 px-3 flex items-center justify-between shrink-0 bg-surface/50">
-      <div class="flex items-center gap-1.5 min-w-0">
-        <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Bun SQLite Connecté"></span>
-        <span class="font-semibold text-foreground truncate text-[11px]">Tables ({tables.length})</span>
+    <!-- Left column: Tables header & DB size (collapsible) -->
+    {#if showTablesSidebar}
+      <div class="w-44 sm:w-48 border-r border-black/10 px-2.5 flex items-center justify-between shrink-0 bg-surface/50">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <button
+            type="button"
+            onclick={() => showTablesSidebar = false}
+            class="p-1 -ml-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            title="Masquer la liste des tables"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Bun SQLite Connecté"></span>
+          <span class="font-semibold text-foreground truncate text-[11px]">Tables ({tables.length})</span>
+        </div>
+        {#if fileSize > 0}
+          <span class="text-[10px] text-muted-foreground shrink-0 font-mono">
+            {formatSize(fileSize)}
+          </span>
+        {/if}
       </div>
-      {#if fileSize > 0}
-        <span class="text-[10px] text-muted-foreground shrink-0 font-mono">
-          {formatSize(fileSize)}
-        </span>
-      {/if}
-    </div>
+    {/if}
 
-    <!-- Right column: Navigation tabs & Refresh -->
-    <div class="flex-1 flex items-center justify-between gap-2 px-3 overflow-x-auto min-w-0 bg-surface/30">
-      <!-- Sub Tabs -->
-      <div class="flex items-center bg-black/5 p-0.5 rounded-lg shrink-0">
-        <button
-          type="button"
-          onclick={() => activeSubTab = "browse"}
-          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer {activeSubTab === 'browse' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
-        >
-          Données
-        </button>
-        <button
-          type="button"
-          onclick={() => activeSubTab = "query"}
-          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer {activeSubTab === 'query' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
-        >
-          Console SQL
-        </button>
-        <button
-          type="button"
-          onclick={() => activeSubTab = "schema"}
-          class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer {activeSubTab === 'schema' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
-        >
-          Schéma DDL
-        </button>
+    <!-- Right column: Navigation tabs, Dropdown & Refresh -->
+    <div class="flex-1 flex items-center justify-between gap-2 px-2.5 overflow-x-auto min-w-0 bg-surface/30 no-scrollbar">
+      <div class="flex items-center gap-2 shrink-0">
+        {#if !showTablesSidebar}
+          <button
+            type="button"
+            onclick={() => showTablesSidebar = true}
+            class="px-2 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground cursor-pointer flex items-center gap-1.5 text-[11px] font-mono shadow-xs transition-colors shrink-0"
+            title="Afficher la liste des tables"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            </svg>
+            <span class="font-semibold">Tables ({tables.length})</span>
+          </button>
+
+          <!-- Compact Table Selector Dropdown when sidebar is closed -->
+          <div class="relative inline-flex items-center shrink-0">
+            <select
+              value={selectedTableName}
+              onchange={(e) => handleSelectTable(e.currentTarget.value)}
+              class="appearance-none cursor-pointer rounded-md border border-black/10 bg-card pl-2.5 pr-7 py-1 text-[11px] font-mono font-medium text-foreground focus:outline-none focus:border-brand shadow-xs"
+            >
+              {#each tables as t}
+                <option value={t.name}>{t.name} ({t.rowCount})</option>
+              {/each}
+            </select>
+            <svg class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        {/if}
+
+        <!-- Sub Tabs -->
+        <div class="flex items-center bg-black/5 p-0.5 rounded-lg shrink-0">
+          <button
+            type="button"
+            onclick={() => activeSubTab = "browse"}
+            class="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap {activeSubTab === 'browse' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
+          >
+            Données
+          </button>
+          <button
+            type="button"
+            onclick={() => activeSubTab = "query"}
+            class="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap {activeSubTab === 'query' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
+          >
+            Console SQL
+          </button>
+          <button
+            type="button"
+            onclick={() => activeSubTab = "schema"}
+            class="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap {activeSubTab === 'schema' ? 'bg-card text-foreground shadow-sm font-semibold' : 'text-muted-foreground hover:text-foreground'}"
+          >
+            Schéma DDL
+          </button>
+        </div>
       </div>
 
-      <button
-        type="button"
-        onclick={loadSchema}
-        disabled={loading}
-        class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
-        title="Actualiser la base"
-      >
-        <svg class="w-4 h-4 {loading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      </button>
+      <div class="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onclick={loadSchema}
+          disabled={loading}
+          class="p-1.5 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+          title="Actualiser la base"
+        >
+          <svg class="w-4 h-4 {loading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -278,53 +325,59 @@
     </div>
   {:else}
     <!-- Main Content Layout -->
-    <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex overflow-hidden min-h-0">
       <!-- Tables Sidebar -->
-      <div class="w-48 border-r border-black/10 bg-surface/30 flex flex-col shrink-0">
-        <div class="flex-1 overflow-y-auto p-1 space-y-0.5">
-          {#each tables as table}
-            <button
-              type="button"
-              onclick={() => handleSelectTable(table.name)}
-              class="w-full text-left px-2 py-1.5 rounded flex items-center justify-between transition-colors cursor-pointer text-xs {selectedTableName === table.name ? 'bg-brand/10 text-brand font-semibold' : 'text-muted-foreground hover:bg-black/5 hover:text-foreground'}"
-            >
-              <div class="flex items-center gap-1.5 min-w-0 truncate">
-                <span class="text-[10px] text-muted-foreground">📋</span>
-                <span class="truncate">{table.name}</span>
-              </div>
-              <span class="text-[10px] font-normal px-1 rounded bg-black/5 text-muted-foreground">
-                {table.rowCount}
-              </span>
-            </button>
-          {/each}
+      {#if showTablesSidebar}
+        <div class="w-44 sm:w-48 border-r border-black/10 bg-surface/30 flex flex-col shrink-0 overflow-hidden select-none">
+          <div class="flex-1 overflow-y-auto p-1 space-y-0.5">
+            {#each tables as table}
+              <button
+                type="button"
+                onclick={() => handleSelectTable(table.name)}
+                class="w-full text-left px-2 py-1.5 rounded flex items-center justify-between transition-colors cursor-pointer text-xs {selectedTableName === table.name ? 'bg-brand/10 text-brand font-semibold' : 'text-muted-foreground hover:bg-black/5 hover:text-foreground'}"
+              >
+                <div class="flex items-center gap-1.5 min-w-0 truncate">
+                  <span class="text-[10px] text-muted-foreground">📋</span>
+                  <span class="truncate">{table.name}</span>
+                </div>
+                <span class="text-[10px] font-normal px-1 rounded bg-black/5 text-muted-foreground">
+                  {table.rowCount}
+                </span>
+              </button>
+            {/each}
+          </div>
         </div>
-      </div>
+      {/if}
 
       <!-- Right Panel by Sub Tab -->
-      <div class="flex-1 flex flex-col overflow-hidden bg-card">
+      <div class="flex-1 flex flex-col overflow-hidden bg-card min-w-0">
         {#if activeSubTab === "browse"}
           <!-- Browse Table Toolbar -->
-          <div class="h-10 border-b border-black/10 px-3 flex items-center justify-between shrink-0 bg-surface/20">
-            <div class="flex items-center gap-3">
-              <span class="font-semibold text-foreground text-xs">{selectedTableName}</span>
-              <span class="text-[11px] text-muted-foreground">
+          <div class="h-10 border-b border-black/10 px-2.5 flex items-center justify-between shrink-0 bg-surface/20 gap-2 overflow-x-auto no-scrollbar">
+            <div class="flex items-center gap-2 min-w-0 shrink-0">
+              <span class="font-semibold text-foreground text-xs truncate max-w-[120px]">{selectedTableName}</span>
+              <span class="text-[10px] text-muted-foreground whitespace-nowrap">
                 {tableRows.length} ligne{tableRows.length > 1 ? 's' : ''}
               </span>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5 shrink-0">
               <input
                 type="text"
                 bind:value={filterQuery}
-                placeholder="Filtrer les lignes..."
-                class="px-2.5 py-1 text-[11px] rounded border border-black/10 bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand w-48 font-mono"
+                placeholder="Filtrer..."
+                class="px-2 py-1 text-[11px] rounded border border-black/10 bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand w-24 sm:w-36 md:w-44 font-mono"
               />
               <button
                 type="button"
                 onclick={() => loadTableRows(selectedTableName)}
-                class="px-2.5 py-1 text-[11px] rounded border border-black/10 hover:bg-black/5 transition-colors cursor-pointer"
+                class="px-2 py-1 text-[11px] rounded border border-black/10 hover:bg-black/5 transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1"
+                title="Actualiser la table"
               >
-                Actualiser
+                <svg class="w-3 h-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span class="hidden sm:inline">Actualiser</span>
               </button>
             </div>
           </div>

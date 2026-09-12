@@ -504,7 +504,11 @@
       showEditor = !showEditor;
     } else if (panel === "preview") {
       if (showPreview && !showChat && !showEditor) return;
-      showPreview = !showPreview;
+      const willOpen = !showPreview;
+      showPreview = willOpen;
+      if (willOpen && showChat && showEditor && typeof window !== "undefined" && window.innerWidth < 1440) {
+        showExplorer = false;
+      }
     }
   }
 
@@ -1869,7 +1873,7 @@
     <!-- Center Panel: Code Editor (Kept mounted for CodeMirror persistence) -->
     <div
       class="{showEditor ? 'flex' : 'hidden'} flex-col h-full overflow-hidden border-r border-black/10 bg-card {showPreview ? 'shrink-0' : 'flex-1 w-full min-w-0'}"
-      style={showPreview ? `width: ${editorWidth}px; max-width: calc(100% - 320px); min-width: 280px;` : ''}
+      style={showPreview ? `width: ${editorWidth}px; max-width: calc(100% - 320px); min-width: 320px;` : ''}
     >
       <!-- File Tabs & Editor Controls -->
       <div class="h-10 border-b border-black/10 bg-surface/60 flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
@@ -1989,7 +1993,7 @@
       <div class="flex-1 flex overflow-hidden min-h-0">
         <!-- File Explorer Sidebar -->
         {#if showExplorer}
-          <div class="w-52 sm:w-56 border-r border-black/10 bg-surface/40 flex flex-col shrink-0 overflow-hidden select-none">
+          <div class="w-44 sm:w-48 border-r border-black/10 bg-surface/40 flex flex-col shrink-0 overflow-hidden select-none">
             <!-- Explorer Header & Filter -->
             <div class="p-2 border-b border-black/10 space-y-1.5 shrink-0 bg-surface/60">
               <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
@@ -2188,7 +2192,12 @@
     <!-- Docked Right Strip: Reopen Preview -->
     {#if !showPreview}
       <button
-        onclick={() => showPreview = true}
+        onclick={() => {
+          showPreview = true;
+          if (showChat && showEditor && typeof window !== "undefined" && window.innerWidth < 1440) {
+            showExplorer = false;
+          }
+        }}
         class="hidden lg:flex w-9 h-full border-l border-black/10 bg-surface/60 hover:bg-surface flex-col items-center justify-start py-4 gap-3 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer group"
         title="Déplier l'aperçu"
       >
