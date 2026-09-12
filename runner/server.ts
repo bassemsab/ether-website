@@ -453,7 +453,7 @@ function ensureTenantCodebase(
   if (!existsSync(viteConfig)) {
     writeFileSync(
       viteConfig,
-      `import { sveltekit } from "@sveltejs/kit/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({\n  plugins: [sveltekit()],\n  server: {\n    hmr: false\n  }\n});\n`,
+      `import { sveltekit } from "@sveltejs/kit/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({\n  plugins: [sveltekit()],\n  server: {\n    watch: {\n      usePolling: true,\n      interval: 100\n    },\n    hmr: {\n      clientPort: 443\n    }\n  }\n});\n`,
     );
   }
 
@@ -668,7 +668,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
 
 const server = Bun.serve({
   port: PORT,
-  async fetch(req) {
+  async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname;
 
@@ -683,14 +683,38 @@ const server = Bun.serve({
       return new Response(null, { headers: corsHeaders });
     }
 
-    // Tenant Vite Dev Server Reverse Proxy
+    // Tenant Dev Server Routing:
+    // 1. Check Host header (e.g. preview-tester.ether.paris or tester.preview.ether.paris from Cloudflare Tunnel)
+    const rawHost = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").toLowerCase().split(":")[0];
+    let hostTenantSlug: string | null = null;
+    if (rawHost.startsWith("preview-") && rawHost.endsWith(".ether.paris")) {
+      const candidate = rawHost.slice(8).replace(".ether.paris", "");
+      if (candidate.length > 0) hostTenantSlug = candidate;
+    } else if (rawHost.endsWith(".preview.ether.paris")) {
+      const candidate = rawHost.replace(".preview.ether.paris", "");
+      if (candidate.length > 0) hostTenantSlug = candidate;
+    }
+
+    // 2. Check path: /dev/:slug or /preview/:slug
     const devMatch = path.match(/^\/(?:dev|preview)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
-    if (devMatch) {
-      const tenantSlug = devMatch[1];
-      const subPath = (devMatch[2] || "/") + url.search;
+
+    if (hostTenantSlug || devMatch) {
+      const tenantSlug = hostTenantSlug || devMatch![1];
+      const subPath = hostTenantSlug ? (path + url.search) : ((devMatch![2] || "/") + url.search);
 
       try {
         const devPort = await getOrLaunchTenantDevServer(tenantSlug);
+
+        // Check for WebSocket Upgrade request (Vite HMR)
+        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          const protocol = req.headers.get("sec-websocket-protocol") || "vite-hmr";
+          const upgraded = srv.upgrade(req, {
+            data: { tenantSlug, devPort, subPath, protocol },
+            headers: { "Sec-WebSocket-Protocol": protocol }
+          });
+          if (upgraded) return undefined;
+        }
+
         const targetUrl = `http://127.0.0.1:${devPort}${subPath}`;
 
         const reqHeaders = new Headers(req.headers);
@@ -711,6 +735,8 @@ const server = Bun.serve({
         resHeaders.set("Access-Control-Allow-Origin", "*");
         resHeaders.delete("X-Frame-Options");
         resHeaders.delete("Content-Security-Policy");
+        resHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        resHeaders.set("Pragma", "no-cache");
 
         return new Response(proxyRes.body, {
           status: proxyRes.status,
@@ -1693,6 +1719,51 @@ const server = Bun.serve({
     }
 
     return new Response("Not Found", { status: 404, headers: corsHeaders });
+  },
+  websocket: {
+    open(ws: any) {
+      const devPort = ws.data?.devPort;
+      const protocol = ws.data?.protocol || "vite-hmr";
+      try {
+        const targetWs = new WebSocket(`ws://127.0.0.1:${devPort}/`, protocol);
+        ws.data.targetWs = targetWs;
+
+        targetWs.onmessage = (event: any) => {
+          try {
+            ws.send(event.data);
+          } catch {}
+        };
+
+        targetWs.onclose = (event: any) => {
+          try {
+            ws.close(event.code, event.reason);
+          } catch {}
+        };
+
+        targetWs.onerror = (err: any) => {
+          console.warn(`[Vite WS Proxy] Backend error for ${ws.data?.tenantSlug}:`, err.message);
+        };
+      } catch (err: any) {
+        console.error(`[Vite WS Proxy] Failed to connect to Vite on port ${devPort}:`, err.message);
+        try {
+          ws.close(1011, "Backend dev server unreachable");
+        } catch {}
+      }
+    },
+    message(ws: any, message: any) {
+      if (ws.data?.targetWs && ws.data.targetWs.readyState === WebSocket.OPEN) {
+        try {
+          ws.data.targetWs.send(message);
+        } catch {}
+      }
+    },
+    close(ws: any, code: number, reason: string) {
+      if (ws.data?.targetWs) {
+        try {
+          ws.data.targetWs.close(code, reason);
+        } catch {}
+      }
+    },
   },
 });
 

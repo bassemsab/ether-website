@@ -268,7 +268,13 @@ import { defineConfig } from 'vite';
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	server: {
-		hmr: false
+		watch: {
+			usePolling: true,
+			interval: 100
+		},
+		hmr: {
+			clientPort: 443
+		}
 	}
 });
 `;
