@@ -1661,111 +1661,126 @@
           {/if}
 
           {#each messages as msg}
-            <div class="space-y-1 {msg.role === 'user' ? 'text-right' : ''}">
-              <div class="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground {msg.role === 'user' ? 'justify-end' : ''}">
-                <span class="font-semibold text-foreground">{msg.role === 'user' ? 'Vous' : 'Ether Agent'}</span>
+            <div class="space-y-1.5 {msg.role === 'user' ? 'text-right' : 'text-left'}">
+              <div class="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground {msg.role === 'user' ? 'justify-end' : 'justify-start'} px-1">
+                <span class="font-semibold text-foreground dark:text-neutral-200">{msg.role === 'user' ? 'Vous' : 'Ether Agent'}</span>
                 <span>·</span>
                 <span>{msg.time}</span>
                 {#if msg.role === 'assistant' && msg.profile}
-                  <span class="text-[9px] px-1.5 py-0.2 rounded bg-black/5 font-mono uppercase">
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 font-mono uppercase text-muted-foreground dark:text-neutral-300">
                     {getProfileLabel(msg.profile)}
                   </span>
                 {/if}
               </div>
-              <div class="inline-block text-left p-4 rounded-xl max-w-[95%] sm:max-w-[90%] leading-relaxed {msg.role === 'user' ? 'bg-brand text-white shadow-retro-sm dark:shadow-none' : 'border border-black/10 dark:border-white/10 bg-card dark:bg-[#18181f] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none'}">
-                {#if msg.imageUrl}
-                  <div class="mb-2">
-                    <button
-                      type="button"
-                      class="cursor-pointer group relative block overflow-hidden rounded-lg border border-black/10 max-w-[260px] max-h-[180px] bg-black/5 hover:opacity-95 transition-all text-left shadow-sm"
-                      onclick={() => previewImageModal = resolveImageUrl(msg.imageUrl)}
-                      title="Cliquer pour agrandir"
-                    >
-                      <img
-                        src={resolveImageUrl(msg.imageUrl)}
-                        alt="Image jointe"
-                        class="object-cover w-full h-full max-h-[180px] rounded-lg transition-transform duration-200 group-hover:scale-105"
-                      />
-                      <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <span class="bg-black/80 text-white text-[10px] px-2.5 py-1 rounded font-mono shadow">🔍 Agrandir</span>
-                      </div>
-                    </button>
-                  </div>
-                {/if}
 
-                {#if msg.role === 'assistant' && !msg.content && (!msg.steps || msg.steps.length === 0)}
-                  <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground font-mono">
-                    <div class="flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 0ms"></span>
-                      <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 150ms"></span>
-                      <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 300ms"></span>
+              {#if msg.role === 'user'}
+                <div class="inline-block text-left px-4 py-2.5 rounded-2xl max-w-[90%] sm:max-w-[85%] leading-relaxed bg-brand text-white shadow-retro-sm dark:shadow-none break-words">
+                  {#if msg.imageUrl}
+                    <div class="mb-2">
+                      <button
+                        type="button"
+                        class="cursor-pointer group relative block overflow-hidden rounded-lg border border-white/20 max-w-[260px] max-h-[180px] bg-black/10 hover:opacity-95 transition-all text-left shadow-sm"
+                        onclick={() => previewImageModal = resolveImageUrl(msg.imageUrl)}
+                        title="Cliquer pour agrandir"
+                      >
+                        <img
+                          src={resolveImageUrl(msg.imageUrl)}
+                          alt="Image jointe"
+                          class="object-cover w-full h-full max-h-[180px] rounded-lg transition-transform duration-200 group-hover:scale-105"
+                        />
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <span class="bg-black/80 text-white text-[10px] px-2.5 py-1 rounded font-mono shadow">🔍 Agrandir</span>
+                        </div>
+                      </button>
                     </div>
-                    <span class="text-[11px] text-muted-foreground">L'assistant analyse votre demande...</span>
-                  </div>
-                {/if}
+                  {/if}
+                  {#if msg.content}
+                    <div class="whitespace-pre-wrap">{msg.content}</div>
+                  {/if}
+                </div>
+              {:else}
+                <div class="w-full text-left p-4 sm:p-5 rounded-2xl leading-relaxed border border-black/10 dark:border-white/15 bg-card dark:bg-[#1a1a24] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none">
+                  {#if msg.imageUrl}
+                    <div class="mb-2">
+                      <button
+                        type="button"
+                        class="cursor-pointer group relative block overflow-hidden rounded-lg border border-black/10 dark:border-white/10 max-w-[260px] max-h-[180px] bg-black/5 hover:opacity-95 transition-all text-left shadow-sm"
+                        onclick={() => previewImageModal = resolveImageUrl(msg.imageUrl)}
+                        title="Cliquer pour agrandir"
+                      >
+                        <img
+                          src={resolveImageUrl(msg.imageUrl)}
+                          alt="Image jointe"
+                          class="object-cover w-full h-full max-h-[180px] rounded-lg transition-transform duration-200 group-hover:scale-105"
+                        />
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <span class="bg-black/80 text-white text-[10px] px-2.5 py-1 rounded font-mono shadow">🔍 Agrandir</span>
+                        </div>
+                      </button>
+                    </div>
+                  {/if}
 
-                {#if msg.role === 'assistant' && msg.steps && msg.steps.length > 0}
-                  <details
-                    class="mb-3 rounded-lg bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-[11px] font-mono overflow-hidden group"
-                    open={Boolean(isThinking && msg === messages[messages.length - 1])}
-                  >
-                    <summary class="flex items-center justify-between p-2.5 cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-muted-foreground font-medium">
-                      <div class="flex items-center gap-2">
-                        {#if isThinking && msg === messages[messages.length - 1]}
-                          <svg class="animate-spin h-3 w-3 text-brand" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                          </svg>
-                          <span class="text-foreground font-semibold">Actions en cours ({msg.steps.length})</span>
-                        {:else}
-                          <span class="text-green-600 font-bold text-[10px]">✓</span>
-                          <span>{msg.steps.length} action{msg.steps.length > 1 ? 's' : ''} exécutée{msg.steps.length > 1 ? 's' : ''}</span>
-                        {/if}
+                  {#if !msg.content && (!msg.steps || msg.steps.length === 0)}
+                    <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground font-mono">
+                      <div class="flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 0ms"></span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 150ms"></span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 300ms"></span>
                       </div>
-                      <svg class="w-3.5 h-3.5 text-muted-foreground/70 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </summary>
-                    <div
-                      use:autoScrollSteps={msg.steps.length}
-                      class="px-3 pb-2.5 pt-1 space-y-1 max-h-48 overflow-y-auto border-t border-black/5 dark:border-white/10 scroll-smooth"
+                      <span class="text-[11px] text-muted-foreground dark:text-neutral-300">L'assistant analyse votre demande...</span>
+                    </div>
+                  {/if}
+
+                  {#if msg.steps && msg.steps.length > 0}
+                    <details
+                      class="mb-3.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-[11px] font-mono overflow-hidden group"
+                      open={Boolean(isThinking && msg === messages[messages.length - 1])}
                     >
-                      {#each msg.steps as step}
+                      <summary class="flex items-center justify-between p-2.5 cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-muted-foreground font-medium">
                         <div class="flex items-center gap-2">
-                          {#if step.state === 'running'}
+                          {#if isThinking && msg === messages[messages.length - 1]}
                             <svg class="animate-spin h-3 w-3 text-brand shrink-0" fill="none" viewBox="0 0 24 24">
                               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                             </svg>
+                            <span class="text-foreground dark:text-white font-semibold">Actions en cours ({msg.steps.length})</span>
                           {:else}
-                            <span class="text-green-600 font-bold shrink-0 text-[10px]">✓</span>
+                            <span class="text-green-600 dark:text-emerald-400 font-bold text-[10px]">✓</span>
+                            <span class="text-foreground/80 dark:text-neutral-300">{msg.steps.length} action{msg.steps.length > 1 ? 's' : ''} exécutée{msg.steps.length > 1 ? 's' : ''}</span>
                           {/if}
-                          <span class="truncate {step.state === 'running' ? 'text-foreground font-medium' : 'text-muted-foreground'}">{step.name}</span>
                         </div>
-                      {/each}
-                    </div>
-                  </details>
-                {/if}
-
-                {#if msg.role === 'user'}
-                  {#if msg.content}
-                    <div class="whitespace-pre-wrap">{msg.content}</div>
+                        <svg class="w-3.5 h-3.5 text-muted-foreground/70 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </summary>
+                      <div
+                        use:autoScrollSteps={msg.steps.length}
+                        class="px-3 pb-2.5 pt-1 space-y-1 max-h-48 overflow-y-auto border-t border-black/5 dark:border-white/10 scroll-smooth"
+                      >
+                        {#each msg.steps as step}
+                          <div class="flex items-center gap-2">
+                            {#if step.state === 'running'}
+                              <svg class="animate-spin h-3 w-3 text-brand shrink-0" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                              </svg>
+                            {:else}
+                              <span class="text-green-600 dark:text-emerald-400 font-bold shrink-0 text-[10px]">✓</span>
+                            {/if}
+                            <span class="truncate {step.state === 'running' ? 'text-foreground dark:text-white font-medium' : 'text-muted-foreground dark:text-neutral-400'}">{step.name}</span>
+                          </div>
+                        {/each}
+                      </div>
+                    </details>
                   {/if}
-                {:else if msg.content}
-                  <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed
-                    prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
-                    prose-strong:text-foreground dark:prose-strong:text-white prose-strong:font-bold
-                    prose-a:text-brand dark:prose-a:text-indigo-400
-                    prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                    prose-ol:pl-5 prose-ul:pl-5 prose-li:my-0.5
-                    prose-counters:text-muted-foreground dark:prose-counters:text-neutral-300 font-semibold
-                    prose-bullets:text-muted-foreground dark:prose-bullets:text-neutral-400
-                    prose-li:text-foreground/90 dark:prose-li:text-neutral-200
-                    prose-p:text-foreground/90 dark:prose-p:text-neutral-200">
-                    {@html renderMarkdown(msg.content)}
-                  </div>
-                {/if}
-              </div>
+
+                  {#if msg.content}
+                    <div class="ai-chat-prose">
+                      {@html renderMarkdown(msg.content)}
+                    </div>
+                  {/if}
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -1937,11 +1952,11 @@
 
     <!-- Center Panel: Code Editor (Kept mounted for CodeMirror persistence) -->
     <div
-      class="{showEditor ? 'flex' : 'hidden'} flex-col h-full overflow-hidden border-r border-black/10 dark:border-white/10 bg-card {showPreview ? 'shrink-0' : 'flex-1 w-full min-w-0'}"
+      class="{showEditor ? 'flex' : 'hidden'} flex-col h-full overflow-hidden border-r border-black/10 dark:border-white/10 bg-surface/30 dark:bg-[#121217] {showPreview ? 'shrink-0' : 'flex-1 w-full min-w-0'}"
       style={showPreview ? `width: ${editorWidth}px; max-width: calc(100% - 320px); min-width: 320px;` : ''}
     >
       <!-- File Tabs & Editor Controls -->
-      <div class="h-10 border-b border-black/10 dark:border-white/10 bg-surface/60 dark:bg-background flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
+      <div class="h-10 border-b border-black/10 dark:border-white/10 bg-surface/60 dark:bg-[#16161c] flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
         {#if openTabs.length === 0}
           <div class="flex items-center gap-2 px-1 text-foreground font-medium text-xs">
             <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1995,7 +2010,7 @@
             {#each openTabs as path}
               {@const file = files[path] || { name: path.split('/').pop() || path, path }}
               <div
-                class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand dark:text-white dark:border-brand bg-card dark:bg-[#121217] font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'}"
+                class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand dark:text-white dark:border-brand bg-card dark:bg-[#1a1a22] font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'}"
                 role="tab"
                 aria-selected={activeFile === path}
                 tabindex="0"
@@ -2089,9 +2104,9 @@
       <div class="flex-1 flex overflow-hidden min-h-0">
         <!-- File Explorer Sidebar -->
         {#if showExplorer || openTabs.length === 0}
-          <div class="{openTabs.length === 0 ? 'w-full flex-1 border-r-0' : 'w-44 sm:w-48 border-r border-black/10 dark:border-white/10'} bg-background dark:bg-background flex flex-col shrink-0 overflow-hidden select-none">
+          <div class="{openTabs.length === 0 ? 'w-full flex-1 border-r-0' : 'w-48 sm:w-52 border-r border-black/10 dark:border-white/10'} bg-surface/30 dark:bg-[#121217] flex flex-col shrink-0 overflow-hidden select-none">
             <!-- Explorer Header & Filter -->
-            <div class="p-2 border-b border-black/10 dark:border-white/10 space-y-1.5 shrink-0 bg-background/90 dark:bg-background">
+            <div class="p-2 border-b border-black/10 dark:border-white/10 space-y-1.5 shrink-0 bg-transparent">
               {#if openTabs.length > 0}
                 <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
                   <span class="flex items-center gap-1.5 font-semibold text-foreground/80 dark:text-neutral-300">
@@ -2119,12 +2134,12 @@
                   type="text"
                   bind:value={fileSearchQuery}
                   placeholder="Filtrer les fichiers..."
-                  class="w-full bg-card dark:bg-white/[0.05] border border-black/10 dark:border-white/10 rounded px-2 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 text-foreground dark:text-white focus:outline-none focus:border-brand dark:focus:border-brand/70"
+                  class="w-full bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 rounded px-2 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 text-foreground dark:text-white focus:outline-none focus:border-brand dark:focus:border-brand/70 transition-colors"
                 />
                 {#if fileSearchQuery}
                   <button
                     onclick={() => fileSearchQuery = ""}
-                    class="absolute right-1 top-1 text-muted-foreground hover:text-foreground text-[10px] px-1 cursor-pointer"
+                    class="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-[10px] p-0.5 cursor-pointer"
                   >
                     ✕
                   </button>
@@ -2140,11 +2155,11 @@
                   <button
                     type="button"
                     onclick={() => toggleFolder(node.path)}
-                    class="w-full text-left py-1 px-1 rounded-md flex items-center gap-1.5 bg-transparent hover:bg-black/5 dark:hover:bg-white/[0.06] text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer text-xs group select-none focus:outline-none"
-                    style="padding-left: {node.depth * 14 + 6}px"
+                    class="w-full text-left h-[26px] flex items-center gap-1.5 bg-transparent hover:bg-black/5 dark:hover:bg-white/[0.06] text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer text-xs group select-none focus:outline-none rounded-none border-0"
+                    style="padding-left: {node.depth * 14 + 10}px; padding-right: 8px;"
                     title={node.path}
                   >
-                    <svg class="w-3 h-3 text-muted-foreground/80 group-hover:text-foreground dark:group-hover:text-white transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3 h-3 text-muted-foreground/70 group-hover:text-foreground dark:group-hover:text-white transition-transform duration-150 shrink-0 {isCollapsed ? '' : 'rotate-90'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
                     </svg>
 
@@ -2163,7 +2178,7 @@
                   </button>
 
                   {#if !isCollapsed}
-                    <div class="space-y-0.5">
+                    <div class="space-y-0">
                       {#each node.children as child}
                         {@render renderTreeNode(child)}
                       {/each}
@@ -2174,8 +2189,8 @@
                 <button
                   type="button"
                   onclick={() => selectAndOpenFile(node.path)}
-                  class="w-full text-left py-1 px-1 rounded-md flex items-center gap-1.5 transition-colors cursor-pointer text-xs group focus:outline-none {activeFile === node.path ? 'bg-brand/10 text-brand dark:bg-white/[0.12] dark:text-white font-medium shadow-sm' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-foreground dark:hover:text-white'}"
-                  style="padding-left: {node.depth * 14 + 18}px"
+                  class="w-full text-left h-[26px] flex items-center gap-1.5 transition-colors cursor-pointer text-xs group focus:outline-none rounded-none border-0 {activeFile === node.path ? 'bg-black/10 dark:bg-white/[0.12] text-foreground dark:text-white font-medium' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-foreground dark:hover:text-white'}"
+                  style="padding-left: {node.depth * 14 + 24}px; padding-right: 8px;"
                   title={node.path}
                 >
                   {#if node.path.endsWith('.svelte')}
@@ -2202,13 +2217,13 @@
                     <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-400 shrink-0">📄</span>
                   {/if}
 
-                  <span class="truncate text-[11px] {activeFile === node.path ? 'font-semibold text-brand dark:text-white' : 'text-foreground/80 dark:text-neutral-300 group-hover:text-foreground dark:group-hover:text-white'}">{node.name}</span>
+                  <span class="truncate text-[11px] {activeFile === node.path ? 'font-medium text-foreground dark:text-white' : 'text-foreground/80 dark:text-neutral-300 group-hover:text-foreground dark:group-hover:text-white'}">{node.name}</span>
                 </button>
               {/if}
             {/snippet}
 
             <!-- Tree View Nodes -->
-            <div class="flex-1 overflow-y-auto p-1 font-mono text-xs space-y-0.5 bg-transparent">
+            <div class="flex-1 overflow-y-auto overflow-x-hidden p-0 py-1 font-mono text-xs space-y-0 bg-transparent">
               {#if fileTree.length === 0}
                 <div class="p-4 text-[11px] text-muted-foreground text-center">
                   Aucun fichier trouvé

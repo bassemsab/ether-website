@@ -87,15 +87,35 @@
 /* Dark mode aesthetic enhancements */
 .dark body::before {
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.04), transparent 40%),
-    radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.04), transparent 40%);
+    radial-gradient(
+      circle at 1px 1px,
+      rgba(255, 255, 255, 0.04),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 2px 2px,
+      rgba(255, 255, 255, 0.04),
+      transparent 40%
+    );
 }
 
 .dark .grain-overlay::after {
   background-image:
-    radial-gradient(circle at center, rgba(124, 117, 250, 0.05) 0%, transparent 60%),
-    radial-gradient(circle at top left, rgba(255, 112, 67, 0.04), transparent 50%),
-    radial-gradient(circle at bottom right, rgba(124, 117, 250, 0.05), transparent 55%);
+    radial-gradient(
+      circle at center,
+      rgba(124, 117, 250, 0.05) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at top left,
+      rgba(255, 112, 67, 0.04),
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(124, 117, 250, 0.05),
+      transparent 55%
+    );
   mix-blend-mode: screen;
   opacity: 0.5;
 }
@@ -126,4 +146,165 @@
 }
 .dark [class*="shadow-retro-sm"] {
   box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.4);
+}
+
+/* AI Chat Markdown Typography & Padding Fixes */
+.ai-chat-prose {
+  color: hsl(var(--foreground));
+  line-height: 1.65;
+  font-size: 0.8125rem;
+  word-break: break-word;
+}
+
+.dark .ai-chat-prose {
+  color: #f4f4f5 !important;
+}
+
+.ai-chat-prose p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: inherit;
+}
+
+.dark .ai-chat-prose p {
+  color: #e4e4e7 !important;
+}
+
+.ai-chat-prose p:first-child {
+  margin-top: 0;
+}
+
+.ai-chat-prose p:last-child,
+.ai-chat-prose ul:last-child,
+.ai-chat-prose ol:last-child {
+  margin-bottom: 0;
+}
+
+.ai-chat-prose strong,
+.ai-chat-prose b {
+  font-weight: 600;
+  color: #111827;
+}
+
+.dark .ai-chat-prose strong,
+.dark .ai-chat-prose b {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.ai-chat-prose ul {
+  list-style-type: disc !important;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-left: 1.5rem !important;
+}
+
+.ai-chat-prose ol {
+  list-style-type: decimal !important;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-left: 1.75rem !important;
+}
+
+.ai-chat-prose li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  padding-left: 0.25rem;
+  color: inherit;
+}
+
+.dark .ai-chat-prose li {
+  color: #e4e4e7 !important;
+}
+
+.ai-chat-prose li::marker {
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+}
+
+.dark .ai-chat-prose li::marker {
+  color: #e4e4e7 !important;
+  font-weight: 600;
+}
+
+.ai-chat-prose a {
+  color: hsl(var(--brand));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dark .ai-chat-prose a {
+  color: #a5b4fc !important;
+}
+
+.ai-chat-prose code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85em;
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+  background-color: rgba(0, 0, 0, 0.06);
+  color: inherit;
+}
+
+.dark .ai-chat-prose code {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #f4f4f5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-chat-prose pre {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  background-color: #121217;
+  color: #f4f4f5;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85em;
+}
+
+.ai-chat-prose h1,
+.ai-chat-prose h2,
+.ai-chat-prose h3,
+.ai-chat-prose h4 {
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.375rem;
+  color: #111827;
+}
+
+.dark .ai-chat-prose h1,
+.dark .ai-chat-prose h2,
+.dark .ai-chat-prose h3,
+.dark .ai-chat-prose h4 {
+  color: #ffffff !important;
+}
+
+.ai-chat-prose blockquote {
+  border-left: 3px solid rgba(0, 0, 0, 0.15);
+  padding-left: 0.875rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.dark .ai-chat-prose blockquote {
+  border-left-color: rgba(255, 255, 255, 0.25);
+  color: #a1a1aa !important;
+}
+
+/* Studio file badges in markdown */
+.dark .studio-file-link,
+.dark .ai-chat-prose .studio-file-link {
+  background-color: rgba(129, 140, 248, 0.18) !important;
+  color: #c7d2fe !important;
+  border-color: rgba(129, 140, 248, 0.35) !important;
+}
+
+.dark .studio-file-link:hover,
+.dark .ai-chat-prose .studio-file-link:hover {
+  background-color: rgba(129, 140, 248, 0.3) !important;
+  color: #ffffff !important;
 }
