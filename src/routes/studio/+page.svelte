@@ -1772,9 +1772,9 @@
                   {/if}
                 </div>
               {:else}
-                <div class="w-full text-left px-5 py-4.5 sm:px-6 sm:py-5.5 rounded-3xl leading-relaxed border border-black/10 dark:border-white/10 bg-card dark:bg-[#1a1a24] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none">
+                <div class="w-full text-left px-3.5 py-5 sm:px-4 sm:py-6 rounded-3xl leading-relaxed border border-black/10 dark:border-white/10 bg-card dark:bg-[#1a1a24] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none">
                   {#if msg.imageUrl}
-                    <div class="mb-2">
+                    <div class="mb-2 px-1">
                       <button
                         type="button"
                         class="cursor-pointer group relative block overflow-hidden rounded-lg border border-black/10 dark:border-white/10 max-w-[260px] max-h-[180px] bg-black/5 hover:opacity-95 transition-all text-left shadow-sm"
@@ -1794,7 +1794,7 @@
                   {/if}
 
                   {#if !msg.content && (!msg.steps || msg.steps.length === 0)}
-                    <div class="flex items-center gap-2 py-1 text-xs text-muted-foreground font-mono">
+                    <div class="flex items-center gap-2 py-1 px-2 text-xs text-muted-foreground font-mono">
                       <div class="flex items-center gap-1">
                         <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 0ms"></span>
                         <span class="w-1.5 h-1.5 rounded-full bg-brand animate-bounce" style="animation-delay: 150ms"></span>
@@ -1848,7 +1848,7 @@
                   {/if}
 
                   {#if msg.content}
-                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed px-2 sm:px-2.5
                       prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
                       prose-strong:text-foreground dark:prose-strong:text-white
                       prose-a:text-brand dark:prose-a:text-indigo-400
