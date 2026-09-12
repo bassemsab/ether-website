@@ -55,8 +55,10 @@
   function renderMarkdown(content: string): string {
     if (!content) return "";
     try {
+      // Strip hidden suggestion comments
+      const cleaned = content.replace(/<!--\s*SUGGESTIONS:[\s\S]*?-->/gi, "").trim();
       // Normalize occurrences like `📄 [path](...)` or `📄 \npath` or `📄 `path`` or `📄 src/...`
-      const preprocessed = content.replace(
+      const preprocessed = cleaned.replace(
         /📄\s*(?:\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|([a-zA-Z0-9_./+-]+\.(?:svelte|ts|js|json|html|css)|src\/[a-zA-Z0-9_./+-]+))/g,
         (match, linkText, linkHref, codeText, plainPath) => {
           const raw = linkHref || linkText || codeText || plainPath || "";
@@ -70,7 +72,7 @@
       );
       return marked.parse(preprocessed) as string;
     } catch {
-      return content;
+      return content.replace(/<!--\s*SUGGESTIONS:[\s\S]*?-->/gi, "").trim();
     }
   }
 
@@ -199,16 +201,85 @@
   let isThinking = $state(false);
   let activeProfile = $state<string>("auto");
   let promptQuota = $state(
-    data.promptQuota || { allowed: true, current: 0, limit: 25, remaining: 25, plan: "demo" }
+    data.promptQuota || {
+      allowed: true,
+      current: 0,
+      limit: 3,
+      dailyRemaining: 3,
+      extraPrompts: 0,
+      remaining: 3,
+      plan: "demo",
+    }
   );
   let publishLoading = $state(false);
   let publishStatus = $state<string | null>(null);
+
+  // Top-up & Stripe State
+  let showTopupModal = $state(false);
+  let topupLoading = $state<string | null>(null);
+  let topupError = $state<string | null>(null);
+  let topupSuccessMessage = $state<string | null>(null);
 
   // Attached Image & Multimodal Chat State
   let attachedImage = $state<AttachedImageState | null>(null);
   let fileInputRef = $state<HTMLInputElement | null>(null);
   let isDraggingOver = $state(false);
   let previewImageModal = $state<string | null>(null);
+
+  function resolveImageUrl(url: string | null | undefined): string {
+    if (!url) return "";
+    if (url.startsWith("data:") || url.startsWith("http://") || url.startsWith("https://")) {
+      return url;
+    }
+    const cleanPath = url.replace(/^\/+/, "");
+    return `/api/studio/preview/${projectSlug}/${cleanPath}`;
+  }
+
+  const defaultSuggestions = [
+    "Ajoute une section Témoignages clients avec 3 avis",
+    "Ajoute un formulaire de contact avec nom et email",
+    "Améliore la mise en page et les animations",
+  ];
+
+  let dynamicSuggestions = $derived.by(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && msg.content) {
+        const match = msg.content.match(/<!--\s*SUGGESTIONS:\s*(\[[\s\S]*?\])\s*-->/i);
+        if (match) {
+          try {
+            const parsed = JSON.parse(match[1]);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              return parsed.map((s: string) => String(s).trim()).filter(Boolean);
+            }
+          } catch {}
+        }
+      }
+    }
+    return defaultSuggestions;
+  });
+
+  async function handleTopup(packId: "starter" | "creator" | "agency") {
+    topupLoading = packId;
+    topupError = null;
+    try {
+      const res = await fetch("/api/stripe/topup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantSlug: projectSlug, packId }),
+      });
+      const resData = await res.json();
+      if (resData.success && resData.url) {
+        window.location.href = resData.url;
+      } else {
+        topupError = resData.error || "Impossible d'initier le paiement Stripe.";
+      }
+    } catch (err: any) {
+      topupError = err.message || "Erreur de connexion.";
+    } finally {
+      topupLoading = null;
+    }
+  }
 
   function formatFileSize(bytes: number): string {
     if (bytes < 1024) return bytes + " o";
@@ -819,10 +890,22 @@
   });
 
   onMount(() => {
-    if (typeof window !== "undefined" && data.sessionToken) {
-      try {
-        localStorage.setItem("ether_session_token", data.sessionToken);
-      } catch {}
+    if (typeof window !== "undefined") {
+      if (data.sessionToken) {
+        try {
+          localStorage.setItem("ether_session_token", data.sessionToken);
+        } catch {}
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("topup_success") === "true") {
+        topupSuccessMessage = "Paiement validé ! Vos prompts supplémentaires ont été crédités sur votre compte.";
+        urlParams.delete("topup_success");
+        const newSearch = urlParams.toString() ? `?${urlParams.toString()}` : window.location.pathname;
+        window.history.replaceState({}, "", newSearch);
+        setTimeout(() => {
+          topupSuccessMessage = null;
+        }, 8000);
+      }
     }
 
     if (!editorContainer) return;
@@ -920,15 +1003,22 @@
     if (promptQuota.remaining <= 0) {
       messages.push({
         role: "assistant",
-        content: `⚠️ Quota quotidien atteint (${promptQuota.limit} prompts/jour pour l'offre ${promptQuota.plan}). Réinitialisation automatique à minuit.`,
+        content: `⚠️ Quota quotidien atteint (${promptQuota.limit} prompts/jour pour l'offre ${promptQuota.plan}). Rechargez des prompts pour continuer immédiatement sans attendre demain.`,
         profile: "secondary",
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
+      showTopupModal = true;
+      scrollToBottom();
       return;
     }
 
     // Optimistically update quota
     promptQuota.current++;
+    if (promptQuota.dailyRemaining !== undefined && promptQuota.dailyRemaining > 0) {
+      promptQuota.dailyRemaining--;
+    } else if (promptQuota.extraPrompts !== undefined && promptQuota.extraPrompts > 0) {
+      promptQuota.extraPrompts--;
+    }
     promptQuota.remaining = Math.max(0, promptQuota.remaining - 1);
     if (promptQuota.remaining <= 0) {
       promptQuota.allowed = false;
@@ -1007,6 +1097,13 @@
                 if (data.quotaExceeded) {
                   promptQuota.remaining = 0;
                   promptQuota.allowed = false;
+                  showTopupModal = true;
+                }
+                if (data.quota) {
+                  promptQuota.remaining = data.quota.remaining ?? promptQuota.remaining;
+                  if (data.quota.extraPrompts !== undefined) {
+                    promptQuota.extraPrompts = data.quota.extraPrompts;
+                  }
                 }
                 if (data.conversationId) {
                   conversationId = data.conversationId;
@@ -1023,7 +1120,9 @@
                   messages[assistantMsgIndex].profile = data.profileUsed;
                 }
                 if (data.savedImageUrl && messages[assistantMsgIndex - 1]) {
-                  messages[assistantMsgIndex - 1].imageUrl = data.savedImageUrl;
+                  if (!messages[assistantMsgIndex - 1].imageUrl || !messages[assistantMsgIndex - 1].imageUrl?.startsWith("data:")) {
+                    messages[assistantMsgIndex - 1].imageUrl = data.savedImageUrl;
+                  }
                 }
                 // Handle live thinking / tool execution steps
                 if (data.id !== undefined && data.name) {
@@ -1070,10 +1169,13 @@
         if (!resData.success && resData.quotaExceeded) {
           promptQuota.remaining = 0;
           promptQuota.allowed = false;
+          showTopupModal = true;
         }
 
         if (resData.savedImageUrl && messages[assistantMsgIndex - 1]) {
-          messages[assistantMsgIndex - 1].imageUrl = resData.savedImageUrl;
+          if (!messages[assistantMsgIndex - 1].imageUrl || !messages[assistantMsgIndex - 1].imageUrl?.startsWith("data:")) {
+            messages[assistantMsgIndex - 1].imageUrl = resData.savedImageUrl;
+          }
         }
 
         if (resData.success) {
@@ -1106,7 +1208,6 @@
     } finally {
       isThinking = false;
       await loadTenantFiles();
-      refreshPreview();
     }
   }
 
@@ -1451,11 +1552,11 @@
                     <button
                       type="button"
                       class="cursor-pointer group relative block overflow-hidden rounded-lg border border-black/10 max-w-[260px] max-h-[180px] bg-black/5 hover:opacity-95 transition-all text-left shadow-sm"
-                      onclick={() => previewImageModal = msg.imageUrl || null}
+                      onclick={() => previewImageModal = resolveImageUrl(msg.imageUrl)}
                       title="Cliquer pour agrandir"
                     >
                       <img
-                        src={msg.imageUrl}
+                        src={resolveImageUrl(msg.imageUrl)}
                         alt="Image jointe"
                         class="object-cover w-full h-full max-h-[180px] rounded-lg transition-transform duration-200 group-hover:scale-105"
                       />
@@ -1534,33 +1635,34 @@
           {/each}
         </div>
 
-        <!-- Quick Suggestion Chips -->
+        <!-- Dynamic AI Suggestion Chips -->
         <div class="px-3 py-2 border-t border-black/5 bg-surface/30 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <button
-            onclick={() => { promptInput = "Ajoute une section Témoignages clients moderne avec 3 avis"; }}
-            class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-          >
-            + Témoignages
-          </button>
-          <button
-            onclick={() => { promptInput = "Ajoute un formulaire de contact avec nom, email et message"; }}
-            class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-          >
-            + Formulaire de contact
-          </button>
-          <button
-            onclick={() => { promptInput = "Ajoute une belle galerie d'images pour présenter nos réalisations"; }}
-            class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-surface/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-          >
-            + Galerie photos
-          </button>
+          <span class="text-[10px] text-muted-foreground font-mono shrink-0 mr-0.5 select-none">✨ Suggestions :</span>
+          {#each dynamicSuggestions as suggestion}
+            <button
+              type="button"
+              onclick={() => { promptInput = suggestion; }}
+              class="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-surface hover:bg-brand/10 hover:border-brand/30 text-muted-foreground hover:text-brand transition-all cursor-pointer truncate max-w-[280px]"
+              title={suggestion}
+            >
+              + {suggestion.replace(/^\+\s*/, '')}
+            </button>
+          {/each}
         </div>
 
         <!-- Quota Warning if limit reached -->
         {#if promptQuota.remaining <= 0}
           <div class="px-3 py-2 bg-amber-500/10 border-t border-amber-500/20 text-amber-800 text-[11px] font-mono flex items-center justify-between">
-            <span>⚠️ Quota quotidien atteint ({promptQuota.limit} prompts/jour).</span>
-            <span class="text-[10px] opacity-75">Reset à minuit</span>
+            <div class="flex items-center gap-1.5">
+              <span>⚠️ Quota quotidien atteint ({promptQuota.limit} prompts/jour).</span>
+            </div>
+            <button
+              type="button"
+              onclick={() => showTopupModal = true}
+              class="font-semibold underline hover:text-amber-950 cursor-pointer flex items-center gap-1"
+            >
+              ⚡ Recharger des prompts
+            </button>
           </div>
         {/if}
 
@@ -1620,7 +1722,7 @@
             type="text"
             bind:value={promptInput}
             onpaste={handleChatPaste}
-            placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint pour aujourd'hui")}
+            placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint — Cliquez sur Recharger")}
             disabled={isThinking || promptQuota.remaining <= 0}
             class="flex-1 rounded-lg border border-black/10 bg-card px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all disabled:opacity-50"
           />
@@ -1637,11 +1739,21 @@
         <div class="px-3 py-1.5 border-t border-black/5 bg-surface/30 flex items-center justify-between text-[10px] font-mono text-muted-foreground">
           <div class="flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full {promptQuota.remaining > 0 ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
-            <span>Quota Quotidien ({promptQuota.plan}) :</span>
+            <span>Prompts ({promptQuota.plan}) :</span>
+            <span class="font-semibold {promptQuota.remaining > 0 ? 'text-foreground' : 'text-amber-600'}">
+              {promptQuota.remaining} restant{promptQuota.remaining > 1 ? 's' : ''}
+              {#if promptQuota.extraPrompts && promptQuota.extraPrompts > 0}
+                <span class="text-brand font-normal">({promptQuota.extraPrompts} extra)</span>
+              {/if}
+            </span>
           </div>
-          <span class="font-semibold {promptQuota.remaining > 0 ? 'text-foreground' : 'text-amber-600'}">
-            {promptQuota.remaining} / {promptQuota.limit} prompts restants
-          </span>
+          <button
+            type="button"
+            onclick={() => showTopupModal = true}
+            class="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand/10 hover:bg-brand/20 text-brand font-medium transition-colors border border-brand/20"
+          >
+            ⚡ Recharger
+          </button>
         </div>
       </div>
     {/if}
@@ -2068,12 +2180,160 @@
         <span>✕</span> Fermer
       </button>
       <img
-        src={previewImageModal}
+        src={resolveImageUrl(previewImageModal)}
         alt="Image agrandie"
         class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain border border-white/20 cursor-default"
         onclick={(e) => e.stopPropagation()}
       />
     </div>
+  </div>
+{/if}
+
+{#if showTopupModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+    onclick={() => showTopupModal = false}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
+    <div
+      class="retro-card bg-card text-foreground rounded-2xl shadow-2xl border border-black/15 max-w-xl w-full p-6 cursor-default relative overflow-hidden"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        class="absolute top-4 right-4 text-muted-foreground hover:text-foreground text-sm font-mono cursor-pointer p-1.5 rounded-md hover:bg-black/5 transition-colors"
+        onclick={() => showTopupModal = false}
+      >
+        ✕
+      </button>
+
+      <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-xl">
+          ⚡
+        </div>
+        <div>
+          <h3 class="text-lg font-bold font-display text-foreground">Recharger vos Prompts Studio</h3>
+          <p class="text-xs text-muted-foreground">Continuez à concevoir et itérer sur votre site sans attendre.</p>
+        </div>
+      </div>
+
+      {#if promptQuota.remaining <= 0}
+        <div class="my-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs flex items-center gap-2">
+          <span>⚠️</span>
+          <span>Votre quota quotidien gratuit de <strong>{promptQuota.limit} prompts</strong> est atteint pour aujourd'hui. Rechargez pour continuer immédiatement :</span>
+        </div>
+      {:else}
+        <div class="my-4 p-3 rounded-lg bg-black/5 border border-black/10 text-xs text-muted-foreground flex items-center justify-between">
+          <span>Solde actuel : <strong>{promptQuota.remaining} prompt{promptQuota.remaining > 1 ? 's' : ''}</strong></span>
+          <span class="text-[11px] text-emerald-600 font-mono font-medium">Prêt à l'emploi</span>
+        </div>
+      {/if}
+
+      {#if topupError}
+        <div class="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-700 text-xs flex items-center justify-between">
+          <span>{topupError}</span>
+          <button type="button" onclick={() => topupError = null} class="text-red-700 font-mono text-[11px]">✕</button>
+        </div>
+      {/if}
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4">
+        <!-- Starter Pack -->
+        <div class="rounded-xl border border-black/10 p-4 bg-surface flex flex-col justify-between hover:border-brand/40 transition-all shadow-xs">
+          <div>
+            <div class="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Starter</div>
+            <div class="text-2xl font-bold font-display text-foreground">5 €</div>
+            <div class="text-xs text-muted-foreground font-mono mt-0.5">20 prompts</div>
+            <div class="text-[10px] text-muted-foreground/80 mt-1">0,25 € / prompt</div>
+          </div>
+          <button
+            type="button"
+            disabled={topupLoading !== null}
+            onclick={() => handleTopup("starter")}
+            class="mt-4 w-full py-2 px-3 rounded-lg border border-black/15 bg-white hover:bg-black/5 text-foreground text-xs font-medium transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+          >
+            {#if topupLoading === "starter"}
+              Chargement...
+            {:else}
+              Choisir 20
+            {/if}
+          </button>
+        </div>
+
+        <!-- Creator Pack (Popular) -->
+        <div class="rounded-xl border-2 border-brand p-4 bg-brand/[0.03] flex flex-col justify-between relative shadow-sm">
+          <div class="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-brand text-white text-[9px] font-bold uppercase tracking-wider rounded-full shadow-xs">
+            Populaire
+          </div>
+          <div>
+            <div class="text-xs font-mono uppercase tracking-wider text-brand font-semibold mb-1">Créateur</div>
+            <div class="text-2xl font-bold font-display text-foreground">10 €</div>
+            <div class="text-xs text-foreground font-medium font-mono mt-0.5">50 prompts</div>
+            <div class="text-[10px] text-muted-foreground/80 mt-1">0,20 € / prompt</div>
+          </div>
+          <button
+            type="button"
+            disabled={topupLoading !== null}
+            onclick={() => handleTopup("creator")}
+            class="mt-4 w-full py-2 px-3 rounded-lg bg-brand hover:bg-brand/90 text-white text-xs font-semibold transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+          >
+            {#if topupLoading === "creator"}
+              Chargement...
+            {:else}
+              Choisir 50
+            {/if}
+          </button>
+        </div>
+
+        <!-- Agency Pack -->
+        <div class="rounded-xl border border-black/10 p-4 bg-surface flex flex-col justify-between hover:border-brand/40 transition-all shadow-xs">
+          <div>
+            <div class="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Agence</div>
+            <div class="text-2xl font-bold font-display text-foreground">25 €</div>
+            <div class="text-xs text-muted-foreground font-mono mt-0.5">150 prompts</div>
+            <div class="text-[10px] text-emerald-600 font-semibold mt-1">0,17 € / prompt</div>
+          </div>
+          <button
+            type="button"
+            disabled={topupLoading !== null}
+            onclick={() => handleTopup("agency")}
+            class="mt-4 w-full py-2 px-3 rounded-lg border border-black/15 bg-white hover:bg-black/5 text-foreground text-xs font-medium transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+          >
+            {#if topupLoading === "agency"}
+              Chargement...
+            {:else}
+              Choisir 150
+            {/if}
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-black/10 flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+        <span class="flex items-center gap-1.5">
+          <span>🔒</span> Paiement Stripe sécurisé
+        </span>
+        <span>Sans date d'expiration</span>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if topupSuccessMessage}
+  <div class="fixed top-4 right-4 z-50 max-w-md p-4 rounded-xl bg-emerald-600 text-white shadow-xl flex items-center justify-between gap-3">
+    <div class="flex items-center gap-2.5 text-xs font-medium">
+      <span class="text-lg">🎉</span>
+      <span>{topupSuccessMessage}</span>
+    </div>
+    <button
+      type="button"
+      class="text-white/80 hover:text-white text-sm font-mono cursor-pointer"
+      onclick={() => topupSuccessMessage = null}
+    >
+      ✕
+    </button>
   </div>
 {/if}
 

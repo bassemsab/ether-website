@@ -101,7 +101,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const quota = checkTenantPromptLimit(projectSlug, plan);
 
     if (!quota.allowed) {
-      const errorMsg = `Vous avez atteint votre quota quotidien de ${quota.limit} prompts pour ce site (${plan}). Votre quota sera réinitialisé demain à minuit.`;
+      const errorMsg = `Vous avez atteint votre quota de ${quota.limit} prompts quotidiens gratuits pour ce site. Rechargez des prompts pour continuer immédiatement sans attendre demain.`;
 
       if (isStream || body.stream) {
         const stream = new ReadableStream({
@@ -113,7 +113,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 ),
               );
             };
-            sendEvent("error", { message: errorMsg, quotaExceeded: true });
+            sendEvent("error", { message: errorMsg, quotaExceeded: true, quota });
             controller.close();
           },
         });
@@ -128,7 +128,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       }
 
       return json(
-        { success: false, error: errorMsg, quotaExceeded: true },
+        { success: false, error: errorMsg, quotaExceeded: true, quota },
         { status: 429 },
       );
     }

@@ -4,6 +4,7 @@ import {
   updateDomainOrderStatus,
   getTenantById,
   updateTenantStatus,
+  addTenantExtraPrompts,
 } from "./db";
 import { updateTenantCustomDomainIngress } from "./k8s-tenant";
 import { provisionBookedDomain } from "./domains";
@@ -25,6 +26,95 @@ export interface CreateCheckoutParams {
   customerEmail: string;
   successUrl: string;
   cancelUrl: string;
+}
+
+export interface CreateTopupCheckoutParams {
+  tenantSlug: string;
+  tenantId: number;
+  packId: "pack_20" | "pack_50" | "pack_150";
+  customerEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+export const TOPUP_PACKS: Record<
+  "pack_20" | "pack_50" | "pack_150",
+  { name: string; prompts: number; priceCents: number; description: string }
+> = {
+  pack_20: {
+    name: "Pack Starter · 20 Prompts Studio",
+    prompts: 20,
+    priceCents: 500, // 5.00 €
+    description:
+      "20 modifications IA supplémentaires sans expiration pour continuer à faire évoluer votre site.",
+  },
+  pack_50: {
+    name: "Pack Créateur · 50 Prompts Studio (Populaire)",
+    prompts: 50,
+    priceCents: 1000, // 10.00 €
+    description:
+      "50 modifications IA supplémentaires pour concevoir, peaufiner et publier un site complet.",
+  },
+  pack_150: {
+    name: "Pack Agence · 150 Prompts Studio",
+    prompts: 150,
+    priceCents: 2500, // 25.00 €
+    description:
+      "150 modifications IA au tarif préférentiel pour les projets ambitieux et créateurs exigeants.",
+  },
+};
+
+/**
+ * Creates a Stripe Checkout Session for one-time prompt top-up purchase.
+ */
+export async function createPromptTopupCheckoutSession(
+  params: CreateTopupCheckoutParams,
+): Promise<{ url: string; sessionId: string }> {
+  const pack = TOPUP_PACKS[params.packId] || TOPUP_PACKS.pack_20;
+
+  if (!stripe) {
+    console.warn(
+      "[Stripe] STRIPE_SECRET_KEY not set, auto-crediting and generating mock checkout link for dev",
+    );
+    addTenantExtraPrompts(params.tenantSlug, pack.prompts);
+    return {
+      url: `${params.successUrl}&mock_topup=true&prompts=${pack.prompts}`,
+      sessionId: `mock_topup_${Date.now()}`,
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    customer_email: params.customerEmail,
+    mode: "payment",
+    line_items: [
+      {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: pack.name,
+            description: pack.description,
+          },
+          unit_amount: pack.priceCents,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      type: "prompt_topup",
+      tenant_id: params.tenantId.toString(),
+      tenant_slug: params.tenantSlug,
+      pack_id: params.packId,
+      prompts: pack.prompts.toString(),
+    },
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+  });
+
+  return {
+    url: session.url || params.successUrl,
+    sessionId: session.id,
+  };
 }
 
 /**
@@ -98,6 +188,20 @@ export async function handleStripeWebhookEvent(
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
+
+    // Handle prompt topup purchase
+    if (session.metadata?.type === "prompt_topup") {
+      const tenantSlug = session.metadata.tenant_slug;
+      const promptsToAdd = parseInt(session.metadata.prompts || "0", 10);
+      if (tenantSlug && promptsToAdd > 0) {
+        console.log(
+          `[Stripe Webhook] Processing prompt top-up: +${promptsToAdd} prompts for ${tenantSlug}`,
+        );
+        addTenantExtraPrompts(tenantSlug, promptsToAdd);
+        return { received: true, action: "prompt_topup_credited" };
+      }
+    }
+
     const tenantIdStr = session.metadata?.tenant_id;
     const domain = session.metadata?.domain;
     const provider = (session.metadata?.provider || "cloudflare") as

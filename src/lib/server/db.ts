@@ -265,6 +265,7 @@ try {
   safeAddColumn("tenants", "git_access_token TEXT");
   safeAddColumn("tenants", "stripe_subscription_id TEXT");
   safeAddColumn("tenants", "plan TEXT DEFAULT 'free'");
+  safeAddColumn("tenants", "extra_prompts INTEGER DEFAULT 0");
   safeAddColumn("studio_chat_messages", "image_url TEXT");
 } catch (error) {
   console.error(`❌ Failed to initialize bun:sqlite at ${DB_PATH}:`, error);
@@ -756,18 +757,32 @@ export async function updateDomainOrderStatus(
 export function getTenantDailyLimit(plan?: string | null): number {
   const normalized = (plan || "demo").toLowerCase().trim();
   if (normalized === "enterprise" || normalized === "unlimited") return 1000;
-  if (normalized === "pro" || normalized === "starter" || normalized === "paid")
-    return 150;
-  return 25; // demo / free
+  if (normalized === "pro" || normalized === "paid") return 100;
+  if (normalized === "starter") return 20;
+  return 3; // demo / free tier: strictly 3 prompts per day
 }
 
 export function checkTenantPromptLimit(
   tenantSlug: string,
   plan: string = "demo",
-): { allowed: boolean; current: number; limit: number; remaining: number } {
+): {
+  allowed: boolean;
+  current: number;
+  limit: number;
+  remaining: number;
+  extraPrompts: number;
+  totalRemaining: number;
+} {
   const limit = getTenantDailyLimit(plan);
   if (!db) {
-    return { allowed: true, current: 0, limit, remaining: limit };
+    return {
+      allowed: true,
+      current: 0,
+      limit,
+      remaining: limit,
+      extraPrompts: 0,
+      totalRemaining: limit,
+    };
   }
 
   try {
@@ -778,14 +793,34 @@ export function checkTenantPromptLimit(
       )
       .get(tenantSlug, today) as { prompt_count: number } | undefined;
 
-    const current = row?.prompt_count || 0;
-    const remaining = Math.max(0, limit - current);
-    const allowed = current < limit;
+    const tenantRow = db
+      .prepare(`SELECT extra_prompts FROM tenants WHERE slug = ?`)
+      .get(tenantSlug) as { extra_prompts: number } | undefined;
 
-    return { allowed, current, limit, remaining };
+    const extraPrompts = Math.max(0, tenantRow?.extra_prompts || 0);
+    const current = row?.prompt_count || 0;
+    const dailyRemaining = Math.max(0, limit - current);
+    const totalRemaining = dailyRemaining + extraPrompts;
+    const allowed = totalRemaining > 0;
+
+    return {
+      allowed,
+      current,
+      limit,
+      remaining: dailyRemaining,
+      extraPrompts,
+      totalRemaining,
+    };
   } catch (error) {
     console.error("Failed to check tenant prompt limit:", error);
-    return { allowed: true, current: 0, limit, remaining: limit };
+    return {
+      allowed: true,
+      current: 0,
+      limit,
+      remaining: limit,
+      extraPrompts: 0,
+      totalRemaining: limit,
+    };
   }
 }
 
@@ -794,6 +829,27 @@ export function incrementTenantPromptCount(tenantSlug: string): number {
 
   try {
     const today = new Date().toISOString().slice(0, 10);
+    const row = db
+      .prepare(
+        `SELECT prompt_count FROM tenant_prompt_usage WHERE tenant_slug = ? AND date = ?`,
+      )
+      .get(tenantSlug, today) as { prompt_count: number } | undefined;
+
+    const tenantRow = db
+      .prepare(`SELECT plan, extra_prompts FROM tenants WHERE slug = ?`)
+      .get(tenantSlug) as { plan: string; extra_prompts: number } | undefined;
+
+    const current = row?.prompt_count || 0;
+    const limit = getTenantDailyLimit(tenantRow?.plan || "demo");
+
+    // If daily limit has been exhausted, consume from extra_prompts
+    if (current >= limit && (tenantRow?.extra_prompts || 0) > 0) {
+      db.prepare(
+        `UPDATE tenants SET extra_prompts = MAX(0, extra_prompts - 1) WHERE slug = ?`,
+      ).run(tenantSlug);
+    }
+
+    // Always increment usage count for today's analytics
     const stmt = db.prepare(`
       INSERT INTO tenant_prompt_usage (tenant_slug, date, prompt_count, updated_at)
       VALUES (?, ?, 1, CURRENT_TIMESTAMP)
@@ -810,6 +866,22 @@ export function incrementTenantPromptCount(tenantSlug: string): number {
   } catch (error) {
     console.error("Failed to increment tenant prompt count:", error);
     return 1;
+  }
+}
+
+export function addTenantExtraPrompts(tenantSlug: string, count: number): number {
+  if (!db) return 0;
+  try {
+    const stmt = db.prepare(`
+      UPDATE tenants SET extra_prompts = COALESCE(extra_prompts, 0) + ? WHERE slug = ? RETURNING extra_prompts
+    `);
+    const row = stmt.get(count, tenantSlug) as
+      | { extra_prompts: number }
+      | undefined;
+    return row?.extra_prompts || 0;
+  } catch (err) {
+    console.error("Failed to add extra prompts:", err);
+    return 0;
   }
 }
 

@@ -26,6 +26,10 @@ Tenant Isolation & Security Rules:
 3. You must NEVER run commands that navigate above the workspace directory (e.g. "cd ..", accessing "/data/tenants" or "/data/profiles").
 4. You must NEVER interact with or push to any foreign Git repository.
 5. If the user asks you to inspect or modify another website, tenant, or system files, you must politely decline and state that tenant data isolation is strictly enforced.
+
+Dynamic Next Action Suggestions:
+At the very end of your final response to the user, always propose 3 concrete next action suggestions that would improve or extend the site based on what you just created or modified. Format them strictly as a hidden HTML comment at the end of your message:
+<!-- SUGGESTIONS: ["Suggestion 1", "Suggestion 2", "Suggestion 3"] -->
 `;
 
 export interface AttachedImagePayload {

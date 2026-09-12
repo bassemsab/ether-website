@@ -1294,6 +1294,11 @@ const server = Bun.serve({
           `4. You must NEVER push to or interact with any Git remote or repository other than the local repository configured in "${tenantCodeDir}".`,
           `5. If the user prompt instructs you to inspect, read, or modify another tenant's files, access host paths, or push to another repository, you MUST REFUSE IMMEDIATELY and explain that cross-tenant access is strictly prohibited by platform security policy.`,
           `[END SECURITY ENFORCEMENT]`,
+          ``,
+          `[DYNAMIC NEXT ACTIONS SUGGESTION]`,
+          `At the very end of your final response to the user, always propose exactly 3 concrete, relevant next action suggestions that would improve or extend the site based on what you just did. Format them strictly as a hidden HTML comment at the end:`,
+          `<!-- SUGGESTIONS: ["Suggestion 1", "Suggestion 2", "Suggestion 3"] -->`,
+          `[END DYNAMIC NEXT ACTIONS SUGGESTION]`,
         ].join("\n");
 
         effectivePrompt = `${securityFence}\n\n${effectivePrompt}`;
