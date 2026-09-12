@@ -16,6 +16,7 @@
   import SqliteInspector from "$lib/components/studio/SqliteInspector.svelte";
   import ImagePreviewer from "$lib/components/studio/ImagePreviewer.svelte";
   import ThemeToggle from "$lib/components/theme-toggle.svelte";
+  import DomainModal from "$lib/components/domain-modal.svelte";
   import { theme } from "$lib/stores/theme";
   import { oneDark } from "@codemirror/theme-one-dark";
   import { getFileCategory, isBinaryFile } from "$lib/utils/file-types";
@@ -2865,220 +2866,23 @@
 
 <!-- Domain Management Modal -->
 {#if isDomainModalOpen}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
-    class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
-    onclick={() => isDomainModalOpen = false}
-    role="dialog"
-    aria-modal="true"
-    tabindex="-1"
-  >
-    <div
-      class="retro-card bg-card text-foreground rounded-2xl shadow-2xl border border-black/15 dark:border-white/10 max-w-xl w-full p-6 cursor-default relative overflow-hidden space-y-5"
-      onclick={(e) => e.stopPropagation()}
-    >
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Nom de domaine</h2>
-          <p class="text-xs uppercase tracking-[0.15em] text-muted-foreground mt-0.5">
-            Pour le site {tenant.brand_name || projectSlug}
-          </p>
-        </div>
-        <button
-          type="button"
-          class="text-muted-foreground hover:text-foreground text-sm font-mono cursor-pointer p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-          onclick={() => isDomainModalOpen = false}
-        >
-          ✕
-        </button>
-      </div>
-
-      <!-- Current Domain Status Banner -->
-      <div class="p-3.5 rounded-xl border border-black/10 dark:border-white/10 bg-surface/80 dark:bg-white/[0.03] space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-mono uppercase tracking-wider text-muted-foreground">Statut actuel</span>
-          {#if currentCustomDomain}
-            <span class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Domaine personnalisé actif
-            </span>
-          {:else}
-            <span class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground border border-black/10 dark:border-white/10">
-              Sous-domaine Ether par défaut
-            </span>
-          {/if}
-        </div>
-
-        <div class="flex items-center justify-between gap-3 pt-1">
-          <div class="font-mono text-sm font-semibold truncate text-foreground">
-            {#if currentCustomDomain}
-              https://{currentCustomDomain}
-            {:else}
-              https://{projectSlug}.ether.paris
-            {/if}
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            {#if currentCustomDomain}
-              <a
-                href="https://{currentCustomDomain}"
-                target="_blank"
-                rel="noopener"
-                class="px-2.5 py-1 text-xs font-mono rounded-lg bg-brand/10 hover:bg-brand/20 text-brand font-medium transition-colors inline-flex items-center gap-1"
-              >
-                <span>Tester</span>
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-              <button
-                type="button"
-                onclick={handleDisconnectDomain}
-                disabled={domainLinkLoading}
-                class="px-2.5 py-1 text-xs font-mono rounded-lg text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Détacher
-              </button>
-            {:else}
-              <a
-                href={liveUrl}
-                target="_blank"
-                rel="noopener"
-                class="px-2.5 py-1 text-xs font-mono rounded-lg bg-surface border border-black/10 dark:border-white/10 hover:bg-surface/80 text-foreground transition-colors inline-flex items-center gap-1"
-              >
-                <span>Ouvrir</span>
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            {/if}
-          </div>
-        </div>
-      </div>
-
-      <!-- Action 1: Link Existing Domain (e.g. miaw.ovh) -->
-      <div class="space-y-2.5">
-        <label class="block text-xs font-semibold uppercase tracking-[0.15em] text-foreground">
-          Lier votre domaine existant (Cloudflare / OVH)
-        </label>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Saisissez votre nom de domaine (ex: <code class="text-brand font-semibold">miaw.ovh</code>). Ether configure automatiquement vos enregistrements DNS Cloudflare vers l'IP <code class="font-mono text-[11px]">135.181.95.61</code> et génère le certificat SSL.
-        </p>
-
-        <div class="flex gap-2">
-          <input
-            type="text"
-            bind:value={domainInput}
-            placeholder="ex: miaw.ovh"
-            class="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-surface/80 dark:bg-white/[0.04] px-4 py-2.5 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-mono"
-          />
-          <button
-            type="button"
-            onclick={() => handleConnectDomain()}
-            disabled={domainLinkLoading || !domainInput.trim()}
-            class="px-5 py-2.5 rounded-xl bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all cursor-pointer disabled:opacity-50 shrink-0 inline-flex items-center gap-2"
-          >
-            {#if domainLinkLoading}
-              <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Liaison...</span>
-            {:else}
-              <span>Connecter</span>
-            {/if}
-          </button>
-        </div>
-      </div>
-
-      <!-- Action 2: Search & Purchase a New Domain -->
-      <div class="space-y-2.5 pt-2 border-t border-black/10 dark:border-white/10">
-        <label class="block text-xs font-semibold uppercase tracking-[0.15em] text-foreground">
-          Ou rechercher &amp; acheter un nouveau domaine
-        </label>
-
-        <div class="flex gap-2">
-          <input
-            type="text"
-            bind:value={domainSearchQuery}
-            placeholder="ex: {tenant.slug || 'mon-entreprise'}"
-            onkeydown={(e) => { if (e.key === "Enter") handleSearchStudioDomains(); }}
-            class="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-surface/80 dark:bg-white/[0.04] px-4 py-2.5 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-mono"
-          />
-          <button
-            type="button"
-            onclick={handleSearchStudioDomains}
-            disabled={domainSearchLoading}
-            class="px-4 py-2.5 rounded-xl border border-black/15 dark:border-white/10 bg-surface hover:bg-surface/80 text-foreground text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer disabled:opacity-50 shrink-0"
-          >
-            {domainSearchLoading ? "Recherche..." : "Vérifier"}
-          </button>
-        </div>
-
-        {#if domainSearchResults.length > 0}
-          <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1 pt-1">
-            {#each domainSearchResults as item}
-              <div class="p-2.5 bg-surface dark:bg-white/[0.02] border border-black/10 dark:border-white/10 rounded-xl flex items-center justify-between text-xs">
-                <div class="flex items-center gap-2">
-                  <span class="font-mono font-semibold text-foreground">{item.domain}</span>
-                  {#if item.isOwnedByAccount}
-                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                      Votre Cloudflare
-                    </span>
-                  {:else}
-                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-full {item.available ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-black/5 dark:bg-white/5 text-muted-foreground'}">
-                      {item.available ? 'Disponible' : 'Pris'}
-                    </span>
-                  {/if}
-                </div>
-
-                <div class="flex items-center gap-2">
-                  <span class="font-mono text-muted-foreground">{item.formattedPrice}</span>
-                  {#if item.isOwnedByAccount}
-                    <button
-                      type="button"
-                      onclick={() => handleBuyStudioDomain(item)}
-                      disabled={domainLinkLoading}
-                      class="px-3 py-1 text-[11px] uppercase tracking-wider font-semibold rounded-lg bg-brand hover:bg-brand/90 text-white transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      Lier
-                    </button>
-                  {:else if item.available}
-                    <button
-                      type="button"
-                      onclick={() => handleBuyStudioDomain(item)}
-                      disabled={domainBuyLoading}
-                      class="px-3 py-1 text-[11px] uppercase tracking-wider font-semibold rounded-lg bg-brand hover:bg-brand/90 text-white transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      Acheter
-                    </button>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
-
-      <!-- Live Link Progress or Error Messages -->
-      {#if domainLinkLoading && domainLinkStatus}
-        <div class="p-3 rounded-xl bg-brand/10 border border-brand/20 text-brand text-xs font-mono flex items-center gap-2.5 animate-pulse">
-          <div class="w-3.5 h-3.5 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0"></div>
-          <span>{domainLinkStatus}</span>
-        </div>
-      {/if}
-
-      {#if domainLinkError}
-        <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-mono flex items-center justify-between">
-          <span>{domainLinkError}</span>
-          <button type="button" onclick={() => domainLinkError = null} class="text-red-500 hover:text-red-700">✕</button>
-        </div>
-      {/if}
-
-      {#if domainLinkSuccess}
-        <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-mono flex items-center justify-between">
-          <span>{domainLinkSuccess}</span>
-          <button type="button" onclick={() => domainLinkSuccess = null} class="text-emerald-500 hover:text-emerald-700">✕</button>
-        </div>
-      {/if}
-    </div>
-  </div>
+  <DomainModal
+    isOpen={isDomainModalOpen}
+    tenant={{
+      id: tenant.id || 1,
+      slug: projectSlug,
+      brand_name: tenant.brand_name,
+      domain: tenant.domain,
+      subdomain: tenant.subdomain,
+      custom_domain: currentCustomDomain,
+    }}
+    onclose={() => isDomainModalOpen = false}
+    onconnected={(domain) => {
+      currentCustomDomain = domain;
+    }}
+    onunlinked={() => {
+      currentCustomDomain = null;
+    }}
+  />
 {/if}
 

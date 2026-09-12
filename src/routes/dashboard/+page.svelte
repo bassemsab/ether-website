@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PageData } from "./$types";
   import BrandMark from "$lib/components/brand-mark.svelte";
+  import DomainModal from "$lib/components/domain-modal.svelte";
 
   interface Props {
     data: PageData;
@@ -467,97 +468,21 @@
     </div>
   {/if}
 
-  <!-- Modal 2: Domain Search & Buy -->
+  <!-- Modal 2: Domain Management (Search, Buy & Connect) -->
   {#if isDomainModalOpen && selectedTenant}
-    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="retro-card w-full max-w-2xl p-6 md:p-8 space-y-6 bg-card">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Réserver un nom de domaine</h2>
-            <p class="text-xs uppercase tracking-[0.15em] text-muted-foreground mt-1">Pour le site {selectedTenant.brand_name || selectedTenant.slug}</p>
-          </div>
-          <button onclick={() => isDomainModalOpen = false} class="text-muted-foreground hover:text-foreground">✕</button>
-        </div>
-
-        <div class="flex gap-2">
-          <input
-            type="text"
-            bind:value={domainQuery}
-            placeholder="Rechercher un nom (ex: {selectedTenant.slug})"
-            class="flex-1 rounded-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-neue"
-          />
-          <button
-            onclick={handleSearchDomains}
-            disabled={searchLoading}
-            class="focus-ring px-6 py-2.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all cursor-pointer disabled:opacity-50 hover:-translate-y-0.5 shrink-0"
-          >
-            {searchLoading ? 'Recherche...' : 'Vérifier'}
-          </button>
-        </div>
-
-        {#if domainQuery.includes('.')}
-          <div class="p-3 bg-brand/5 border border-brand/20 rounded-xl flex items-center justify-between">
-            <span class="text-xs text-foreground font-mono">Lier directement <b>{domainQuery}</b> à ce site ?</span>
-            <button
-              onclick={() => handleDirectLinkDomain(domainQuery)}
-              disabled={domainBuyLoading}
-              class="focus-ring px-3.5 py-1 text-xs uppercase tracking-wider font-semibold rounded-full bg-brand text-white hover:bg-brand/90 disabled:opacity-50"
-            >
-              {domainBuyLoading ? "Liaison..." : "Lier maintenant"}
-            </button>
-          </div>
-        {/if}
-
-        {#if searchResults.length > 0}
-          <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {#each searchResults as item}
-              <div class="p-3.5 bg-surface border border-black/10 rounded-2xl flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <span class="font-mono text-sm font-semibold text-foreground">{item.domain}</span>
-                  {#if item.isOwnedByAccount}
-                    <span class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 font-medium">
-                      Votre Cloudflare
-                    </span>
-                  {:else}
-                    <span class="text-xs font-mono px-2.5 py-0.5 rounded-full {item.available ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' : 'bg-surface border border-black/10 text-muted-foreground'}">
-                      {item.available ? 'Disponible' : 'Pris'}
-                    </span>
-                  {/if}
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-surface/90 border border-black/10 text-muted-foreground uppercase font-mono">
-                    {item.provider}
-                  </span>
-                </div>
-
-                <div class="flex items-center gap-3">
-                  <span class="text-sm font-mono font-medium text-foreground">{item.formattedPrice}</span>
-                  {#if item.isOwnedByAccount}
-                    <button
-                      onclick={() => handleBuyDomain(item)}
-                      disabled={domainBuyLoading}
-                      class="focus-ring px-4 py-1.5 text-xs uppercase tracking-[0.15em] font-medium rounded-full bg-brand hover:bg-brand/90 text-white shadow-retro-sm transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      Lier
-                    </button>
-                  {:else if item.available}
-                    <button
-                      onclick={() => handleBuyDomain(item)}
-                      disabled={domainBuyLoading}
-                      class="focus-ring px-4 py-1.5 text-xs uppercase tracking-[0.15em] font-medium rounded-full bg-brand hover:bg-brand/90 text-white shadow-retro-sm transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      Acheter
-                    </button>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-
-        <p class="text-xs text-muted-foreground leading-relaxed">
-          Inclus : Abonnement annuel renouvelable automatiquement, DNS haute performance Cloudflare, certificat SSL Let's Encrypt et redirection email <code>contact@{domainQuery || 'votredomaine.com'}</code>.
-        </p>
-      </div>
-    </div>
+    <DomainModal
+      isOpen={isDomainModalOpen}
+      tenant={selectedTenant}
+      onclose={() => isDomainModalOpen = false}
+      onconnected={(domain) => {
+        selectedTenant.custom_domain = domain;
+        actionMessage = `Domaine ${domain} relié avec succès au site ${selectedTenant.brand_name || selectedTenant.slug} !`;
+      }}
+      onunlinked={() => {
+        selectedTenant.custom_domain = null;
+        actionMessage = "Domaine détaché. Le site utilise son sous-domaine par défaut.";
+      }}
+    />
   {/if}
 
   <!-- Modal 3: Git & Database Info -->
