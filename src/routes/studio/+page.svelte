@@ -47,9 +47,9 @@
   customRenderer.codespan = ({ text }) => {
     if (isFilePath(text)) {
       const path = text.replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "");
-      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand dark:text-indigo-300 dark:bg-indigo-500/15 px-2 py-0.5 rounded-md border border-brand/20 dark:border-indigo-400/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${path} dans l'éditeur">📄 <span>${path}</span></button>`;
+      return `<button type="button" data-studio-file="${path}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand dark:text-indigo-300 dark:bg-indigo-500/15 px-2 py-0.5 rounded-lg border border-brand/20 dark:border-indigo-400/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${path} dans l'éditeur">📄 <span>${path}</span></button>`;
     }
-    return `<code class="text-foreground dark:text-neutral-100 bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-[11px]">${text}</code>`;
+    return `<code class="text-foreground dark:text-neutral-100 bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded-md font-mono text-[11px]">${text}</code>`;
   };
 
   marked.use({
@@ -71,7 +71,7 @@
           const filePath = raw.replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "").trim();
           const displayText = (linkText || codeText || plainPath || filePath).replace(/^[📄\s`"']+|[`"']+$/g, "").replace(/^file:\/\//, "").trim();
           if (isFilePath(filePath)) {
-            return `<button type="button" data-studio-file="${filePath}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-md border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${filePath} dans l'éditeur">📄 <span>${displayText}</span></button>`;
+            return `<button type="button" data-studio-file="${filePath}" class="studio-file-link inline-flex items-center gap-1 font-mono text-[11px] bg-brand/10 hover:bg-brand/20 text-brand px-2 py-0.5 rounded-lg border border-brand/20 font-medium transition-all shadow-sm my-0.5 cursor-pointer align-baseline" title="Ouvrir ${filePath} dans l'éditeur">📄 <span>${displayText}</span></button>`;
           }
           return match;
         }
@@ -1738,7 +1738,7 @@
               </div>
 
               {#if msg.role === 'user'}
-                <div class="inline-block text-left px-4 py-2.5 rounded-2xl max-w-[90%] sm:max-w-[85%] leading-relaxed bg-brand text-white shadow-retro-sm dark:shadow-none break-words">
+                <div class="inline-block text-left px-5 py-3 rounded-3xl max-w-[90%] sm:max-w-[85%] leading-relaxed bg-brand text-white shadow-retro-sm dark:shadow-none break-words">
                   {#if msg.imageUrl}
                     <div class="mb-2">
                       <button
@@ -1763,7 +1763,7 @@
                   {/if}
                 </div>
               {:else}
-                <div class="w-full text-left p-4 sm:p-5 dark:px-3.5 dark:py-3 dark:sm:px-4 dark:sm:py-3.5 rounded-2xl leading-relaxed border border-black/10 dark:border-white/10 bg-card dark:bg-[#1a1a24] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none">
+                <div class="w-full text-left px-5 py-4.5 sm:px-6 sm:py-5.5 rounded-3xl leading-relaxed border border-black/10 dark:border-white/10 bg-card dark:bg-[#1a1a24] text-foreground dark:text-neutral-100 shadow-retro-sm dark:shadow-none">
                   {#if msg.imageUrl}
                     <div class="mb-2">
                       <button
@@ -1797,10 +1797,10 @@
 
                   {#if msg.steps && msg.steps.length > 0}
                     <details
-                      class="mb-3 dark:mb-2.5 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-[11px] font-mono overflow-hidden group"
+                      class="mb-4 sm:mb-5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-[11px] font-mono overflow-hidden group"
                       open={Boolean(isThinking && msg === messages[messages.length - 1])}
                     >
-                      <summary class="flex items-center justify-between p-2.5 cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-muted-foreground font-medium">
+                      <summary class="flex items-center justify-between p-3 cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors text-muted-foreground font-medium">
                         <div class="flex items-center gap-2">
                           {#if isThinking && msg === messages[messages.length - 1]}
                             <svg class="animate-spin h-3 w-3 text-brand shrink-0" fill="none" viewBox="0 0 24 24">
@@ -1839,11 +1839,11 @@
                   {/if}
 
                   {#if msg.content}
-                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed dark:pl-1.5
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed
                       prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
                       prose-strong:text-foreground dark:prose-strong:text-white
                       prose-a:text-brand dark:prose-a:text-indigo-400
-                      prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                      prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md
                       dark:prose-counters:text-neutral-300 dark:prose-bullets:text-neutral-400 dark:prose-li:text-neutral-200">
                       {@html renderMarkdown(msg.content)}
                     </div>
