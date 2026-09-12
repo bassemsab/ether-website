@@ -89,7 +89,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       tenantId: tenant.id,
       domain: cleanDomain,
       provider: "cloudflare",
-      customerEmail: locals.user.email || tenant.email,
+      customerEmail: tenant.email || locals.user.email,
       priceCents: 0,
     });
 
@@ -105,6 +105,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       domain: cleanDomain,
       message: `Le domaine ${cleanDomain} est maintenant relié à votre site !`,
       dnsResult: result.dnsResult,
+      emailRouting: result.dnsResult?.details?.emailRouting,
+      ovhDelegation: result.dnsResult?.details?.ovhDelegation,
+      smtp: result.dnsResult?.details?.smtp,
     });
   } catch (err: any) {
     console.error("[api/tenant/custom-domain] Error:", err);

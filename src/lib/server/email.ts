@@ -674,6 +674,13 @@ export interface DomainPurchaseEmailParams {
   domain: string;
   tenantSlug: string;
   priceFormatted: string;
+  forwardToEmail?: string;
+  smtp?: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+  };
 }
 
 /**
@@ -793,9 +800,28 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
                     <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600;">Cloudflare Edge SSL</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #6B7280;">Email professionnel</td>
-                    <td style="padding: 6px 0; text-align: right; font-family: monospace; color: #1E1B39;">contact@${params.domain}</td>
+                    <td style="padding: 6px 0; color: #6B7280;">Redirection entrante</td>
+                    <td style="padding: 6px 0; text-align: right; font-family: monospace; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
                   </tr>
+                  ${params.smtp ? `
+                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
+                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 13px; color: #1E1B39;">
+                      Envoi d'e-mails depuis Gmail (SMTP Maddy) :
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B7280;">Serveur SMTP</td>
+                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.smtp.host}:${params.smtp.port} (TLS)</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B7280;">Nom d'utilisateur</td>
+                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.smtp.username}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #6B7280;">Mot de passe SMTP</td>
+                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #FF5500; font-weight: 600;">${params.smtp.password}</td>
+                  </tr>
+                  ` : ''}
                   <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
                     <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 14px; color: #1E1B39;">Abonnement</td>
                     <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 15px; color: #1E1B39;">${params.priceFormatted}</td>

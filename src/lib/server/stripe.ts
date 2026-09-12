@@ -394,21 +394,32 @@ export async function fulfillDomainPurchase({
       );
     }
 
-    // 5. Automate domain provisioning, DNS and Email routing
-    const targetEmail = customerEmail || tenant.email || "contact@ether.paris";
+    // 5. Automate domain provisioning, DNS, Inbound Email routing, and Outbound Maddy SMTP
+    const targetEmail = tenant.email || customerEmail || "contact@ether.paris";
     const dnsResult = await provisionBookedDomain(cleanDomain, provider, targetEmail);
 
-    // 6. Send domain purchase confirmation email
+    // Save generated SMTP credentials in tenant database record
+    if (dnsResult.details?.smtp) {
+      await updateTenantStatus(tenant.domain, tenant.status, {
+        stalwart_user_created: true,
+        stalwart_username: dnsResult.details.smtp.username,
+        stalwart_password: dnsResult.details.smtp.password,
+      });
+    }
+
+    // 6. Send domain purchase confirmation email with SMTP credentials
     if (customerEmail || tenant.email) {
       try {
         await sendDomainPurchaseConfirmationEmail({
           email: (customerEmail || tenant.email)!,
           domain: cleanDomain,
           tenantSlug: tenant.slug || "",
+          forwardToEmail: targetEmail,
           priceFormatted:
             priceCents > 0
               ? `${(priceCents / 100).toFixed(2).replace(".", ",")} € / an`
               : "inclus",
+          smtp: dnsResult.details?.smtp || undefined,
         });
       } catch (emailErr: any) {
         console.warn("[fulfillDomainPurchase] Could not send confirmation email:", emailErr.message);

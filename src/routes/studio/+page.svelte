@@ -2871,10 +2871,13 @@
     tenant={{
       id: tenant.id || 1,
       slug: projectSlug,
+      email: tenant.email,
       brand_name: tenant.brand_name,
       domain: tenant.domain,
       subdomain: tenant.subdomain,
       custom_domain: currentCustomDomain,
+      stalwart_username: tenant.stalwart_username,
+      stalwart_password: tenant.stalwart_password,
     }}
     onclose={() => isDomainModalOpen = false}
     onconnected={(domain) => {

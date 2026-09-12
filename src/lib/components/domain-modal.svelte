@@ -4,10 +4,13 @@
   interface TenantInfo {
     id: number;
     slug: string;
+    email?: string;
     brand_name?: string | null;
     domain?: string;
     subdomain?: string | null;
     custom_domain?: string | null;
+    stalwart_username?: string | null;
+    stalwart_password?: string | null;
   }
 
   interface Props {
@@ -21,7 +24,7 @@
   let { isOpen, tenant, onclose, onconnected, onunlinked }: Props = $props();
 
   // Active Tab
-  let activeTab = $state<"buy" | "connect">("buy");
+  let activeTab = $state<"buy" | "connect" | "email">("buy");
 
   // Buy Tab state
   let searchQuery = $state("");
@@ -36,6 +39,26 @@
   let connectError = $state<string | null>(null);
   let connectSuccess = $state<string | null>(null);
 
+  // Email & SMTP state
+  let smtpInfo = $state<{
+    host: string;
+    port: number;
+    security?: string;
+    username: string;
+    password: string;
+  } | null>(null);
+
+  let showPassword = $state(false);
+  let copiedField = $state<string | null>(null);
+
+  function copyToClipboard(text: string, field: string) {
+    navigator.clipboard.writeText(text);
+    copiedField = field;
+    setTimeout(() => {
+      if (copiedField === field) copiedField = null;
+    }, 2000);
+  }
+
   // Unlink state
   let unlinkLoading = $state(false);
 
@@ -43,6 +66,18 @@
     tenant.subdomain || `${tenant.slug}.ether.paris`
   );
   const currentDomain = $derived(tenant.custom_domain || null);
+
+  $effect(() => {
+    if (tenant.stalwart_username && tenant.stalwart_password && !smtpInfo) {
+      smtpInfo = {
+        host: "mail.ether.paris",
+        port: 587,
+        security: "STARTTLS",
+        username: tenant.stalwart_username,
+        password: tenant.stalwart_password,
+      };
+    }
+  });
 
   // Auto-search domain suggestions on modal open
   $effect(() => {
@@ -134,9 +169,13 @@
         throw new Error(json.error || "Impossible de relier ce domaine");
       }
 
+      if (json.smtp) {
+        smtpInfo = json.smtp;
+      }
       connectStep = null;
-      connectSuccess = `✓ Le domaine ${json.domain} est maintenant relié et actif !`;
+      connectSuccess = `✓ Le domaine ${json.domain} est maintenant relié ! Redirection email et SMTP Gmail configurés.`;
       if (onconnected) onconnected(json.domain);
+      activeTab = "email";
     } catch (err: any) {
       connectError = err.message;
       connectStep = null;
@@ -272,21 +311,31 @@
         </div>
       </div>
 
-      <!-- Navigation Tabs: Buy vs Connect -->
-      <div class="flex items-center gap-2 border-b border-black/10 dark:border-white/10 pb-2">
+      <!-- Navigation Tabs: Buy vs Connect vs Email -->
+      <div class="flex items-center gap-2 border-b border-black/10 dark:border-white/10 pb-2 overflow-x-auto">
         <button
           type="button"
           onclick={() => activeTab = "buy"}
-          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer {activeTab === 'buy' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
+          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'buy' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
         >
           Acheter un nom de domaine
         </button>
         <button
           type="button"
           onclick={() => activeTab = "connect"}
-          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer {activeTab === 'connect' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
+          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'connect' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
         >
           Lier un domaine existant
+        </button>
+        <button
+          type="button"
+          onclick={() => activeTab = "email"}
+          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'email' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'} inline-flex items-center gap-1.5"
+        >
+          <span>Messagerie &amp; Gmail</span>
+          {#if currentDomain}
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          {/if}
         </button>
       </div>
 
@@ -402,6 +451,135 @@
                 <span class="text-foreground font-semibold">{defaultSubdomain}</span>
               </div>
             </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- TAB 3: MESSAGERIE & GMAIL ALIAS CONFIGURATION -->
+      {#if activeTab === "email"}
+        <div class="space-y-4">
+          <!-- Inbound Forwarding Card -->
+          <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface dark:bg-white/[0.02] space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                Redirection entrante automatique
+              </span>
+              <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
+                Cloudflare Email Routing
+              </span>
+            </div>
+            <div class="flex items-center justify-between gap-2 pt-1 font-mono text-xs">
+              <span class="p-2 bg-black/5 dark:bg-white/5 rounded-lg text-foreground font-medium">
+                contact@{currentDomain || tenant.slug + '.com'}
+              </span>
+              <span class="text-brand font-bold text-sm">➔</span>
+              <span class="p-2 bg-black/5 dark:bg-white/5 rounded-lg text-foreground font-medium truncate max-w-[220px]">
+                {tenant.email || 'Votre adresse e-mail'}
+              </span>
+            </div>
+            <p class="text-[11px] text-muted-foreground leading-relaxed pt-1">
+              Tous les emails envoyés à <code class="font-mono text-foreground">contact@{currentDomain || tenant.slug + '.com'}</code> sont automatiquement transmis vers votre boîte personnelle en temps réel.
+            </p>
+          </div>
+
+          <!-- Outbound SMTP Card for Gmail -->
+          <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface dark:bg-white/[0.02] space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-foreground">
+                  Envoi d'e-mails depuis Gmail (SMTP Maddy)
+                </div>
+                <p class="text-[11px] text-muted-foreground mt-0.5">
+                  Pour répondre et envoyer des messages avec votre alias professionnel dans Gmail.
+                </p>
+              </div>
+              <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/20 font-medium shrink-0">
+                TLS 587
+              </span>
+            </div>
+
+            <!-- Credentials Table -->
+            <div class="space-y-1.5 font-mono text-xs">
+              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
+                <span class="text-muted-foreground">Serveur SMTP</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-foreground font-semibold">mail.ether.paris</span>
+                  <button
+                    type="button"
+                    onclick={() => copyToClipboard('mail.ether.paris', 'host')}
+                    class="px-2 py-0.5 text-[10px] rounded bg-brand/10 hover:bg-brand/20 text-brand transition-colors cursor-pointer"
+                  >
+                    {copiedField === 'host' ? 'Copié !' : 'Copier'}
+                  </button>
+                </div>
+              </div>
+
+              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
+                <span class="text-muted-foreground">Port / Sécurité</span>
+                <span class="text-foreground font-semibold">587 (TLS / STARTTLS)</span>
+              </div>
+
+              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
+                <span class="text-muted-foreground">Nom d'utilisateur</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-foreground font-semibold truncate max-w-[180px]">
+                    {smtpInfo?.username || `contact@${currentDomain || tenant.slug + '.com'}`}
+                  </span>
+                  <button
+                    type="button"
+                    onclick={() => copyToClipboard(smtpInfo?.username || `contact@${currentDomain || tenant.slug + '.com'}`, 'user')}
+                    class="px-2 py-0.5 text-[10px] rounded bg-brand/10 hover:bg-brand/20 text-brand transition-colors cursor-pointer"
+                  >
+                    {copiedField === 'user' ? 'Copié !' : 'Copier'}
+                  </button>
+                </div>
+              </div>
+
+              <div class="p-2.5 bg-black/5 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
+                <span class="text-muted-foreground">Mot de passe SMTP</span>
+                <div class="flex items-center gap-2">
+                  {#if smtpInfo?.password}
+                    <span class="text-foreground font-semibold">
+                      {showPassword ? smtpInfo.password : '••••••••••••'}
+                    </span>
+                    <button
+                      type="button"
+                      onclick={() => showPassword = !showPassword}
+                      class="px-2 py-0.5 text-[10px] rounded bg-surface hover:bg-surface/80 border border-black/10 text-muted-foreground transition-colors cursor-pointer"
+                    >
+                      {showPassword ? 'Masquer' : 'Voir'}
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => copyToClipboard(smtpInfo!.password, 'pass')}
+                      class="px-2 py-0.5 text-[10px] rounded bg-brand/10 hover:bg-brand/20 text-brand transition-colors cursor-pointer"
+                    >
+                      {copiedField === 'pass' ? 'Copié !' : 'Copier'}
+                    </button>
+                  {:else}
+                    <span class="text-muted-foreground italic text-[11px]">
+                      Généré dès la liaison du domaine
+                    </span>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step-by-Step Gmail Setup Instructions -->
+          <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface/60 dark:bg-white/[0.01] space-y-2.5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-foreground">
+              Comment ajouter cet alias dans Gmail (3 minutes) :
+            </div>
+            <ol class="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside leading-relaxed font-neue">
+              <li>Ouvrez <b>Gmail</b> ➔ cliquez sur <b>Paramètres ⚙️</b> ➔ <b>Voir tous les paramètres</b>.</li>
+              <li>Allez dans l'onglet <b>Comptes et importation</b>.</li>
+              <li>Dans la section <i>« Envoyer des e-mails en tant que »</i>, cliquez sur <b>« Ajouter une autre adresse e-mail »</b>.</li>
+              <li>Saisissez votre nom et <code class="font-mono text-foreground">contact@{currentDomain || tenant.slug + '.com'}</code> (gardez <i>« Traiter comme un alias »</i> coché).</li>
+              <li>Renseignez le serveur <code class="font-mono">mail.ether.paris</code>, port <code class="font-mono">587</code>, et vos identifiants ci-dessus.</li>
+              <li>Cliquez sur <b>Ajouter un compte</b> : Gmail envoie un code de vérification à cette adresse.</li>
+              <li>Ce code arrive immédiatement dans votre boîte Gmail (grâce à la redirection). Entrez-le pour valider !</li>
+            </ol>
           </div>
         </div>
       {/if}
