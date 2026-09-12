@@ -61,6 +61,11 @@ async function proxyToRunner(
       resHeaders.delete("x-frame-options");
       resHeaders.delete("content-security-policy");
     }
+    const contentType = resHeaders.get("content-type") || "";
+    if (contentType.includes("text/html")) {
+      resHeaders.set("Clear-Site-Data", '"cache"');
+      resHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
     return new Response(res.body, {
       status: res.status,
       statusText: res.statusText,

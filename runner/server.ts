@@ -850,6 +850,11 @@ const server = Bun.serve({
         resHeaders.delete("Content-Security-Policy");
         resHeaders.delete("content-encoding");
         resHeaders.delete("content-length");
+        const contentType = resHeaders.get("content-type") || "";
+        if (contentType.includes("text/html")) {
+          resHeaders.set("Clear-Site-Data", '"cache"');
+          resHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
 
         return new Response(proxyRes.body, {
           status: proxyRes.status,

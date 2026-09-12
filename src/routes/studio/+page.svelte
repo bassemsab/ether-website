@@ -1414,7 +1414,6 @@
       const resData = await res.json();
       if (resData.success) {
         publishStatus = "✓ Site publié et actif sur Kubernetes !";
-        refreshPreview();
       } else {
         publishStatus = `Erreur : ${resData.error}`;
       }
