@@ -1204,6 +1204,7 @@
     } finally {
       isThinking = false;
       await loadTenantFiles();
+      refreshPreview();
     }
   }
 
@@ -2207,14 +2208,9 @@
         ✕
       </button>
 
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-xl">
-          ⚡
-        </div>
-        <div>
-          <h3 class="text-lg font-bold font-display text-foreground">Recharger vos Prompts Studio</h3>
-          <p class="text-xs text-muted-foreground">Continuez à concevoir et itérer sur votre site sans attendre.</p>
-        </div>
+      <div class="mb-2 pr-8">
+        <h3 class="text-lg font-bold font-display text-foreground">Recharger vos Prompts Studio</h3>
+        <p class="text-xs text-muted-foreground">Continuez à concevoir et itérer sur votre site sans attendre.</p>
       </div>
 
       {#if promptQuota.remaining <= 0}
