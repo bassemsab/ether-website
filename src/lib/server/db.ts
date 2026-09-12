@@ -394,10 +394,12 @@ export async function getTenantByDomain(
 
   try {
     const cleanDomain = domain.toLowerCase().trim();
+    const strippedWww = cleanDomain.replace(/^www\./, "");
+    const withWww = cleanDomain.startsWith("www.") ? cleanDomain : `www.${cleanDomain}`;
     const stmt = db.prepare(
-      `SELECT * FROM tenants WHERE LOWER(domain) = ? OR LOWER(subdomain) = ? OR LOWER(custom_domain) = ?`,
+      `SELECT * FROM tenants WHERE LOWER(domain) = ? OR LOWER(subdomain) = ? OR LOWER(custom_domain) = ? OR LOWER(custom_domain) = ? OR LOWER(custom_domain) = ?`,
     );
-    const result = stmt.get(cleanDomain, cleanDomain, cleanDomain);
+    const result = stmt.get(cleanDomain, cleanDomain, cleanDomain, strippedWww, withWww);
     return result as TenantRecord | null;
   } catch (error) {
     console.error("Failed to get tenant:", error);

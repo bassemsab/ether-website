@@ -23,7 +23,8 @@ COPY --from=base /app/package.json ./
 
 # Install kubectl and curl for cluster tenant orchestration
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
-    curl -LO "https://dl.k8s.io/release/v1.32.0/bin/linux/amd64/kubectl" && \
+    ARCH=$(dpkg --print-architecture) && \
+    curl -LO "https://dl.k8s.io/release/v1.32.0/bin/linux/${ARCH}/kubectl" && \
     chmod +x kubectl && mv kubectl /usr/local/bin/ && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 

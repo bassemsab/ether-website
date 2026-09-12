@@ -1,12 +1,23 @@
 import type { PageServerLoad } from "./$types";
 import { redirect } from "@sveltejs/kit";
 import { getSessionByToken, getTenantsByUserId } from "$lib/server/db";
+import { processDomainCheckoutSession } from "$lib/server/stripe";
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, url }) => {
   const sessionToken = cookies.get("session");
 
   if (!sessionToken) {
     throw redirect(302, "/login");
+  }
+
+  // Handle returning from Stripe domain checkout
+  const domainSessionId = url.searchParams.get("session_id");
+  if (domainSessionId && url.searchParams.get("domain_success") === "true") {
+    try {
+      await processDomainCheckoutSession(domainSessionId);
+    } catch (err: any) {
+      console.warn(`[Dashboard Load] Could not verify domain session ${domainSessionId}:`, err.message);
+    }
   }
 
   const session = await getSessionByToken(sessionToken);

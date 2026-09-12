@@ -6,7 +6,10 @@ import {
   getStudioChatHistory,
   getStudioConversations,
 } from "$lib/server/db";
-import { processPromptTopupCheckoutSession } from "$lib/server/stripe";
+import {
+  processPromptTopupCheckoutSession,
+  processDomainCheckoutSession,
+} from "$lib/server/stripe";
 import { getRunnerProfiles } from "$lib/server/agent-bridge";
 import { listTenantFiles } from "$lib/server/tenant-files";
 
@@ -25,6 +28,15 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
       await processPromptTopupCheckoutSession(topupSessionId);
     } catch (err: any) {
       console.warn(`[Studio Load] Could not verify topup session ${topupSessionId}:`, err.message);
+    }
+  }
+
+  // If returning from Stripe domain checkout, synchronously verify and fulfill domain
+  if (topupSessionId && url.searchParams.get("domain_success") === "true") {
+    try {
+      await processDomainCheckoutSession(topupSessionId);
+    } catch (err: any) {
+      console.warn(`[Studio Load] Could not verify domain session ${topupSessionId}:`, err.message);
     }
   }
 

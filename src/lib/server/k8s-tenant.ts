@@ -11,7 +11,17 @@ export interface TenantK8sConfig {
 export function generateTenantManifests(config: TenantK8sConfig): string {
   const hosts = [config.subdomain];
   if (config.customDomain) {
-    hosts.push(config.customDomain);
+    const cleanCustom = config.customDomain
+      .toLowerCase()
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/+$/, "");
+    if (cleanCustom) {
+      hosts.push(cleanCustom);
+      if (!cleanCustom.startsWith("www.")) {
+        hosts.push(`www.${cleanCustom}`);
+      }
+    }
   }
 
   const tlsHosts = hosts.map((h) => `        - ${h}`).join("\n");

@@ -179,11 +179,20 @@ export async function createDomainCheckoutSession(
 ): Promise<{ url: string; sessionId: string }> {
   if (!stripe) {
     console.warn(
-      "[Stripe] STRIPE_SECRET_KEY not set, generating mock checkout link for dev",
+      "[Stripe] STRIPE_SECRET_KEY not set, auto-fulfilling domain purchase in mock mode for dev",
     );
+    const mockSessionId = `mock_sess_${Date.now()}`;
+    await fulfillDomainPurchase({
+      tenantId: params.tenantId,
+      domain: params.domain,
+      provider: params.provider,
+      sessionId: mockSessionId,
+      customerEmail: params.customerEmail,
+      priceCents: params.priceCents,
+    });
     return {
-      url: `${params.successUrl}&mock_session_id=mock_sub_${Date.now()}`,
-      sessionId: `mock_sess_${Date.now()}`,
+      url: `${params.successUrl}&mock_session_id=${mockSessionId}&domain=${encodeURIComponent(params.domain)}`,
+      sessionId: mockSessionId,
     };
   }
 
@@ -318,112 +327,219 @@ export async function processPromptTopupCheckoutSession(
   }
 }
 
+
 /**
- * Handles Stripe webhook events.
+ * Centrally fulfills a domain purchase:
+ * 1. Activates domain order in SQLite
+ * 2. Assigns custom_domain to tenant in DB
+ * 3. Reconfigures Kubernetes Ingress & TLS Let's Encrypt certificate
+ * 4. Configures Cloudflare DNS (A records to 135.181.95.61 + email routing)
+ * 5. Sends confirmation email
+ */
+export async function fulfillDomainPurchase({
+  tenantId,
+  domain,
+  provider = "cloudflare",
+  subscriptionId = null,
+  sessionId = null,
+  customerEmail = null,
+  priceCents = 0,
+}: {
+  tenantId: number;
+  domain: string;
+  provider?: "ovh" | "cloudflare";
+  subscriptionId?: string | null;
+  sessionId?: string | null;
+  customerEmail?: string | null;
+  priceCents?: number;
+}): Promise<{ success: boolean; domain: string; dnsResult?: any; error?: string }> {
+  console.log(
+    `[fulfillDomainPurchase] Fulfilling domain for ${domain} (tenant ${tenantId}, provider ${provider})`,
+  );
+
+  const cleanDomain = domain
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "")
+    .replace(/^www\./, "");
+
+  try {
+    // 1. Update order status in DB if sessionId provided
+    if (sessionId) {
+      await updateDomainOrderStatus(sessionId, "active", subscriptionId || undefined);
+    }
+
+    // 2. Fetch tenant
+    const tenant = await getTenantById(tenantId);
+    if (!tenant) {
+      throw new Error(`Site avec l'ID ${tenantId} introuvable`);
+    }
+
+    // 3. Update tenant with custom domain
+    await updateTenantStatus(tenant.domain, tenant.status, {
+      custom_domain: cleanDomain,
+      stripe_subscription_id: subscriptionId || undefined,
+    });
+
+    // 4. Update Ingress with custom domain on Kubernetes
+    const namespace = tenant.k8s_namespace || `tenant-${tenant.slug}`;
+    const subdomain = tenant.subdomain || `${tenant.slug}.ether.paris`;
+    if (tenant.slug) {
+      await updateTenantCustomDomainIngress(
+        tenant.slug,
+        namespace,
+        subdomain,
+        cleanDomain,
+      );
+    }
+
+    // 5. Automate domain provisioning, DNS and Email routing
+    const targetEmail = customerEmail || tenant.email || "contact@ether.paris";
+    const dnsResult = await provisionBookedDomain(cleanDomain, provider, targetEmail);
+
+    // 6. Send domain purchase confirmation email
+    if (customerEmail || tenant.email) {
+      try {
+        await sendDomainPurchaseConfirmationEmail({
+          email: (customerEmail || tenant.email)!,
+          domain: cleanDomain,
+          tenantSlug: tenant.slug || "",
+          priceFormatted:
+            priceCents > 0
+              ? `${(priceCents / 100).toFixed(2).replace(".", ",")} € / an`
+              : "inclus",
+        });
+      } catch (emailErr: any) {
+        console.warn("[fulfillDomainPurchase] Could not send confirmation email:", emailErr.message);
+      }
+    }
+
+    return { success: true, domain: cleanDomain, dnsResult };
+  } catch (err: any) {
+    console.error("[fulfillDomainPurchase] Error:", err);
+    return { success: false, domain: cleanDomain, error: err.message };
+  }
+}
+
+/**
+ * Verifies and fulfills a domain checkout session synchronously upon return.
+ */
+export async function processDomainCheckoutSession(
+  sessionOrId: Stripe.Checkout.Session | string,
+): Promise<{ success: boolean; domain?: string; alreadyProcessed?: boolean }> {
+  if (!stripe) return { success: false };
+
+  try {
+    let session: Stripe.Checkout.Session;
+    if (typeof sessionOrId === "string") {
+      session = await stripe.checkout.sessions.retrieve(sessionOrId);
+    } else {
+      session = sessionOrId;
+    }
+
+    if (session.payment_status !== "paid" || session.status !== "complete") {
+      return { success: false };
+    }
+
+    const tenantIdStr = session.metadata?.tenant_id;
+    const domain = session.metadata?.domain;
+    const provider = (session.metadata?.provider as "ovh" | "cloudflare") || "cloudflare";
+    const priceCents = parseInt(session.metadata?.price_cents || "0", 10);
+    const subscriptionId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : session.subscription?.id || undefined;
+
+    if (!tenantIdStr || !domain) {
+      return { success: false };
+    }
+
+    const tenantId = parseInt(tenantIdStr, 10);
+    const customerEmail =
+      session.customer_details?.email || session.customer_email;
+
+    const res = await fulfillDomainPurchase({
+      tenantId,
+      domain,
+      provider,
+      subscriptionId,
+      sessionId: session.id,
+      customerEmail,
+      priceCents,
+    });
+
+    return { success: res.success, domain: res.domain };
+  } catch (err: any) {
+    console.error("[processDomainCheckoutSession] Error:", err);
+    return { success: false };
+  }
+}
+
+/**
+ * Handles incoming Stripe Webhook events.
  */
 export async function handleStripeWebhookEvent(
-  payload: string,
+  rawBody: string,
   signature: string,
-): Promise<{ received: boolean; action?: string }> {
-  if (!stripe || !STRIPE_WEBHOOK_SECRET) {
-    return { received: true, action: "skipped_no_stripe_key" };
+): Promise<{ received: boolean; action?: string; error?: string }> {
+  if (!stripe) {
+    return { received: true, action: "mock_stripe_disabled" };
+  }
+
+  const webhookSecret =
+    env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    throw new Error("STRIPE_WEBHOOK_SECRET is not configured");
   }
 
   const event = stripe.webhooks.constructEvent(
-    payload,
+    rawBody,
     signature,
-    STRIPE_WEBHOOK_SECRET,
+    webhookSecret,
   );
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    // Handle prompt topup purchase
-    if (session.metadata?.type === "prompt_topup") {
-      const res = await processPromptTopupCheckoutSession(session);
+    // A. Handle Prompt Topup purchase
+    if (session.mode === "payment" && session.metadata?.type === "prompt_topup") {
+      const topupResult = await processPromptTopupCheckoutSession(session);
       return {
         received: true,
-        action: res.alreadyProcessed
-          ? "already_processed"
+        action: topupResult.alreadyProcessed
+          ? "prompt_topup_already_processed"
           : "prompt_topup_credited",
       };
     }
 
-    const tenantIdStr = session.metadata?.tenant_id;
-    const domain = session.metadata?.domain;
-    const provider = (session.metadata?.provider || "cloudflare") as
-      | "ovh"
-      | "cloudflare";
-    const subscriptionId =
-      typeof session.subscription === "string"
-        ? session.subscription
-        : undefined;
+    // B. Handle Domain subscription order
+    if (session.mode === "subscription" && session.metadata?.domain) {
+      const tenantIdStr = session.metadata.tenant_id;
+      const domain = session.metadata.domain;
+      const provider = (session.metadata.provider as "ovh" | "cloudflare") || "cloudflare";
+      const subscriptionId =
+        typeof session.subscription === "string"
+          ? session.subscription
+          : session.subscription?.id || undefined;
+      const customerEmail =
+        session.customer_details?.email || session.customer_email;
+      const priceCents = parseInt(session.metadata.price_cents || "0", 10);
 
-    if (tenantIdStr && domain) {
-      const tenantId = parseInt(tenantIdStr, 10);
-      console.log(
-        `[Stripe Webhook] Processing domain payment completed for ${domain} (tenant ${tenantId})`,
-      );
-
-      // 1. Update order status in DB
-      await updateDomainOrderStatus(session.id, "active", subscriptionId);
-
-      // 2. Fetch tenant to get slug and user email
-      const tenant = await getTenantById(tenantId);
-      if (tenant) {
-        // 3. Update tenant with custom domain
-        await updateTenantStatus(tenant.domain, tenant.status, {
-          custom_domain: domain,
-          stripe_subscription_id: subscriptionId,
+      if (tenantIdStr && domain) {
+        const tenantId = parseInt(tenantIdStr, 10);
+        await fulfillDomainPurchase({
+          tenantId,
+          domain,
+          provider,
+          subscriptionId,
+          sessionId: session.id,
+          customerEmail,
+          priceCents,
         });
 
-        // 4. Update Ingress with custom domain on Kubernetes
-        if (tenant.slug && tenant.k8s_namespace) {
-          await updateTenantCustomDomainIngress(
-            tenant.slug,
-            tenant.k8s_namespace,
-            tenant.subdomain || `${tenant.slug}.ether.paris`,
-            domain,
-          );
-        }
-
-        // 5. Automate domain provisioning, DNS and Email routing
-        await provisionBookedDomain(domain, provider, tenant.email);
-
-        // 6. Send domain purchase confirmation email
-        const customerEmail =
-          session.customer_details?.email ||
-          session.customer_email ||
-          tenant.email;
-
-        if (customerEmail) {
-          try {
-            const priceCents = parseInt(
-              session.metadata?.price_cents || "0",
-              10,
-            );
-            await sendDomainPurchaseConfirmationEmail({
-              email: customerEmail,
-              domain,
-              tenantSlug: tenant.slug || "",
-              priceFormatted:
-                priceCents > 0
-                  ? `${(priceCents / 100).toFixed(2).replace(".", ",")} € / an`
-                  : "payé",
-            });
-            console.log(
-              `[Stripe Webhook] Sent domain purchase confirmation email to ${customerEmail}`,
-            );
-          } catch (emailErr: any) {
-            console.error(
-              `[Stripe Webhook] Failed to send domain purchase email:`,
-              emailErr.message,
-            );
-          }
-        }
+        return { received: true, action: "domain_activated" };
       }
-
-      return { received: true, action: "domain_activated" };
     }
   }
 

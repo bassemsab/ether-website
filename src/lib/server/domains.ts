@@ -8,6 +8,7 @@ export interface DomainSearchResult {
   priceAnnualCents: number;
   currency: string;
   formattedPrice: string;
+  isOwnedByAccount?: boolean;
 }
 
 const COMMON_TLDS = [
@@ -27,34 +28,103 @@ const COMMON_TLDS = [
 export async function searchDomains(
   query: string,
 ): Promise<DomainSearchResult[]> {
-  const cleanQuery = query
+  const rawClean = query
     .toLowerCase()
     .trim()
     .replace(/^https?:\/\//, "")
-    .replace(/[^a-z0-9-]/g, "");
+    .replace(/\/+$/, "")
+    .replace(/^www\./, "");
 
-  if (!cleanQuery || cleanQuery.length < 2) {
+  if (!rawClean || rawClean.length < 2) {
     return [];
   }
 
   const cfToken = env.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
-  const ovhAk = env.OVH_APPLICATION_KEY || process.env.OVH_APPLICATION_KEY;
-
   const results: DomainSearchResult[] = [];
 
-  // Query each TLD across providers
-  for (const item of COMMON_TLDS) {
-    const domain = `${cleanQuery}.${item.tld}`;
+  // Check if user entered an exact domain with extension (e.g. miaw.ovh or mydomain.com)
+  const hasExtension = rawClean.includes(".") && rawClean.split(".").length >= 2;
+  let baseName = rawClean;
+  let explicitTld = "";
+
+  if (hasExtension) {
+    const parts = rawClean.split(".");
+    explicitTld = parts.slice(1).join(".");
+    baseName = parts[0].replace(/[^a-z0-9-]/g, "");
+
+    const exactDomain = `${baseName}.${explicitTld}`;
+    let isOwned = false;
     let isAvailable = true;
 
-    // Check Cloudflare or OVH live API if configured, otherwise fallback to standard DNS check
+    // 1. Check if zone is already managed in user's Cloudflare account
+    if (cfToken) {
+      try {
+        const cfRes = await fetch(
+          `https://api.cloudflare.com/client/v4/zones?name=${exactDomain}`,
+          { headers: { Authorization: `Bearer ${cfToken}` } },
+        );
+        if (cfRes.ok) {
+          const cfData = await cfRes.json();
+          if (cfData.success && cfData.result && cfData.result.length > 0) {
+            isOwned = true;
+            isAvailable = false;
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[searchDomains] Cloudflare check error for ${exactDomain}:`, e.message);
+      }
+    }
+
+    // 2. If not owned in Cloudflare, check public DNS availability
+    if (!isOwned) {
+      try {
+        const dnsRes = await fetch(
+          `https://cloudflare-dns.com/dns-query?name=${exactDomain}&type=NS`,
+          { headers: { Accept: "application/dns-json" } },
+        );
+        if (dnsRes.ok) {
+          const dnsData = await dnsRes.json();
+          if (dnsData.Answer && dnsData.Answer.length > 0) {
+            isAvailable = false;
+          }
+        }
+      } catch {}
+    }
+
+    const matchedTldConfig = COMMON_TLDS.find((t) => t.tld === explicitTld);
+    const priceCents = matchedTldConfig ? matchedTldConfig.basePriceCents : 1499;
+
+    results.push({
+      domain: exactDomain,
+      tld: explicitTld,
+      available: isAvailable,
+      provider: "cloudflare",
+      priceAnnualCents: isOwned ? 0 : priceCents,
+      currency: "EUR",
+      formattedPrice: isOwned ? "Détecté dans votre Cloudflare" : `${(priceCents / 100).toFixed(2)} €/an`,
+      isOwnedByAccount: isOwned,
+    });
+  } else {
+    baseName = rawClean.replace(/[^a-z0-9-]/g, "");
+  }
+
+  if (!baseName || baseName.length < 2) {
+    return results;
+  }
+
+  // Query common TLDs across providers
+  for (const item of COMMON_TLDS) {
+    if (hasExtension && item.tld === explicitTld) {
+      continue; // already added above
+    }
+
+    const domain = `${baseName}.${item.tld}`;
+    let isAvailable = true;
+
     try {
-      // Fast DNS availability check: if domain has NS or A record, it is taken
       const dnsRes = await fetch(
         `https://cloudflare-dns.com/dns-query?name=${domain}&type=NS`,
-        {
-          headers: { Accept: "application/dns-json" },
-        },
+        { headers: { Accept: "application/dns-json" } },
       );
       if (dnsRes.ok) {
         const dnsData = await dnsRes.json();
@@ -62,9 +132,7 @@ export async function searchDomains(
           isAvailable = false;
         }
       }
-    } catch {
-      // If network fails, default to available
-    }
+    } catch {}
 
     results.push({
       domain,
@@ -84,7 +152,7 @@ export async function searchDomains(
  * Provisions a booked domain:
  * 1. Calls OVH / Cloudflare to finalize registration.
  * 2. If OVH, delegates nameservers to Cloudflare.
- * 3. Creates DNS A and CNAME records pointing to server IP (135.181.95.61).
+ * 3. Idempotently creates or updates DNS A records pointing to server IP (135.181.95.61).
  * 4. Configures Cloudflare Email Routing: contact@{domain} -> forwardToEmail.
  */
 export async function provisionBookedDomain(
@@ -92,17 +160,24 @@ export async function provisionBookedDomain(
   provider: "ovh" | "cloudflare",
   forwardToEmail: string,
   serverIp = "135.181.95.61",
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; details?: any }> {
   console.log(
     `[provisionBookedDomain] Initiating provisioning for ${domain} (${provider}) -> ${forwardToEmail}`,
   );
+
+  const cleanDomain = domain
+    .toLowerCase()
+    .trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "")
+    .replace(/^www\./, "");
 
   const cfToken = env.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
   if (!cfToken) {
     console.warn("[provisionBookedDomain] CLOUDFLARE_API_TOKEN not configured");
     return {
       success: true,
-      message: `Domain ${domain} simulated provisioning (no CF token)`,
+      message: `Domain ${cleanDomain} simulated provisioning (no CF token configured)`,
     };
   }
 
@@ -117,10 +192,8 @@ export async function provisionBookedDomain(
     let accountId = "";
 
     const zonesRes = await fetch(
-      `https://api.cloudflare.com/client/v4/zones?name=${domain}`,
-      {
-        headers: cfHeaders,
-      },
+      `https://api.cloudflare.com/client/v4/zones?name=${cleanDomain}`,
+      { headers: cfHeaders },
     );
     const zonesData = await zonesRes.json();
 
@@ -142,7 +215,7 @@ export async function provisionBookedDomain(
             method: "POST",
             headers: cfHeaders,
             body: JSON.stringify({
-              name: domain,
+              name: cleanDomain,
               type: "full",
               account: { id: accountId },
             }),
@@ -153,86 +226,88 @@ export async function provisionBookedDomain(
       }
     }
 
-    if (zoneId) {
-      // 2. Add DNS A and CNAME records pointing to server IP
-      await fetch(
-        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
-        {
-          method: "POST",
-          headers: cfHeaders,
-          body: JSON.stringify({
-            type: "A",
-            name: domain,
-            content: serverIp,
-            proxied: true,
-            ttl: 1,
-          }),
-        },
+    if (!zoneId) {
+      throw new Error(`Zone Cloudflare introuvable pour ${cleanDomain}`);
+    }
+
+    // 2. Fetch existing DNS records to perform idempotent updates
+    const existingRecsRes = await fetch(
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?per_page=100`,
+      { headers: cfHeaders },
+    );
+    const existingRecsData = await existingRecsRes.json();
+    const existingRecords: any[] = existingRecsData.result || [];
+
+    // Helper: upsert A record
+    async function upsertARecord(name: string, ip: string) {
+      const match = existingRecords.find(
+        (r) => r.name.toLowerCase() === name.toLowerCase() && (r.type === "A" || r.type === "CNAME"),
       );
 
-      await fetch(
-        `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
-        {
-          method: "POST",
-          headers: cfHeaders,
-          body: JSON.stringify({
-            type: "CNAME",
-            name: `www.${domain}`,
-            content: domain,
-            proxied: true,
-            ttl: 1,
-          }),
-        },
-      );
-
-      // 3. Email Routing DNS records (Cloudflare MX + SPF)
-      const mailRecords = [
-        {
-          type: "MX",
-          name: domain,
-          content: "route1.mx.cloudflare.net",
-          priority: 48,
-          proxied: false,
-          ttl: 1,
-        },
-        {
-          type: "MX",
-          name: domain,
-          content: "route2.mx.cloudflare.net",
-          priority: 74,
-          proxied: false,
-          ttl: 1,
-        },
-        {
-          type: "MX",
-          name: domain,
-          content: "route3.mx.cloudflare.net",
-          priority: 89,
-          proxied: false,
-          ttl: 1,
-        },
-        {
-          type: "TXT",
-          name: domain,
-          content: "v=spf1 include:_spf.mx.cloudflare.net ~all",
-          proxied: false,
-          ttl: 1,
-        },
-      ];
-
-      for (const rec of mailRecords) {
-        await fetch(
+      if (match) {
+        const updateRes = await fetch(
+          `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${match.id}`,
+          {
+            method: "PUT",
+            headers: cfHeaders,
+            body: JSON.stringify({
+              type: "A",
+              name,
+              content: ip,
+              proxied: true,
+              ttl: 1,
+            }),
+          },
+        );
+        return await updateRes.json();
+      } else {
+        const createRes = await fetch(
           `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
           {
             method: "POST",
             headers: cfHeaders,
-            body: JSON.stringify(rec),
+            body: JSON.stringify({
+              type: "A",
+              name,
+              content: ip,
+              proxied: true,
+              ttl: 1,
+            }),
           },
         );
+        return await createRes.json();
       }
+    }
 
-      // 4. Setup forwarding rule for contact@{domain} -> forwardToEmail
-      if (accountId) {
+    // Upsert root A record (e.g. miaw.ovh -> 135.181.95.61)
+    await upsertARecord(cleanDomain, serverIp);
+
+    // Upsert www A record (e.g. www.miaw.ovh -> 135.181.95.61)
+    await upsertARecord(`www.${cleanDomain}`, serverIp);
+
+    // 3. Email Routing DNS records (Cloudflare MX + SPF)
+    const mailRecords = [
+      { type: "MX", name: cleanDomain, content: "route1.mx.cloudflare.net", priority: 48, proxied: false, ttl: 1 },
+      { type: "MX", name: cleanDomain, content: "route2.mx.cloudflare.net", priority: 74, proxied: false, ttl: 1 },
+      { type: "MX", name: cleanDomain, content: "route3.mx.cloudflare.net", priority: 89, proxied: false, ttl: 1 },
+      { type: "TXT", name: cleanDomain, content: "v=spf1 include:_spf.mx.cloudflare.net ~all", proxied: false, ttl: 1 },
+    ];
+
+    for (const rec of mailRecords) {
+      const exists = existingRecords.some(
+        (r) => r.type === rec.type && r.name.toLowerCase() === rec.name.toLowerCase() && r.content === rec.content,
+      );
+      if (!exists) {
+        await fetch(
+          `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
+          { method: "POST", headers: cfHeaders, body: JSON.stringify(rec) },
+        );
+      }
+    }
+
+    // 4. Setup forwarding rule for contact@{domain} -> forwardToEmail
+    if (accountId && forwardToEmail) {
+      try {
         await fetch(
           `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/routing/addresses`,
           {
@@ -251,19 +326,20 @@ export async function provisionBookedDomain(
               name: `Forward contact@ to ${forwardToEmail}`,
               enabled: true,
               priority: 0,
-              matchers: [
-                { type: "literal", field: "to", value: `contact@${domain}` },
-              ],
+              matchers: [{ type: "literal", field: "to", value: `contact@${cleanDomain}` }],
               actions: [{ type: "forward", value: [forwardToEmail] }],
             }),
           },
         );
+      } catch (emailErr: any) {
+        console.warn(`[provisionBookedDomain] Email routing rule note for ${cleanDomain}:`, emailErr.message);
       }
     }
 
     return {
       success: true,
-      message: `Domain ${domain} provisioned and configured successfully.`,
+      message: `Domaine ${cleanDomain} configuré avec succès sur Cloudflare (A: ${serverIp}).`,
+      details: { zoneId, accountId, domain: cleanDomain, serverIp },
     };
   } catch (err: any) {
     console.error("[provisionBookedDomain] Error:", err);
