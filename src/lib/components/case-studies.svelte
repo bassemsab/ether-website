@@ -19,7 +19,7 @@
   {#each studies as project (project.title)}
     <article class="retro-card overflow-hidden flex flex-col justify-between">
       <div>
-        <div class="relative aspect-[4/5] overflow-hidden rounded-t-[2.5rem]">
+        <div class="relative aspect-[4/5] w-full overflow-hidden">
           <img
             src={project.image}
             alt={project.title}
@@ -27,11 +27,11 @@
             height={1000}
             class="h-full w-full object-cover transition-transform duration-700 hover:scale-[1.05]"
           />
-          <div class="absolute right-5 top-5 rounded-full bg-surface/90 backdrop-blur-sm px-4 py-2 text-xs uppercase tracking-[0.3em] text-muted-foreground border border-black/5">
-            {project.sector}
-          </div>
         </div>
         <div class="space-y-5 p-8">
+          <p class="text-xs uppercase tracking-[0.25em] text-brand/80 font-mono">
+            {project.sector}
+          </p>
           <h3 class="font-display text-2xl">{project.title}</h3>
           <p class="text-sm text-muted-foreground leading-relaxed">{project.summary}</p>
           <ul class="space-y-2 text-sm text-muted-foreground/80">

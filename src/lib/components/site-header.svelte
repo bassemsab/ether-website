@@ -81,14 +81,14 @@
     <a
       href={`/${locale}`}
       aria-label={homeLabel}
-      class="flex items-center"
+      class="flex items-center transition-opacity hover:opacity-80"
     >
       <img
-        src="https://img.ether.paris/ether-website/assets/ether.png?width=1000"
+        src="/ether-logo-official.png"
         alt={logoAlt}
-        width={50}
-        height={50}
-        class="ml-4 rounded-full bg-white p-0.5 shadow-sm"
+        width={46}
+        height={40}
+        class="h-9 w-auto object-contain dark:brightness-0 dark:invert"
       />
     </a>
 
