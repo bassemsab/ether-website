@@ -168,12 +168,12 @@
     connectLoading = true;
     connectError = null;
     connectSuccess = null;
-    connectStep = "1/3 : Configuration DNS Cloudflare (A: 135.181.95.61)...";
+    connectStep = "1/2 : Vérification DNS (A pointant vers 135.181.95.61)...";
 
     try {
       setTimeout(() => {
         if (connectLoading) {
-          connectStep = "2/3 : Routage Kubernetes Ingress & Certificat SSL Let's Encrypt...";
+          connectStep = "2/2 : Routage Kubernetes Ingress & Certificat SSL Let's Encrypt...";
         }
       }, 1500);
 
