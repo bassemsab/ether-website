@@ -174,12 +174,21 @@
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && historyMenuOpen) {
-      historyMenuOpen = false;
+    if (event.key === "Escape") {
+      if (historyMenuOpen) historyMenuOpen = false;
+      if (isQuickOpenOpen) closeQuickOpen();
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       handleSaveCode();
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p") {
+      event.preventDefault();
+      if (isQuickOpenOpen) {
+        closeQuickOpen();
+      } else {
+        openQuickOpen();
+      }
     }
   }
 
@@ -710,7 +719,10 @@
     const q = searchQuery.trim().toLowerCase();
 
     for (const [filePath, file] of Object.entries(fileMap)) {
-      if (q && !filePath.toLowerCase().includes(q) && !file.name.toLowerCase().includes(q)) {
+      const contentMatches = q && !isBinaryFile(filePath) && (file.content || "").toLowerCase().includes(q);
+      const nameMatches = q && (filePath.toLowerCase().includes(q) || file.name.toLowerCase().includes(q));
+
+      if (q && !nameMatches && !contentMatches) {
         continue;
       }
 
@@ -778,6 +790,7 @@
     if (!openTabs.includes(filePath)) {
       openTabs = [...openTabs, filePath];
     }
+    showEditor = true;
     switchFile(filePath);
   }
 
@@ -800,11 +813,178 @@
     }
   }
 
+  interface SearchMatchLine {
+    lineNum: number;
+    preview: string;
+    matchIndex: number;
+    matchLength: number;
+  }
+
+  interface FileSearchResult {
+    filePath: string;
+    fileName: string;
+    matches: SearchMatchLine[];
+    matchCount: number;
+  }
+
+  let collapsedSearchResultFiles = $state<Record<string, boolean>>({});
+
+  function toggleSearchResultFile(path: string) {
+    collapsedSearchResultFiles[path] = !collapsedSearchResultFiles[path];
+  }
+
+  const globalSearchResults = $derived.by(() => {
+    const q = fileSearchQuery.trim();
+    if (!q) return [];
+    const qLower = q.toLowerCase();
+
+    const results: FileSearchResult[] = [];
+
+    for (const [path, file] of Object.entries(files)) {
+      if (isBinaryFile(path)) continue;
+
+      const content = file.content || "";
+      const lines = content.split("\n");
+      const matches: SearchMatchLine[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineLower = line.toLowerCase();
+        const matchIdx = lineLower.indexOf(qLower);
+
+        if (matchIdx !== -1) {
+          matches.push({
+            lineNum: i + 1,
+            preview: line.trim(),
+            matchIndex: matchIdx,
+            matchLength: q.length,
+          });
+        }
+      }
+
+      const nameMatch = path.toLowerCase().includes(qLower);
+
+      if (matches.length > 0 || nameMatch) {
+        results.push({
+          filePath: path,
+          fileName: file.name,
+          matches,
+          matchCount: matches.length > 0 ? matches.length : 1,
+        });
+      }
+    }
+
+    return results.sort((a, b) => b.matchCount - a.matchCount);
+  });
+
+  const totalContentMatches = $derived(
+    globalSearchResults.reduce((sum, r) => sum + r.matches.length, 0)
+  );
+
+  function jumpToLine(lineNumber: number, characterIndex = 0) {
+    setTimeout(() => {
+      if (!editorView) return;
+      try {
+        const doc = editorView.state.doc;
+        const clampedLine = Math.min(Math.max(lineNumber, 1), doc.lines);
+        const lineInfo = doc.line(clampedLine);
+        const targetPos = Math.min(lineInfo.from + Math.max(characterIndex, 0), lineInfo.to);
+
+        editorView.dispatch({
+          selection: { anchor: targetPos, head: targetPos },
+          scrollIntoView: true,
+        });
+        editorView.focus();
+      } catch (err) {
+        console.warn("Could not jump to line:", err);
+      }
+    }, 60);
+  }
+
+  function handleSearchResultClick(filePath: string, lineNum?: number, matchIndex = 0) {
+    selectAndOpenFile(filePath);
+    if (lineNum !== undefined) {
+      jumpToLine(lineNum, matchIndex);
+    }
+  }
+
+  // Quick Open (Cmd+P) File Search State
+  let isQuickOpenOpen = $state(false);
+  let quickOpenQuery = $state("");
+  let quickOpenSelectedIndex = $state(0);
+  let quickOpenInputRef = $state<HTMLInputElement | null>(null);
+
+  const quickOpenResults = $derived.by(() => {
+    const q = quickOpenQuery.trim().toLowerCase();
+    const allFiles = Object.values(files);
+    if (!q) {
+      return allFiles.slice(0, 25);
+    }
+    return allFiles
+      .filter((file) => {
+        return (
+          file.name.toLowerCase().includes(q) ||
+          file.path.toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        if (aName === q && bName !== q) return -1;
+        if (bName === q && aName !== q) return 1;
+        if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
+        if (bName.startsWith(q) && !aName.startsWith(q)) return 1;
+        return a.path.localeCompare(b.path);
+      })
+      .slice(0, 30);
+  });
+
+  function openQuickOpen() {
+    isQuickOpenOpen = true;
+    quickOpenQuery = "";
+    quickOpenSelectedIndex = 0;
+    setTimeout(() => {
+      quickOpenInputRef?.focus();
+      quickOpenInputRef?.select();
+    }, 30);
+  }
+
+  function closeQuickOpen() {
+    isQuickOpenOpen = false;
+  }
+
+  function handleQuickOpenSelect(filePath: string) {
+    selectAndOpenFile(filePath);
+    closeQuickOpen();
+  }
+
+  function handleQuickOpenKeydown(e: KeyboardEvent) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      quickOpenSelectedIndex = Math.min(
+        quickOpenSelectedIndex + 1,
+        quickOpenResults.length - 1
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      quickOpenSelectedIndex = Math.max(quickOpenSelectedIndex - 1, 0);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (quickOpenResults[quickOpenSelectedIndex]) {
+        handleQuickOpenSelect(quickOpenResults[quickOpenSelectedIndex].path);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeQuickOpen();
+    }
+  }
+
   const filteredFiles = $derived(
     Object.entries(files).filter(([path, file]) => {
       if (!fileSearchQuery.trim()) return true;
       const q = fileSearchQuery.trim().toLowerCase();
-      return path.toLowerCase().includes(q) || file.name.toLowerCase().includes(q);
+      const contentMatch = !isBinaryFile(path) && (file.content || "").toLowerCase().includes(q);
+      return path.toLowerCase().includes(q) || file.name.toLowerCase().includes(q) || contentMatch;
     })
   );
 
@@ -2374,6 +2554,13 @@
                     <span>Explorateur</span>
                   </span>
                   <div class="flex items-center gap-1">
+                    <button
+                      onclick={openQuickOpen}
+                      class="px-1.5 py-0.5 rounded text-[10px] font-mono border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer flex items-center gap-0.5"
+                      title="Recherche de fichier par nom (Cmd+P ou Ctrl+P)"
+                    >
+                      <kbd class="font-sans">⌘</kbd>P
+                    </button>
                     <span class="text-[10px] text-muted-foreground">({Object.keys(files).length})</span>
                     <button
                       onclick={loadTenantFiles}
@@ -2388,18 +2575,25 @@
                 </div>
               {/if}
               <div class="relative">
+                <svg class="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
                 <input
                   type="text"
                   bind:value={fileSearchQuery}
-                  placeholder="Filtrer les fichiers..."
-                  class="w-full bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 rounded px-2 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 text-foreground dark:text-white focus:outline-none focus:border-brand dark:focus:border-brand/70 transition-colors"
+                  placeholder="Rechercher dans les fichiers..."
+                  class="w-full bg-black/5 dark:bg-white/[0.06] border border-black/10 dark:border-white/10 rounded pl-7 pr-7 py-1 text-[11px] font-mono placeholder:text-muted-foreground/60 text-foreground dark:text-white focus:outline-none focus:border-brand dark:focus:border-brand/70 transition-colors"
                 />
                 {#if fileSearchQuery}
                   <button
                     onclick={() => fileSearchQuery = ""}
-                    class="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-[10px] p-0.5 cursor-pointer"
+                    class="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Effacer la recherche"
+                    aria-label="Effacer la recherche"
                   >
-                    ✕
+                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 {/if}
               </div>
@@ -2480,18 +2674,127 @@
               {/if}
             {/snippet}
 
-            <!-- Tree View Nodes -->
-            <div class="flex-1 overflow-y-auto overflow-x-hidden p-0 py-1 font-mono text-xs space-y-0 bg-transparent">
-              {#if fileTree.length === 0}
-                <div class="p-4 text-[11px] text-muted-foreground text-center">
-                  Aucun fichier trouvé
+            <!-- Tree View or Global Search Results -->
+            {#if fileSearchQuery.trim()}
+              <div class="flex-1 overflow-y-auto overflow-x-hidden font-mono text-xs bg-transparent">
+                <!-- Search stats header -->
+                <div class="px-2 py-1.5 border-b border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span class="truncate">
+                    {#if totalContentMatches > 0}
+                      {totalContentMatches} résultat{totalContentMatches > 1 ? 's' : ''} ({globalSearchResults.length} fichier{globalSearchResults.length > 1 ? 's' : ''})
+                    {:else if globalSearchResults.length > 0}
+                      {globalSearchResults.length} fichier{globalSearchResults.length > 1 ? 's' : ''}
+                    {:else}
+                      0 résultat
+                    {/if}
+                  </span>
+                  <button
+                    type="button"
+                    onclick={() => fileSearchQuery = ""}
+                    class="text-[10px] hover:underline cursor-pointer text-muted-foreground hover:text-foreground shrink-0 ml-1"
+                  >
+                    Effacer
+                  </button>
                 </div>
-              {:else}
-                {#each fileTree as node}
-                  {@render renderTreeNode(node)}
-                {/each}
-              {/if}
-            </div>
+
+                {#if globalSearchResults.length === 0}
+                  <div class="p-4 text-[11px] text-muted-foreground text-center space-y-1.5">
+                    <p>Aucun résultat trouvé pour</p>
+                    <p class="font-semibold text-foreground dark:text-white truncate max-w-full px-1">« {fileSearchQuery} »</p>
+                    <p class="text-[10px] text-muted-foreground/80 mt-2">
+                      Astuce : utilisez <button type="button" onclick={openQuickOpen} class="underline font-semibold cursor-pointer">⌘P</button> pour chercher par nom de fichier.
+                    </p>
+                  </div>
+                {:else}
+                  <div class="divide-y divide-black/5 dark:divide-white/5">
+                    {#each globalSearchResults as res}
+                      {@const isCollapsed = Boolean(collapsedSearchResultFiles[res.filePath])}
+                      <div class="text-[11px]">
+                        <!-- File Header Item -->
+                        <div class="flex items-center justify-between px-2 py-1.5 bg-black/[0.03] dark:bg-white/[0.04] hover:bg-black/[0.06] dark:hover:bg-white/[0.08] transition-colors group cursor-pointer {activeFile === res.filePath ? 'bg-brand/10 dark:bg-brand/20' : ''}">
+                          <button
+                            type="button"
+                            onclick={() => handleSearchResultClick(res.filePath, res.matches[0]?.lineNum, res.matches[0]?.matchIndex)}
+                            class="flex items-center gap-1.5 min-w-0 flex-1 text-left cursor-pointer"
+                            title={res.filePath}
+                          >
+                            {#if res.filePath.endsWith('.svelte')}
+                              <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
+                            {:else if res.filePath.endsWith('.ts')}
+                              <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
+                            {:else if res.filePath.endsWith('.js') || res.filePath.endsWith('.mjs')}
+                              <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
+                            {:else if res.filePath.endsWith('.json')}
+                              <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
+                            {:else if res.filePath.endsWith('.css')}
+                              <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
+                            {:else}
+                              <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground shrink-0">📄</span>
+                            {/if}
+                            <span class="truncate font-medium text-foreground dark:text-white">{res.fileName}</span>
+                            <span class="text-[9px] text-muted-foreground truncate max-w-[70px] opacity-70">
+                              {res.filePath.replace('/' + res.fileName, '')}
+                            </span>
+                          </button>
+
+                          <div class="flex items-center gap-1 shrink-0 ml-1">
+                            {#if res.matches.length > 0}
+                              <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-brand/10 text-brand dark:bg-brand/20 dark:text-white font-mono">
+                                {res.matches.length}
+                              </span>
+                              <button
+                                type="button"
+                                onclick={(e) => { e.stopPropagation(); toggleSearchResultFile(res.filePath); }}
+                                class="p-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                                title={isCollapsed ? "Déplier" : "Replier"}
+                              >
+                                <svg class="w-3 h-3 transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                                </svg>
+                              </button>
+                            {/if}
+                          </div>
+                        </div>
+
+                        <!-- Matching lines snippet list -->
+                        {#if !isCollapsed && res.matches.length > 0}
+                          <div class="bg-black/[0.015] dark:bg-white/[0.015] py-0.5">
+                            {#each res.matches as match}
+                              <button
+                                type="button"
+                                onclick={() => handleSearchResultClick(res.filePath, match.lineNum, match.matchIndex)}
+                                class="w-full text-left px-2.5 py-1 flex items-start gap-1.5 hover:bg-black/5 dark:hover:bg-white/[0.06] transition-colors cursor-pointer group text-[10px]"
+                                title="Ligne {match.lineNum}: {match.preview}"
+                              >
+                                <span class="w-6 text-right shrink-0 text-muted-foreground/70 group-hover:text-foreground dark:group-hover:text-white font-mono text-[9px] select-none pt-0.2">
+                                  {match.lineNum}
+                                </span>
+                                <span class="truncate flex-1 font-mono text-muted-foreground group-hover:text-foreground dark:group-hover:text-neutral-200">
+                                  {match.preview}
+                                </span>
+                              </button>
+                            {/each}
+                          </div>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <!-- Normal Tree View Nodes -->
+              <div class="flex-1 overflow-y-auto overflow-x-hidden p-0 py-1 font-mono text-xs space-y-0 bg-transparent">
+                {#if fileTree.length === 0}
+                  <div class="p-4 text-[11px] text-muted-foreground text-center">
+                    Aucun fichier trouvé
+                  </div>
+                {:else}
+                  {#each fileTree as node}
+                    {@render renderTreeNode(node)}
+                  {/each}
+                {/if}
+              </div>
+            {/if}
           </div>
         {/if}
 
@@ -2888,4 +3191,99 @@
     }}
   />
 {/if}
+
+<!-- Quick Open (Cmd+P) File Search Modal -->
+{#if isQuickOpenOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+    role="presentation"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) closeQuickOpen();
+    }}
+  >
+    <div
+      class="w-full max-w-xl rounded-xl border border-black/15 dark:border-white/15 bg-card dark:bg-[#16161e] backdrop-blur-md shadow-2xl overflow-hidden flex flex-col max-h-[65vh] animate-in zoom-in-95 duration-150"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Recherche rapide de fichier"
+    >
+      <!-- Search Input Bar -->
+      <div class="p-3 border-b border-black/10 dark:border-white/10 flex items-center gap-2.5 bg-black/[0.02] dark:bg-white/[0.02]">
+        <svg class="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          bind:this={quickOpenInputRef}
+          bind:value={quickOpenQuery}
+          onkeydown={handleQuickOpenKeydown}
+          type="text"
+          placeholder="Ouvrir un fichier par nom... (ex: +page.svelte, globals.css)"
+          class="flex-1 bg-transparent text-sm font-mono placeholder:text-muted-foreground/60 text-foreground dark:text-white focus:outline-none"
+        />
+        <kbd class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-muted-foreground border border-black/5 dark:border-white/5">
+          esc
+        </kbd>
+      </div>
+
+      <!-- Quick Open Results List -->
+      <div class="flex-1 overflow-y-auto p-1.5 font-mono text-xs space-y-0.5">
+        {#if quickOpenResults.length === 0}
+          <div class="p-6 text-center text-xs text-muted-foreground">
+            Aucun fichier trouvé pour « {quickOpenQuery} »
+          </div>
+        {:else}
+          {#each quickOpenResults as file, idx}
+            <button
+              type="button"
+              onclick={() => handleQuickOpenSelect(file.path)}
+              onmouseenter={() => quickOpenSelectedIndex = idx}
+              class="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between gap-3 transition-colors cursor-pointer group {idx === quickOpenSelectedIndex ? 'bg-brand/10 dark:bg-brand/20 text-brand dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80 dark:text-neutral-300'}"
+            >
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                {#if file.path.endsWith('.svelte')}
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
+                {:else if file.path.endsWith('.ts')}
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
+                {:else if file.path.endsWith('.js') || file.path.endsWith('.mjs')}
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
+                {:else if file.path.endsWith('.json')}
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
+                {:else if file.path.endsWith('.css')}
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
+                {:else if file.path.endsWith('.sqlite') || file.path.endsWith('.db')}
+                  <span class="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
+                {:else if file.path.endsWith('.png') || file.path.endsWith('.jpg') || file.path.endsWith('.jpeg') || file.path.endsWith('.webp') || file.path.endsWith('.svg')}
+                  <span class="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
+                {:else}
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground shrink-0">📄</span>
+                {/if}
+                <span class="font-medium truncate text-foreground dark:text-white">{file.name}</span>
+                <span class="text-[10px] text-muted-foreground truncate opacity-70">
+                  {file.path.replace('/' + file.name, '')}
+                </span>
+              </div>
+              <div class="text-[10px] text-muted-foreground shrink-0 opacity-60 group-hover:opacity-100">
+                {#if idx === quickOpenSelectedIndex}
+                  <span class="text-brand dark:text-white font-semibold">↵ Ouvrir</span>
+                {/if}
+              </div>
+            </button>
+          {/each}
+        {/if}
+      </div>
+
+      <!-- Footer Hints -->
+      <div class="px-3 py-2 border-t border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+        <div class="flex items-center gap-3">
+          <span><kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">↑</kbd> <kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">↓</kbd> naviguer</span>
+          <span><kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">↵</kbd> ouvrir</span>
+          <span><kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">esc</kbd> fermer</span>
+        </div>
+        <span class="text-muted-foreground/80">{quickOpenResults.length} résultat{quickOpenResults.length > 1 ? 's' : ''}</span>
+      </div>
+    </div>
+  </div>
+{/if}
+
 
