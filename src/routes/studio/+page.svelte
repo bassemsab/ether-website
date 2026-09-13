@@ -767,14 +767,10 @@
     return toSortedArray(root, 0);
   }
 
-  let activeFile = $state(
-    Object.keys(files)[0] || "src/routes/+page.svelte"
-  );
+  let activeFile = $state<string>("");
   const activeFileCategory = $derived(getFileCategory(activeFile));
   const isCurrentFileBinary = $derived(isBinaryFile(activeFile));
-  let openTabs = $state<string[]>([
-    Object.keys(files)[0] || "src/routes/+page.svelte"
-  ]);
+  let openTabs = $state<string[]>([]);
   let collapsedFolders = $state<Record<string, boolean>>({});
   let showExplorer = $state(true);
   let fileSearchQuery = $state("");
@@ -800,10 +796,6 @@
     if (remaining.length === 0) {
       openTabs = [];
       activeFile = "";
-      showExplorer = true;
-      showEditor = false;
-      showPreview = true;
-      showChat = true;
       return;
     }
     openTabs = remaining;
@@ -1001,7 +993,7 @@
         if (json.success && json.files) {
           files = json.files;
           if (openTabs.length > 0 && !files[activeFile]) {
-            activeFile = openTabs[0] || Object.keys(files)[0] || "";
+            activeFile = openTabs[0] || "";
           }
           if (editorView && files[activeFile]) {
             const currentDoc = editorView.state.doc.toString();
@@ -2395,56 +2387,29 @@
     >
       <!-- File Tabs & Editor Controls -->
       <div class="h-10 border-b border-black/10 dark:border-white/10 bg-surface/60 dark:bg-[#16161c] flex items-center justify-between px-2 text-xs font-mono shrink-0 gap-2">
-        {#if openTabs.length === 0}
-          <div class="flex items-center gap-2 px-1 text-foreground font-medium text-xs">
-            <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            <span class="font-semibold text-xs text-foreground/90 dark:text-neutral-200">Explorateur de fichiers</span>
-            <span class="text-[10px] text-muted-foreground">({Object.keys(files).length} fichiers)</span>
-          </div>
+        <button
+          onclick={() => showExplorer = !showExplorer}
+          class="p-1.5 rounded-[6px] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 dark:bg-white/10 text-brand dark:text-white' : ''}"
+          title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        </button>
 
-          <div class="flex items-center gap-1.5 shrink-0">
-            <button
-              onclick={loadTenantFiles}
-              class="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
-              title="Recharger l'arborescence"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-            <button
-              onclick={() => showEditor = false}
-              class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Masquer l'explorateur de fichiers"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        {:else}
-          <button
-            onclick={() => showExplorer = !showExplorer}
-            class="p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 dark:bg-white/10 text-brand dark:text-white' : ''}"
-            title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </button>
-
-          <!-- Horizontally Scrollable Tab Strip with Close Buttons -->
-          <div
-            class="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 py-1 select-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            onwheel={(e) => {
-              if (e.deltaY !== 0) {
-                e.preventDefault();
-                (e.currentTarget as HTMLElement).scrollLeft += e.deltaY;
-              }
-            }}
-          >
+        <!-- Horizontally Scrollable Tab Strip with Close Buttons -->
+        <div
+          class="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 py-1 select-none no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          onwheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.preventDefault();
+              (e.currentTarget as HTMLElement).scrollLeft += e.deltaY;
+            }
+          }}
+        >
+          {#if openTabs.length === 0}
+            <span class="text-[11px] text-muted-foreground/60 italic px-2">Aucun fichier ouvert</span>
+          {:else}
             {#each openTabs as path}
               {@const file = files[path] || { name: path.split('/').pop() || path, path }}
               <div
@@ -2495,9 +2460,11 @@
                 </button>
               </div>
             {/each}
-          </div>
+          {/if}
+        </div>
 
-          <div class="flex items-center gap-1.5 shrink-0">
+        <div class="flex items-center gap-1.5 shrink-0">
+          {#if openTabs.length > 0}
             {#if activeFileCategory === 'code'}
               <button
                 onclick={handleSaveCode}
@@ -2525,55 +2492,53 @@
                 Binaire protégé
               </span>
             {/if}
-            <button
-              onclick={() => showEditor = false}
-              class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Masquer l'éditeur de code"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        {/if}
+          {/if}
+          <button
+            onclick={() => showEditor = false}
+            class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            title="Masquer l'éditeur de code"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Main Editor Area with Tree-based Explorer Sidebar -->
       <div class="flex-1 flex overflow-hidden min-h-0">
         <!-- File Explorer Sidebar -->
-        {#if showExplorer || openTabs.length === 0}
-          <div class="{openTabs.length === 0 ? 'w-full flex-1 border-r-0' : 'w-48 sm:w-52 border-r border-black/10 dark:border-white/10'} bg-surface/30 dark:bg-[#121217] flex flex-col shrink-0 overflow-hidden select-none">
+        {#if showExplorer}
+          <div class="w-48 sm:w-52 border-r border-black/10 dark:border-white/10 bg-surface/30 dark:bg-[#121217] flex flex-col shrink-0 overflow-hidden select-none">
             <!-- Explorer Header & Filter -->
             <div class="p-2 border-b border-black/10 dark:border-white/10 space-y-1.5 shrink-0 bg-transparent">
-              {#if openTabs.length > 0}
-                <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                  <span class="flex items-center gap-1.5 font-semibold text-foreground/80 dark:text-neutral-300">
-                    <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              <div class="flex items-center justify-between text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                <span class="flex items-center gap-1.5 font-semibold text-foreground/80 dark:text-neutral-300">
+                  <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span>Explorateur</span>
+                </span>
+                <div class="flex items-center gap-1">
+                  <button
+                    onclick={openQuickOpen}
+                    class="px-1.5 py-0.5 rounded text-[10px] font-mono border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer flex items-center gap-0.5"
+                    title="Recherche de fichier par nom (Cmd+P ou Ctrl+P)"
+                  >
+                    <kbd class="font-sans">⌘</kbd>P
+                  </button>
+                  <span class="text-[10px] text-muted-foreground">({Object.keys(files).length})</span>
+                  <button
+                    onclick={loadTenantFiles}
+                    class="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
+                    title="Recharger l'arborescence"
+                  >
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    <span>Explorateur</span>
-                  </span>
-                  <div class="flex items-center gap-1">
-                    <button
-                      onclick={openQuickOpen}
-                      class="px-1.5 py-0.5 rounded text-[10px] font-mono border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer flex items-center gap-0.5"
-                      title="Recherche de fichier par nom (Cmd+P ou Ctrl+P)"
-                    >
-                      <kbd class="font-sans">⌘</kbd>P
-                    </button>
-                    <span class="text-[10px] text-muted-foreground">({Object.keys(files).length})</span>
-                    <button
-                      onclick={loadTenantFiles}
-                      class="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
-                      title="Recharger l'arborescence"
-                    >
-                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </button>
-                  </div>
+                  </button>
                 </div>
-              {/if}
+              </div>
               <div class="relative">
                 <svg class="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -2847,6 +2812,27 @@
               </div>
             </div>
           {/if}
+        {/if}
+
+        <!-- Empty State when no tabs are open -->
+        {#if openTabs.length === 0}
+          <div class="flex-1 flex flex-col items-center justify-center p-8 text-center bg-card select-none font-mono text-xs">
+            <div class="w-12 h-12 rounded-[12px] bg-black/5 dark:bg-white/5 flex items-center justify-center text-2xl mb-3 text-muted-foreground">
+              📄
+            </div>
+            <p class="font-semibold text-foreground dark:text-neutral-200 text-sm mb-1">Aucun fichier ouvert</p>
+            <p class="text-muted-foreground text-xs max-w-xs mb-4">
+              Sélectionnez un fichier dans l'explorateur ou utilisez la recherche rapide.
+            </p>
+            <button
+              type="button"
+              onclick={openQuickOpen}
+              class="px-3 py-1.5 rounded-[8px] border border-black/10 dark:border-white/10 bg-surface hover:bg-surface/80 text-xs font-mono flex items-center gap-2 text-foreground dark:text-white transition-all cursor-pointer shadow-xs"
+            >
+              <span>Recherche de fichier</span>
+              <kbd class="px-1.5 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 text-[10px]">⌘P</kbd>
+            </button>
+          </div>
         {/if}
       </div>
     </div>
@@ -3203,13 +3189,13 @@
     }}
   >
     <div
-      class="w-full max-w-xl rounded-xl border border-black/15 dark:border-white/15 bg-card dark:bg-[#16161e] backdrop-blur-md shadow-2xl overflow-hidden flex flex-col max-h-[65vh] animate-in zoom-in-95 duration-150"
+      class="w-full max-w-xl rounded-[14px] border border-black/15 dark:border-white/15 bg-card dark:bg-[#16161e] shadow-2xl overflow-hidden flex flex-col max-h-[60vh] animate-in zoom-in-95 duration-150"
       role="dialog"
       aria-modal="true"
       aria-label="Recherche rapide de fichier"
     >
       <!-- Search Input Bar -->
-      <div class="p-3 border-b border-black/10 dark:border-white/10 flex items-center gap-2.5 bg-black/[0.02] dark:bg-white/[0.02]">
+      <div class="px-3.5 py-3 border-b border-black/10 dark:border-white/10 flex items-center gap-2.5 bg-black/[0.02] dark:bg-white/[0.02]">
         <svg class="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
@@ -3221,7 +3207,7 @@
           placeholder="Ouvrir un fichier par nom... (ex: +page.svelte, globals.css)"
           class="flex-1 bg-transparent text-sm font-mono placeholder:text-muted-foreground/60 text-foreground dark:text-white focus:outline-none"
         />
-        <kbd class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-muted-foreground border border-black/5 dark:border-white/5">
+        <kbd class="text-[10px] font-mono px-1.5 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 text-muted-foreground border border-black/5 dark:border-white/5">
           esc
         </kbd>
       </div>
@@ -3238,25 +3224,25 @@
               type="button"
               onclick={() => handleQuickOpenSelect(file.path)}
               onmouseenter={() => quickOpenSelectedIndex = idx}
-              class="w-full text-left px-3 py-2 rounded-lg flex items-center justify-between gap-3 transition-colors cursor-pointer group {idx === quickOpenSelectedIndex ? 'bg-brand/10 dark:bg-brand/20 text-brand dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80 dark:text-neutral-300'}"
+              class="w-full text-left px-3 py-2 rounded-[8px] flex items-center justify-between gap-3 transition-colors cursor-pointer group {idx === quickOpenSelectedIndex ? 'bg-brand/15 dark:bg-brand/25 text-brand dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80 dark:text-neutral-300'}"
             >
               <div class="flex items-center gap-2 min-w-0 flex-1">
                 {#if file.path.endsWith('.svelte')}
-                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded-[4px] bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
                 {:else if file.path.endsWith('.ts')}
-                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded-[4px] bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
                 {:else if file.path.endsWith('.js') || file.path.endsWith('.mjs')}
-                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded-[4px] bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
                 {:else if file.path.endsWith('.json')}
-                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded-[4px] bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
                 {:else if file.path.endsWith('.css')}
-                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded-[4px] bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
                 {:else if file.path.endsWith('.sqlite') || file.path.endsWith('.db')}
-                  <span class="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded-[4px] bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
                 {:else if file.path.endsWith('.png') || file.path.endsWith('.jpg') || file.path.endsWith('.jpeg') || file.path.endsWith('.webp') || file.path.endsWith('.svg')}
-                  <span class="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded-[4px] bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
                 {:else}
-                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground shrink-0">📄</span>
+                  <span class="w-4 h-4 flex items-center justify-center text-[9px] font-bold rounded-[4px] bg-black/10 dark:bg-white/10 text-muted-foreground shrink-0">📄</span>
                 {/if}
                 <span class="font-medium truncate text-foreground dark:text-white">{file.name}</span>
                 <span class="text-[10px] text-muted-foreground truncate opacity-70">
@@ -3274,11 +3260,11 @@
       </div>
 
       <!-- Footer Hints -->
-      <div class="px-3 py-2 border-t border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+      <div class="px-3.5 py-2.5 border-t border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex items-center justify-between text-[10px] font-mono text-muted-foreground">
         <div class="flex items-center gap-3">
-          <span><kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">↑</kbd> <kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">↓</kbd> naviguer</span>
-          <span><kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">↵</kbd> ouvrir</span>
-          <span><kbd class="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">esc</kbd> fermer</span>
+          <span><kbd class="px-1 py-0.5 rounded-[3px] bg-black/5 dark:bg-white/10">↑</kbd> <kbd class="px-1 py-0.5 rounded-[3px] bg-black/5 dark:bg-white/10">↓</kbd> naviguer</span>
+          <span><kbd class="px-1 py-0.5 rounded-[3px] bg-black/5 dark:bg-white/10">↵</kbd> ouvrir</span>
+          <span><kbd class="px-1 py-0.5 rounded-[3px] bg-black/5 dark:bg-white/10">esc</kbd> fermer</span>
         </div>
         <span class="text-muted-foreground/80">{quickOpenResults.length} résultat{quickOpenResults.length > 1 ? 's' : ''}</span>
       </div>
