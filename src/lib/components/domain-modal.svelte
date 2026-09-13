@@ -39,6 +39,32 @@
   let connectError = $state<string | null>(null);
   let connectSuccess = $state<string | null>(null);
 
+  // Owned Domains state
+  let ownedDomains = $state<any[]>([]);
+  let ownedLoading = $state(false);
+
+  async function loadOwnedDomains() {
+    if (!tenant?.id && !tenant?.slug) return;
+    ownedLoading = true;
+    try {
+      const res = await fetch(`/api/tenant/custom-domain?tenantId=${tenant.id}&slug=${encodeURIComponent(tenant.slug)}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.ownedDomains)) {
+        ownedDomains = json.ownedDomains;
+      }
+    } catch (err) {
+      console.warn("Failed to load owned domains:", err);
+    } finally {
+      ownedLoading = false;
+    }
+  }
+
+  $effect(() => {
+    if (isOpen) {
+      loadOwnedDomains();
+    }
+  });
+
   // Email & SMTP state
   let smtpInfo = $state<{
     host: string;
@@ -199,6 +225,7 @@
       connectStep = null;
       connectSuccess = `✓ Le domaine ${json.domain} est maintenant relié ! Redirection email et SMTP Gmail configurés.`;
       if (onconnected) onconnected(json.domain);
+      loadOwnedDomains();
       activeTab = "email";
     } catch (err: any) {
       connectError = err.message;
@@ -232,6 +259,7 @@
 
       connectSuccess = "Domaine personnalisé détaché avec succès.";
       if (onunlinked) onunlinked();
+      loadOwnedDomains();
     } catch (err: any) {
       connectError = err.message;
     } finally {
@@ -281,21 +309,21 @@
         <div class="flex items-center gap-2 overflow-x-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pt-0.5">
           <button
             type="button"
-            onclick={() => activeTab = "buy"}
+            onclick={() => { activeTab = "buy"; connectError = null; connectSuccess = null; }}
             class="px-3.5 py-1.5 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'buy' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
           >
             Acheter un domaine
           </button>
           <button
             type="button"
-            onclick={() => activeTab = "connect"}
+            onclick={() => { activeTab = "connect"; connectError = null; connectSuccess = null; }}
             class="px-3.5 py-1.5 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'connect' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
           >
             Lier un domaine
           </button>
           <button
             type="button"
-            onclick={() => activeTab = "email"}
+            onclick={() => { activeTab = "email"; connectError = null; connectSuccess = null; }}
             class="px-3.5 py-1.5 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'email' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'} inline-flex items-center gap-1.5"
           >
             <span>Messagerie &amp; Gmail</span>
@@ -436,76 +464,176 @@
 
       <!-- TAB 2: CONNECT EXISTING DOMAIN -->
       {#if activeTab === "connect"}
-        <div class="space-y-4">
-          <p class="text-xs text-muted-foreground leading-relaxed">
-            Vous avez déjà acheté votre nom de domaine chez <b>OVH</b>, <b>Cloudflare</b>, <b>GoDaddy</b> ou un autre bureau d'enregistrement ? Connectez-le directement à votre site Ether.
-          </p>
-
-          <div class="flex gap-2">
-            <input
-              type="text"
-              bind:value={existingDomainInput}
-              placeholder="ex: miaw.ovh ou monentreprise.com"
-              onkeydown={(e) => { if (e.key === "Enter") handleConnectExisting(); }}
-              class="flex-1 rounded-2xl border border-black/10 dark:border-white/10 bg-surface/80 dark:bg-white/[0.04] px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-mono"
-            />
-            <button
-              type="button"
-              onclick={() => handleConnectExisting()}
-              disabled={connectLoading || !existingDomainInput.trim()}
-              class="focus-ring px-6 py-2.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all cursor-pointer disabled:opacity-50 hover:-translate-y-0.5 shrink-0 inline-flex items-center gap-2"
-            >
-              {#if connectLoading}
-                <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Connexion...</span>
-              {:else}
-                <span>Connecter</span>
-              {/if}
-            </button>
-          </div>
-
-          <!-- DNS Records Guide for External Registrars -->
-          <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface/40 dark:bg-white/[0.02] space-y-2.5">
-            <div class="text-xs font-semibold uppercase tracking-wider text-foreground">
-              Configuration DNS chez votre registrar
-            </div>
-            <p class="text-xs text-muted-foreground leading-relaxed">
-              Si votre domaine est géré hors de Cloudflare, ajoutez simplement ces 2 enregistrements dans votre zone DNS :
-            </p>
-            <div class="space-y-1.5 font-mono text-xs">
-              <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
-                <span><b class="text-brand">Type A</b> : @ (racine)</span>
-                <span class="text-foreground font-semibold">135.181.95.61</span>
-              </div>
-              <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
-                <span><b class="text-brand">Type CNAME</b> : www</span>
-                <span class="text-foreground font-semibold">{tenant.slug}.ether.paris</span>
-              </div>
-            </div>
-
-            <!-- Propagation Test Button -->
-            <div class="pt-2 flex flex-wrap items-center justify-between gap-2">
+        <div class="space-y-5">
+          <!-- SECTION 1: VOS DOMAINES SUR ETHER -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wider text-foreground flex items-center gap-2">
+                <span>Vos domaines sur Ether</span>
+                {#if ownedDomains.length > 0}
+                  <span class="px-2 py-0.5 text-[10px] font-mono rounded-full bg-brand/10 text-brand">
+                    {ownedDomains.length}
+                  </span>
+                {/if}
+              </span>
               <button
                 type="button"
-                onclick={handleCheckDns}
-                disabled={dnsCheckLoading || (!existingDomainInput.trim() && !currentDomain)}
-                class="px-3.5 py-1.5 text-xs font-mono rounded-lg bg-surface border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer inline-flex items-center gap-2"
+                onclick={loadOwnedDomains}
+                disabled={ownedLoading}
+                class="text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                title="Actualiser"
               >
-                {#if dnsCheckLoading}
-                  <div class="w-3 h-3 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
-                  <span>Test en cours...</span>
+                {ownedLoading ? '...' : '↻ Actualiser'}
+              </button>
+            </div>
+
+            {#if ownedLoading && ownedDomains.length === 0}
+              <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface/50 text-center text-xs font-mono text-muted-foreground flex items-center justify-center gap-2">
+                <div class="w-3.5 h-3.5 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
+                <span>Chargement de vos domaines...</span>
+              </div>
+            {:else if ownedDomains.length > 0}
+              <div class="space-y-2">
+                {#each ownedDomains as item}
+                  <div class="p-3.5 bg-surface dark:bg-white/[0.02] border border-black/10 dark:border-white/10 rounded-2xl flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <span class="text-base shrink-0">🌐</span>
+                      <div class="truncate">
+                        <div class="font-mono text-sm font-semibold text-foreground truncate">{item.domain}</div>
+                        <div class="text-[10px] uppercase font-mono text-muted-foreground mt-0.5">
+                          {item.provider} · Domaine Ether
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 shrink-0">
+                      {#if currentDomain?.toLowerCase() === item.domain.toLowerCase()}
+                        <span class="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          Relié à ce site
+                        </span>
+                      {:else}
+                        <button
+                          type="button"
+                          onclick={() => handleConnectExisting(item.domain)}
+                          disabled={connectLoading}
+                          class="focus-ring px-4 py-1.5 text-xs uppercase tracking-[0.15em] font-medium rounded-full bg-brand hover:bg-brand/90 text-white shadow-retro-sm transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          Relier à ce site &rarr;
+                        </button>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="p-4 rounded-xl border border-dashed border-black/15 dark:border-white/15 bg-surface/30 text-xs text-muted-foreground text-center space-y-1">
+                <p>Aucun nom de domaine actif enregistré sur ce compte.</p>
+                <button
+                  type="button"
+                  onclick={() => { activeTab = "buy"; connectError = null; connectSuccess = null; }}
+                  class="text-brand hover:underline font-medium cursor-pointer"
+                >
+                  Acheter un domaine disponible &rarr;
+                </button>
+              </div>
+            {/if}
+          </div>
+
+          <!-- SECTION 2: LIER UN DOMAINE EXTERNE -->
+          <div class="p-4 rounded-2xl border border-black/10 dark:border-white/10 bg-surface/40 dark:bg-white/[0.02] space-y-3">
+            <div class="text-xs font-semibold uppercase tracking-wider text-foreground">
+              Lier un domaine externe (autre registrar)
+            </div>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+              Vous possédez un nom de domaine chez un autre bureau d'enregistrement (Gandi, GoDaddy, etc.) ? Entrez-le ci-dessous :
+            </p>
+
+            <div class="flex gap-2">
+              <input
+                type="text"
+                bind:value={existingDomainInput}
+                placeholder="ex: mondomaine.com"
+                onkeydown={(e) => { if (e.key === "Enter") handleConnectExisting(); }}
+                class="flex-1 rounded-2xl border border-black/10 dark:border-white/10 bg-surface/80 dark:bg-white/[0.04] px-4 py-2.5 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-mono"
+              />
+              <button
+                type="button"
+                onclick={() => handleConnectExisting()}
+                disabled={connectLoading || !existingDomainInput.trim()}
+                class="focus-ring px-5 py-2 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.2em] shadow-retro-sm transition-all cursor-pointer disabled:opacity-50 hover:-translate-y-0.5 shrink-0 inline-flex items-center gap-2"
+              >
+                {#if connectLoading}
+                  <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Connexion...</span>
                 {:else}
-                  <span>🔍 Tester la propagation DNS</span>
+                  <span>Connecter</span>
                 {/if}
               </button>
+            </div>
 
-              {#if dnsCheckResult}
-                <span class="text-xs font-mono {dnsCheckResult.propagated ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'} font-medium">
-                  {dnsCheckResult.message}
-                </span>
-              {/if}
+            <!-- DNS Guide for External Registrars -->
+            <div class="pt-2 border-t border-black/5 dark:border-white/5 space-y-2">
+              <p class="text-[11px] text-muted-foreground leading-relaxed">
+                Configurez ces 2 enregistrements DNS chez votre registrar externe avant de relier :
+              </p>
+              <div class="space-y-1.5 font-mono text-xs">
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
+                  <span><b class="text-brand">Type A</b> : @ (racine)</span>
+                  <span class="text-foreground font-semibold">135.181.95.61</span>
+                </div>
+                <div class="p-2 bg-surface dark:bg-black/20 rounded-lg border border-black/5 dark:border-white/5 flex items-center justify-between">
+                  <span><b class="text-brand">Type CNAME</b> : www</span>
+                  <span class="text-foreground font-semibold">{tenant.slug}.ether.paris</span>
+                </div>
+              </div>
+
+              <!-- Propagation Test Button -->
+              <div class="pt-1 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onclick={handleCheckDns}
+                  disabled={dnsCheckLoading || (!existingDomainInput.trim() && !currentDomain)}
+                  class="px-3.5 py-1.5 text-xs font-mono rounded-lg bg-surface border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer inline-flex items-center gap-2"
+                >
+                  {#if dnsCheckLoading}
+                    <div class="w-3 h-3 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
+                    <span>Test en cours...</span>
+                  {:else}
+                    <span>🔍 Tester la propagation DNS</span>
+                  {/if}
+                </button>
+
+                {#if dnsCheckResult}
+                  <span class="text-xs font-mono {dnsCheckResult.propagated ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'} font-medium">
+                    {dnsCheckResult.message}
+                  </span>
+                {/if}
+              </div>
             </div>
           </div>
+
+          <!-- Live Feedback & Error Notifications strictly scoped inside Connect tab -->
+          {#if connectLoading && connectStep}
+            <div class="p-3.5 rounded-xl bg-brand/10 border border-brand/20 text-brand text-xs font-mono flex items-center gap-2.5 animate-pulse">
+              <div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0"></div>
+              <span>{connectStep}</span>
+            </div>
+          {/if}
+
+          {#if connectError}
+            <div class="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-mono flex items-center justify-between gap-2">
+              <span>{connectError}</span>
+              <button type="button" onclick={() => connectError = null} class="text-red-500 hover:text-red-700 shrink-0 cursor-pointer">✕</button>
+            </div>
+          {/if}
+
+          {#if connectSuccess}
+            <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-mono flex items-center justify-between gap-2">
+              <span>{connectSuccess}</span>
+              <button type="button" onclick={() => connectSuccess = null} class="text-emerald-500 hover:text-emerald-700 shrink-0 cursor-pointer">✕</button>
+            </div>
+          {/if}
         </div>
       {/if}
 
@@ -665,28 +793,6 @@
               <li>Copiez le code pour valider : vous pouvez désormais envoyer des emails avec votre adresse de marque !</li>
             </ol>
           </div>
-        </div>
-      {/if}
-
-      <!-- Step-by-Step Live Feedback & Error Notifications -->
-      {#if connectLoading && connectStep}
-        <div class="p-3.5 rounded-xl bg-brand/10 border border-brand/20 text-brand text-xs font-mono flex items-center gap-2.5 animate-pulse">
-          <div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin shrink-0"></div>
-          <span>{connectStep}</span>
-        </div>
-      {/if}
-
-      {#if connectError}
-        <div class="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-mono flex items-center justify-between">
-          <span>{connectError}</span>
-          <button type="button" onclick={() => connectError = null} class="text-red-500 hover:text-red-700">✕</button>
-        </div>
-      {/if}
-
-      {#if connectSuccess}
-        <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-mono flex items-center justify-between">
-          <span>{connectSuccess}</span>
-          <button type="button" onclick={() => connectSuccess = null} class="text-emerald-500 hover:text-emerald-700">✕</button>
         </div>
       {/if}
       </div>

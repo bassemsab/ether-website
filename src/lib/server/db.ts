@@ -279,6 +279,20 @@ try {
   safeAddColumn("tenants", "plan TEXT DEFAULT 'free'");
   safeAddColumn("tenants", "extra_prompts INTEGER DEFAULT 0");
   safeAddColumn("studio_chat_messages", "image_url TEXT");
+
+  // Ensure miaw.ovh is seeded as an active owned domain for the test tenant
+  try {
+    const existingMiaw = db.prepare(`SELECT id FROM domain_orders WHERE domain = 'miaw.ovh'`).get();
+    if (!existingMiaw) {
+      const firstTenant = db.prepare(`SELECT id FROM tenants ORDER BY id ASC LIMIT 1`).get() as any;
+      if (firstTenant) {
+        db.prepare(`
+          INSERT INTO domain_orders (tenant_id, domain, provider, status, price_cents, currency)
+          VALUES (?, 'miaw.ovh', 'ovh', 'active', 1499, 'eur')
+        `).run(firstTenant.id);
+      }
+    }
+  } catch {}
 } catch (error) {
   console.error(`❌ Failed to initialize bun:sqlite at ${DB_PATH}:`, error);
 }
@@ -764,6 +778,77 @@ export async function updateDomainOrderStatus(
   } catch (error) {
     console.error("Failed to update domain order status:", error);
     return null;
+  }
+}
+
+export interface OwnedDomainItem {
+  id: number;
+  domain: string;
+  provider: string;
+  status: string;
+  created_at: string;
+}
+
+export function getTenantOwnedDomains(tenantId: number): OwnedDomainItem[] {
+  if (!db) return [];
+
+  try {
+    const tenant = db.prepare(`SELECT user_id FROM tenants WHERE id = ?`).get(tenantId) as { user_id: number } | undefined;
+    const userId = tenant?.user_id;
+
+    let rows: OwnedDomainItem[] = [];
+    if (userId) {
+      const stmt = db.prepare(`
+        SELECT do.id, do.domain, do.provider, do.status, do.created_at
+        FROM domain_orders do
+        JOIN tenants t ON do.tenant_id = t.id
+        WHERE (do.tenant_id = ? OR t.user_id = ?) AND do.status = 'active'
+        GROUP BY do.domain
+        ORDER BY do.id DESC
+      `);
+      rows = stmt.all(tenantId, userId) as OwnedDomainItem[];
+    } else {
+      const stmt = db.prepare(`
+        SELECT id, domain, provider, status, created_at
+        FROM domain_orders
+        WHERE tenant_id = ? AND status = 'active'
+        GROUP BY domain
+        ORDER BY id DESC
+      `);
+      rows = stmt.all(tenantId) as OwnedDomainItem[];
+    }
+    return rows;
+  } catch (err: any) {
+    console.error("Failed to get owned domains:", err.message);
+    return [];
+  }
+}
+
+export function isDomainOwnedByTenant(tenantId: number, domain: string): boolean {
+  if (!db) return false;
+  try {
+    const clean = domain.toLowerCase().trim().replace(/^www\./, "");
+    const tenant = db.prepare(`SELECT user_id FROM tenants WHERE id = ?`).get(tenantId) as { user_id: number } | undefined;
+    const userId = tenant?.user_id;
+
+    if (userId) {
+      const row = db.prepare(`
+        SELECT do.id
+        FROM domain_orders do
+        JOIN tenants t ON do.tenant_id = t.id
+        WHERE (do.tenant_id = ? OR t.user_id = ?) AND LOWER(do.domain) = ? AND do.status = 'active'
+      `).get(tenantId, userId, clean);
+      return Boolean(row);
+    } else {
+      const row = db.prepare(`
+        SELECT id
+        FROM domain_orders
+        WHERE tenant_id = ? AND LOWER(domain) = ? AND status = 'active'
+      `).get(tenantId, clean);
+      return Boolean(row);
+    }
+  } catch {
+    return false;
   }
 }
 
