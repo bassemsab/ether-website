@@ -614,6 +614,22 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
         .val-text {
           color: #1E1B39;
         }
+        .cta-button {
+          display: inline-block;
+          background-color: #1E1B39;
+          color: #FFFFFF !important;
+          text-decoration: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Space Grotesk", "Segoe UI", Roboto, sans-serif;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.18em;
+          padding: 13px 32px;
+          border-radius: 9999px;
+          border: 1.5px solid #1E1B39;
+          box-shadow: 2px 2px 0px 0px rgba(30, 27, 57, 0.2);
+          text-align: center;
+        }
         .expiry-note {
           font-size: 12px;
           line-height: 1.5;
@@ -649,7 +665,13 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
           .code-container {
             background-color: #1E2538 !important;
             border-color: #4B5563 !important;
-            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
+            box-shadow: 3px 3px 0px 0px #384259 !important;
+          }
+          .cta-button {
+            background-color: #F8FAFC !important;
+            color: #0C0F17 !important;
+            border-color: #F8FAFC !important;
+            box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 0.15) !important;
           }
           .footer-note {
             border-top-color: #2D3748 !important;
@@ -717,7 +739,8 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
                 <a
                   href="${studioUrl}"
                   target="_blank"
-                  style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center;"
+                  class="cta-button"
+                  style="display: inline-block; background-color: #1E1B39; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 2px 2px 0px 0px rgba(30, 27, 57, 0.2); text-align: center;"
                 >
                   ${ctaButton}
                 </a>
@@ -754,12 +777,6 @@ export interface DomainPurchaseEmailParams {
   priceFormatted: string;
   forwardToEmail?: string;
   locale?: string;
-  smtp?: {
-    host: string;
-    port: number;
-    username: string;
-    password: string;
-  };
 }
 
 /**
@@ -782,12 +799,6 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
   const labelDomain = isEn ? "Domain" : "Domaine";
   const labelProtection = isEn ? "DNS & SSL Protection" : "Protection DNS & SSL";
   const labelForward = isEn ? "Email forwarding" : "Redirection e-mail";
-  const smtpSectionTitle = isEn
-    ? "Gmail Outbound (ether SMTP server)"
-    : "Envoi d'e-mails Gmail (Serveur SMTP ether)";
-  const labelServer = isEn ? "Server" : "Serveur";
-  const labelUser = isEn ? "Username" : "Utilisateur";
-  const labelPass = isEn ? "Password" : "Mot de passe";
   const labelSubscription = isEn ? "Annual subscription" : "Abonnement annuel";
   const ctaButton = isEn ? "View my live site &rarr;" : "Voir mon site en ligne &rarr;";
   const forwardNote = isEn
@@ -867,6 +878,22 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
         .val-text {
           color: #1E1B39;
         }
+        .cta-button {
+          display: inline-block;
+          background-color: #1E1B39;
+          color: #FFFFFF !important;
+          text-decoration: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Space Grotesk", "Segoe UI", Roboto, sans-serif;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.18em;
+          padding: 13px 32px;
+          border-radius: 9999px;
+          border: 1.5px solid #1E1B39;
+          box-shadow: 2px 2px 0px 0px rgba(30, 27, 57, 0.2);
+          text-align: center;
+        }
         .expiry-note {
           font-size: 12px;
           line-height: 1.5;
@@ -902,7 +929,13 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
           .code-container {
             background-color: #1E2538 !important;
             border-color: #4B5563 !important;
-            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
+            box-shadow: 3px 3px 0px 0px #384259 !important;
+          }
+          .cta-button {
+            background-color: #F8FAFC !important;
+            color: #0C0F17 !important;
+            border-color: #F8FAFC !important;
+            box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 0.15) !important;
           }
           .footer-note {
             border-top-color: #2D3748 !important;
@@ -954,25 +987,6 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
                     <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
                   </tr>
-                  ${params.smtp ? `
-                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
-                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 12px; color: #1E1B39;">
-                      ${smtpSectionTitle}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelServer}</td>
-                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.host}:${params.smtp.port} (TLS)</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelUser}</td>
-                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.username}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelPass}</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #FF5500; font-weight: 700;">${params.smtp.password}</td>
-                  </tr>
-                  ` : ''}
                   <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
                     <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 13px; color: #1E1B39;">${labelSubscription}</td>
                     <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 13px; color: #1E1B39;">${params.priceFormatted}</td>
@@ -985,7 +999,8 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
                 <a
                   href="${siteUrl}"
                   target="_blank"
-                  style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center;"
+                  class="cta-button"
+                  style="display: inline-block; background-color: #1E1B39; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 2px 2px 0px 0px rgba(30, 27, 57, 0.2); text-align: center;"
                 >
                   ${ctaButton}
                 </a>
@@ -1021,12 +1036,6 @@ export interface DomainLinkedEmailParams {
   tenantSlug: string;
   forwardToEmail?: string;
   locale?: string;
-  smtp?: {
-    host: string;
-    port: number;
-    username: string;
-    password: string;
-  };
 }
 
 /**
@@ -1050,12 +1059,6 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
   const labelStatus = isEn ? "Status" : "Statut";
   const valStatus = isEn ? "Verified & Active" : "Vérifié & Actif";
   const labelForward = isEn ? "Email forwarding" : "Redirection e-mail";
-  const smtpSectionTitle = isEn
-    ? "Gmail Outbound (ether SMTP server)"
-    : "Envoi d'e-mails Gmail (Serveur SMTP ether)";
-  const labelServer = isEn ? "Server" : "Serveur";
-  const labelUser = isEn ? "Username" : "Utilisateur";
-  const labelPass = isEn ? "Password" : "Mot de passe";
   const ctaButton = isEn ? "View my live site &rarr;" : "Voir mon site en ligne &rarr;";
   const forwardNote = isEn
     ? `All emails sent to contact@${params.domain} are automatically forwarded to your inbox in real time.`
@@ -1134,6 +1137,22 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
         .val-text {
           color: #1E1B39;
         }
+        .cta-button {
+          display: inline-block;
+          background-color: #1E1B39;
+          color: #FFFFFF !important;
+          text-decoration: none;
+          font-family: -apple-system, BlinkMacSystemFont, "Space Grotesk", "Segoe UI", Roboto, sans-serif;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.18em;
+          padding: 13px 32px;
+          border-radius: 9999px;
+          border: 1.5px solid #1E1B39;
+          box-shadow: 2px 2px 0px 0px rgba(30, 27, 57, 0.2);
+          text-align: center;
+        }
         .expiry-note {
           font-size: 12px;
           line-height: 1.5;
@@ -1169,7 +1188,13 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           .code-container {
             background-color: #1E2538 !important;
             border-color: #4B5563 !important;
-            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
+            box-shadow: 3px 3px 0px 0px #384259 !important;
+          }
+          .cta-button {
+            background-color: #F8FAFC !important;
+            color: #0C0F17 !important;
+            border-color: #F8FAFC !important;
+            box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 0.15) !important;
           }
           .footer-note {
             border-top-color: #2D3748 !important;
@@ -1221,25 +1246,6 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
                     <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
                   </tr>
-                  ${params.smtp ? `
-                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
-                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 12px; color: #1E1B39;">
-                      ${smtpSectionTitle}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelServer}</td>
-                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.host}:${params.smtp.port}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelUser}</td>
-                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.username}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelPass}</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #FF5500; font-weight: 700;">${params.smtp.password}</td>
-                  </tr>
-                  ` : ''}
                 </table>
               </div>
 
@@ -1248,7 +1254,8 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
                 <a
                   href="${siteUrl}"
                   target="_blank"
-                  style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center;"
+                  class="cta-button"
+                  style="display: inline-block; background-color: #1E1B39; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 2px 2px 0px 0px rgba(30, 27, 57, 0.2); text-align: center;"
                 >
                   ${ctaButton}
                 </a>

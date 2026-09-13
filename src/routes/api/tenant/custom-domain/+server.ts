@@ -277,7 +277,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
           tenantSlug: tenant.slug || "",
           forwardToEmail: recipientEmail,
           locale: userLocale,
-          smtp: smtpInfo || undefined,
         });
       } catch (emailErr: any) {
         console.warn("[custom-domain] Could not send domain linked email:", emailErr?.message);

@@ -428,7 +428,6 @@ export async function fulfillDomainPurchase({
             priceCents > 0
               ? `${(priceCents / 100).toFixed(2).replace(".", ",")} € / an`
               : "inclus",
-          smtp: dnsResult.details?.smtp || undefined,
         });
       } catch (emailErr: any) {
         console.warn("[fulfillDomainPurchase] Could not send confirmation email:", emailErr.message);
