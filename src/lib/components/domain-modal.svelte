@@ -240,128 +240,135 @@
   }
 </script>
 
+<svelte:window onkeydown={(e) => { if (isOpen && e.key === "Escape") onclose(); }} />
+
 {#if isOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
-    class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+    class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto cursor-pointer"
     onclick={onclose}
     role="dialog"
     aria-modal="true"
     tabindex="-1"
   >
     <div
-      class="retro-card bg-card text-foreground rounded-2xl shadow-2xl border border-black/15 dark:border-white/10 max-w-2xl w-full p-6 sm:p-8 cursor-default relative overflow-hidden space-y-6"
+      class="retro-card bg-card text-foreground rounded-2xl shadow-2xl border border-black/15 dark:border-white/10 max-w-2xl w-full max-h-[90vh] flex flex-col cursor-default relative overflow-hidden my-auto"
       onclick={(e) => e.stopPropagation()}
     >
-      <!-- Header -->
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="font-display text-xl sm:text-2xl text-foreground font-normal tracking-tight">
-            Nom de domaine personnalisé
-          </h2>
-          <p class="text-xs uppercase tracking-[0.15em] text-muted-foreground mt-0.5">
-            Pour le site {tenant.brand_name || tenant.slug}
-          </p>
-        </div>
-        <button
-          type="button"
-          class="text-muted-foreground hover:text-foreground text-sm font-mono cursor-pointer p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-          onclick={onclose}
-        >
-          ✕
-        </button>
-      </div>
-
-      <!-- Current Domain Status Banner -->
-      <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface/80 dark:bg-white/[0.03] space-y-2">
+      <!-- Pinned Header & Navigation Tabs -->
+      <div class="p-5 sm:p-6 pb-3 border-b border-black/10 dark:border-white/10 shrink-0 space-y-4 bg-card">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-mono uppercase tracking-wider text-muted-foreground">Adresse actuelle</span>
-          {#if currentDomain}
-            <span class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Domaine personnalisé actif
-            </span>
-          {:else}
-            <span class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground border border-black/10 dark:border-white/10">
-              Sous-domaine Ether par défaut
-            </span>
-          {/if}
+          <div>
+            <h2 class="font-display text-xl sm:text-2xl text-foreground font-normal tracking-tight">
+              Nom de domaine personnalisé
+            </h2>
+            <p class="text-xs uppercase tracking-[0.15em] text-muted-foreground mt-0.5">
+              Pour le site {tenant.brand_name || tenant.slug}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="text-muted-foreground hover:text-foreground text-sm font-mono cursor-pointer p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            onclick={onclose}
+            title="Fermer (Esc)"
+          >
+            ✕
+          </button>
         </div>
 
-        <div class="flex items-center justify-between gap-3 pt-1">
-          <div class="font-mono text-base font-semibold truncate text-foreground">
+        <!-- Navigation Tabs: Buy vs Connect vs Email -->
+        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pt-0.5">
+          <button
+            type="button"
+            onclick={() => activeTab = "buy"}
+            class="px-3.5 py-1.5 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'buy' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
+          >
+            Acheter un domaine
+          </button>
+          <button
+            type="button"
+            onclick={() => activeTab = "connect"}
+            class="px-3.5 py-1.5 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'connect' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
+          >
+            Lier un domaine
+          </button>
+          <button
+            type="button"
+            onclick={() => activeTab = "email"}
+            class="px-3.5 py-1.5 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'email' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'} inline-flex items-center gap-1.5"
+          >
+            <span>Messagerie &amp; Gmail</span>
             {#if currentDomain}
-              https://{currentDomain}
-            {:else}
-              https://{defaultSubdomain}
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             {/if}
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            {#if currentDomain}
-              <a
-                href="https://{currentDomain}"
-                target="_blank"
-                rel="noopener"
-                class="px-3 py-1 text-xs font-mono rounded-lg bg-brand/10 hover:bg-brand/20 text-brand font-medium transition-colors inline-flex items-center gap-1.5"
-              >
-                <span>Tester</span>
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-              <button
-                type="button"
-                onclick={handleUnlink}
-                disabled={unlinkLoading}
-                class="px-3 py-1 text-xs font-mono rounded-lg text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {unlinkLoading ? '...' : 'Détacher'}
-              </button>
-            {:else}
-              <a
-                href="https://{defaultSubdomain}"
-                target="_blank"
-                rel="noopener"
-                class="px-3 py-1 text-xs font-mono rounded-lg bg-surface border border-black/10 dark:border-white/10 hover:bg-surface/80 text-foreground transition-colors inline-flex items-center gap-1.5"
-              >
-                <span>Ouvrir</span>
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            {/if}
-          </div>
+          </button>
         </div>
       </div>
 
-      <!-- Navigation Tabs: Buy vs Connect vs Email -->
-      <div class="flex items-center gap-2 border-b border-black/10 dark:border-white/10 pb-2 overflow-x-auto">
-        <button
-          type="button"
-          onclick={() => activeTab = "buy"}
-          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'buy' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
-        >
-          Acheter un nom de domaine
-        </button>
-        <button
-          type="button"
-          onclick={() => activeTab = "connect"}
-          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'connect' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
-        >
-          Lier un domaine existant
-        </button>
-        <button
-          type="button"
-          onclick={() => activeTab = "email"}
-          class="px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-[0.15em] transition-all cursor-pointer shrink-0 {activeTab === 'email' ? 'bg-brand text-white shadow-retro-sm' : 'text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5'} inline-flex items-center gap-1.5"
-        >
-          <span>Messagerie &amp; Gmail</span>
-          {#if currentDomain}
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          {/if}
-        </button>
-      </div>
+      <!-- Scrollable Tab Content Body -->
+      <div class="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+        <!-- Current Domain Status Banner -->
+        <div class="p-4 rounded-xl border border-black/10 dark:border-white/10 bg-surface/80 dark:bg-white/[0.03] space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono uppercase tracking-wider text-muted-foreground">Adresse actuelle</span>
+            {#if currentDomain}
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Domaine personnalisé actif
+              </span>
+            {:else}
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground border border-black/10 dark:border-white/10">
+                Sous-domaine Ether par défaut
+              </span>
+            {/if}
+          </div>
+
+          <div class="flex items-center justify-between gap-3 pt-1">
+            <div class="font-mono text-base font-semibold truncate text-foreground">
+              {#if currentDomain}
+                https://{currentDomain}
+              {:else}
+                https://{defaultSubdomain}
+              {/if}
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              {#if currentDomain}
+                <a
+                  href="https://{currentDomain}"
+                  target="_blank"
+                  rel="noopener"
+                  class="px-3 py-1 text-xs font-mono rounded-lg bg-brand/10 hover:bg-brand/20 text-brand font-medium transition-colors inline-flex items-center gap-1.5"
+                >
+                  <span>Tester</span>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+                <button
+                  type="button"
+                  onclick={handleUnlink}
+                  disabled={unlinkLoading}
+                  class="px-3 py-1 text-xs font-mono rounded-lg text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {unlinkLoading ? '...' : 'Détacher'}
+                </button>
+              {:else}
+                <a
+                  href="https://{defaultSubdomain}"
+                  target="_blank"
+                  rel="noopener"
+                  class="px-3 py-1 text-xs font-mono rounded-lg bg-surface border border-black/10 dark:border-white/10 hover:bg-surface/80 text-foreground transition-colors inline-flex items-center gap-1.5"
+                >
+                  <span>Ouvrir</span>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              {/if}
+            </div>
+          </div>
+        </div>
 
       <!-- TAB 1: BUY A NEW DOMAIN -->
       {#if activeTab === "buy"}
@@ -682,6 +689,7 @@
           <button type="button" onclick={() => connectSuccess = null} class="text-emerald-500 hover:text-emerald-700">✕</button>
         </div>
       {/if}
+      </div>
     </div>
   </div>
 {/if}
