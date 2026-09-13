@@ -93,8 +93,13 @@ export async function sendContactEmail(payload: ContactPayload) {
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta name="color-scheme" content="light dark">
+      <meta name="supported-color-schemes" content="light dark">
       <title>Nouvelle prise de contact · ether</title>
       <style>
+        :root {
+          color-scheme: light dark;
+          supported-color-schemes: light dark;
+        }
         body {
           margin: 0;
           padding: 0;
@@ -103,29 +108,80 @@ export async function sendContactEmail(payload: ContactPayload) {
           color: #1E1B39;
           -webkit-font-smoothing: antialiased;
         }
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
+        }
         @media (prefers-color-scheme: dark) {
           body, .email-table {
             background-color: #0c0f17 !important;
           }
           .email-card {
-            background-color: #151a28 !important;
-            border-color: #384259 !important;
+            background-color: #14141b !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
             color: #F1F5F9 !important;
+          }
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
+          }
+          .logo-mark {
+            filter: brightness(0) invert(1) !important;
+            -webkit-filter: brightness(0) invert(1) !important;
           }
           .card-title, .val-text {
             color: #F8FAFC !important;
           }
-          .brand-subtitle, .sub-text {
+          .brand-subtitle, .sub-text, .label-text {
             color: #94A3B8 !important;
           }
           .details-box {
-            background-color: #1E2538 !important;
-            border-color: #4B5563 !important;
+            background-color: #1a1a24 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
+          }
+          .message-box {
+            background-color: #14141b !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #F8FAFC !important;
           }
           .footer-note {
-            border-top-color: #2D3748 !important;
+            border-top-color: rgba(255, 255, 255, 0.08) !important;
             color: #64748B !important;
           }
+        }
+        [data-ogsc] .email-card, [data-ogsb] .email-card {
+          background-color: #14141b !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+          color: #F1F5F9 !important;
+        }
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
+        }
+        [data-ogsc] .details-box, [data-ogsb] .details-box {
+          background-color: #1a1a24 !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+        }
+        [data-ogsc] .message-box, [data-ogsb] .message-box {
+          background-color: #14141b !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          color: #F8FAFC !important;
         }
       </style>
     </head>
@@ -138,11 +194,21 @@ export async function sendContactEmail(payload: ContactPayload) {
               <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 24px;">
                 <img
-                  src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
+                  src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
+                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   studio &amp; hébergement web
                 </div>
@@ -166,26 +232,26 @@ export async function sendContactEmail(payload: ContactPayload) {
               <div class="details-box" style="margin: 24px 0; padding: 20px; background-color: #FAF7F2; border: 1.5px solid #1E1B39; border-radius: 14px; box-shadow: 3px 3px 0px 0px #1E1B39;">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Nom complet</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C;">Nom complet</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; color: #1E1B39;">${payload.name || "Non renseigné"}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Adresse e-mail</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C;">Adresse e-mail</td>
                     <td style="padding: 6px 0; text-align: right;"><a href="mailto:${payload.email}" style="color: #FF5500; text-decoration: underline; font-weight: 600;">${payload.email}</a></td>
                   </tr>
                   ${payload.company ? `
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Organisation</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C;">Organisation</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 600; color: #1E1B39;">${payload.company}</td>
                   </tr>
                   ` : ""}
                   <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
-                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 13px; color: #1E1B39;">
+                    <td colspan="2" class="val-text" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 13px; color: #1E1B39;">
                       Message :
                     </td>
                   </tr>
                   <tr>
-                    <td colspan="2" style="padding: 8px 12px; background-color: #FFFFFF; border: 1px solid rgba(30, 27, 57, 0.15); border-radius: 8px; font-size: 13px; line-height: 1.6; color: #1E1B39; white-space: pre-wrap;">${payload.message}</td>
+                    <td colspan="2" class="message-box val-text" style="padding: 8px 12px; background-color: #FFFFFF; border: 1px solid rgba(30, 27, 57, 0.15); border-radius: 8px; font-size: 13px; line-height: 1.6; color: #1E1B39; white-space: pre-wrap;">${payload.message}</td>
                   </tr>
                 </table>
               </div>
@@ -290,6 +356,12 @@ export async function sendOtpEmail(email: string, code: string) {
           height: auto;
           vertical-align: middle;
         }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
+        }
         .brand-subtitle {
           margin-top: 8px;
           font-size: 11px;
@@ -342,10 +414,20 @@ export async function sendOtpEmail(email: string, code: string) {
             background-color: #0c0f17 !important;
           }
           .email-card {
-            background-color: #151a28 !important;
-            border-color: #384259 !important;
-            box-shadow: 4px 4px 0px 0px #384259 !important;
+            background-color: #14141b !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
             color: #F1F5F9 !important;
+          }
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
+          }
+          .logo-mark {
+            filter: brightness(0) invert(1) !important;
+            -webkit-filter: brightness(0) invert(1) !important;
           }
           .greeting, .code-number {
             color: #F8FAFC !important;
@@ -354,14 +436,31 @@ export async function sendOtpEmail(email: string, code: string) {
             color: #94A3B8 !important;
           }
           .code-container {
-            background-color: #1E2538 !important;
-            border-color: #4B5563 !important;
-            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
+            background-color: #1a1a24 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
           }
           .footer-note {
-            border-top-color: #2D3748 !important;
+            border-top-color: rgba(255, 255, 255, 0.08) !important;
             color: #64748B !important;
           }
+        }
+        [data-ogsc] .email-card, [data-ogsb] .email-card {
+          background-color: #14141b !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+          color: #F1F5F9 !important;
+        }
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
+        }
+        [data-ogsc] .code-container, [data-ogsb] .code-container {
+          background-color: #1a1a24 !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
         }
       </style>
     </head>
@@ -374,12 +473,21 @@ export async function sendOtpEmail(email: string, code: string) {
               <!-- Official ether logo -->
               <div style="text-align: center;">
                 <img
-                  src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
+                  src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark"
+                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
@@ -588,6 +696,12 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
           height: auto;
           vertical-align: middle;
         }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
+        }
         .brand-subtitle {
           margin-top: 8px;
           font-size: 11px;
@@ -651,32 +765,64 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
             background-color: #0c0f17 !important;
           }
           .email-card {
-            background-color: #151a28 !important;
-            border-color: #384259 !important;
-            box-shadow: 4px 4px 0px 0px #384259 !important;
+            background-color: #14141b !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
             color: #F1F5F9 !important;
+          }
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
+          }
+          .logo-mark {
+            filter: brightness(0) invert(1) !important;
+            -webkit-filter: brightness(0) invert(1) !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
           }
-          .brand-subtitle, .expiry-note {
+          .brand-subtitle, .expiry-note, .label-text {
             color: #94A3B8 !important;
           }
           .code-container {
-            background-color: #1E2538 !important;
-            border-color: #4B5563 !important;
-            box-shadow: 3px 3px 0px 0px #384259 !important;
+            background-color: #1a1a24 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
           }
           .cta-button {
-            background-color: #F8FAFC !important;
-            color: #0C0F17 !important;
-            border-color: #F8FAFC !important;
-            box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 0.15) !important;
+            background-color: #735af2 !important;
+            color: #FFFFFF !important;
+            border-color: #735af2 !important;
+            box-shadow: 0 4px 14px rgba(115, 90, 242, 0.35) !important;
           }
           .footer-note {
-            border-top-color: #2D3748 !important;
+            border-top-color: rgba(255, 255, 255, 0.08) !important;
             color: #64748B !important;
           }
+        }
+        [data-ogsc] .email-card, [data-ogsb] .email-card {
+          background-color: #14141b !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+          color: #F1F5F9 !important;
+        }
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
+        }
+        [data-ogsc] .code-container, [data-ogsb] .code-container {
+          background-color: #1a1a24 !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+        }
+        [data-ogsc] .cta-button, [data-ogsb] .cta-button {
+          background-color: #735af2 !important;
+          color: #FFFFFF !important;
+          border-color: #735af2 !important;
         }
       </style>
     </head>
@@ -689,12 +835,21 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
               <!-- Official ether logo -->
               <div style="text-align: center;">
                 <img
-                  src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
+                  src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark"
+                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
@@ -712,24 +867,24 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
               <div class="code-container">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelPack}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelPack}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; color: #1E1B39; font-size: 12px;">${params.packName}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelPrompts}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelPrompts}</td>
                     <td style="padding: 6px 0; text-align: right; font-weight: 700; color: #059669; font-size: 12px;">${valPrompts}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelValidity}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelValidity}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; color: #1E1B39; font-size: 12px;">${valValidity}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelSite}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelSite}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #1E1B39; font-size: 12px;">${params.tenantSlug}</td>
                   </tr>
                   <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
-                    <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 13px; color: #1E1B39;">${labelTotal}</td>
-                    <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 13px; color: #1E1B39;">${valTotal}</td>
+                    <td class="val-text" style="padding: 10px 0 0 0; font-weight: 700; font-size: 13px; color: #1E1B39;">${labelTotal}</td>
+                    <td class="val-text" style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 13px; color: #1E1B39;">${valTotal}</td>
                   </tr>
                 </table>
               </div>
@@ -852,6 +1007,12 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
           height: auto;
           vertical-align: middle;
         }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
+        }
         .brand-subtitle {
           margin-top: 8px;
           font-size: 11px;
@@ -915,32 +1076,64 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
             background-color: #0c0f17 !important;
           }
           .email-card {
-            background-color: #151a28 !important;
-            border-color: #384259 !important;
-            box-shadow: 4px 4px 0px 0px #384259 !important;
+            background-color: #14141b !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
             color: #F1F5F9 !important;
+          }
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
+          }
+          .logo-mark {
+            filter: brightness(0) invert(1) !important;
+            -webkit-filter: brightness(0) invert(1) !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
           }
-          .brand-subtitle, .expiry-note {
+          .brand-subtitle, .expiry-note, .label-text {
             color: #94A3B8 !important;
           }
           .code-container {
-            background-color: #1E2538 !important;
-            border-color: #4B5563 !important;
-            box-shadow: 3px 3px 0px 0px #384259 !important;
+            background-color: #1a1a24 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
           }
           .cta-button {
-            background-color: #F8FAFC !important;
-            color: #0C0F17 !important;
-            border-color: #F8FAFC !important;
-            box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 0.15) !important;
+            background-color: #735af2 !important;
+            color: #FFFFFF !important;
+            border-color: #735af2 !important;
+            box-shadow: 0 4px 14px rgba(115, 90, 242, 0.35) !important;
           }
           .footer-note {
-            border-top-color: #2D3748 !important;
+            border-top-color: rgba(255, 255, 255, 0.08) !important;
             color: #64748B !important;
           }
+        }
+        [data-ogsc] .email-card, [data-ogsb] .email-card {
+          background-color: #14141b !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+          color: #F1F5F9 !important;
+        }
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
+        }
+        [data-ogsc] .code-container, [data-ogsb] .code-container {
+          background-color: #1a1a24 !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+        }
+        [data-ogsc] .cta-button, [data-ogsb] .cta-button {
+          background-color: #735af2 !important;
+          color: #FFFFFF !important;
+          border-color: #735af2 !important;
         }
       </style>
     </head>
@@ -953,12 +1146,21 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
               <!-- Official ether logo -->
               <div style="text-align: center;">
                 <img
-                  src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
+                  src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark"
+                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
@@ -976,20 +1178,20 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
               <div class="code-container">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelDomain}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelDomain}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #1E1B39; font-size: 12px;">${params.domain}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelProtection}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelProtection}</td>
                     <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600; font-size: 12px;">Cloudflare Edge + SSL</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
                   </tr>
                   <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
-                    <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 13px; color: #1E1B39;">${labelSubscription}</td>
-                    <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 13px; color: #1E1B39;">${params.priceFormatted}</td>
+                    <td class="val-text" style="padding: 10px 0 0 0; font-weight: 700; font-size: 13px; color: #1E1B39;">${labelSubscription}</td>
+                    <td class="val-text" style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 13px; color: #1E1B39;">${params.priceFormatted}</td>
                   </tr>
                 </table>
               </div>
@@ -1111,6 +1313,12 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           height: auto;
           vertical-align: middle;
         }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
+        }
         .brand-subtitle {
           margin-top: 8px;
           font-size: 11px;
@@ -1174,32 +1382,64 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
             background-color: #0c0f17 !important;
           }
           .email-card {
-            background-color: #151a28 !important;
-            border-color: #384259 !important;
-            box-shadow: 4px 4px 0px 0px #384259 !important;
+            background-color: #14141b !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
             color: #F1F5F9 !important;
+          }
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
+          }
+          .logo-mark {
+            filter: brightness(0) invert(1) !important;
+            -webkit-filter: brightness(0) invert(1) !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
           }
-          .brand-subtitle, .expiry-note {
+          .brand-subtitle, .expiry-note, .label-text {
             color: #94A3B8 !important;
           }
           .code-container {
-            background-color: #1E2538 !important;
-            border-color: #4B5563 !important;
-            box-shadow: 3px 3px 0px 0px #384259 !important;
+            background-color: #1a1a24 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: none !important;
           }
           .cta-button {
-            background-color: #F8FAFC !important;
-            color: #0C0F17 !important;
-            border-color: #F8FAFC !important;
-            box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 0.15) !important;
+            background-color: #735af2 !important;
+            color: #FFFFFF !important;
+            border-color: #735af2 !important;
+            box-shadow: 0 4px 14px rgba(115, 90, 242, 0.35) !important;
           }
           .footer-note {
-            border-top-color: #2D3748 !important;
+            border-top-color: rgba(255, 255, 255, 0.08) !important;
             color: #64748B !important;
           }
+        }
+        [data-ogsc] .email-card, [data-ogsb] .email-card {
+          background-color: #14141b !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+          color: #F1F5F9 !important;
+        }
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
+        }
+        [data-ogsc] .code-container, [data-ogsb] .code-container {
+          background-color: #1a1a24 !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          box-shadow: none !important;
+        }
+        [data-ogsc] .cta-button, [data-ogsb] .cta-button {
+          background-color: #735af2 !important;
+          color: #FFFFFF !important;
+          border-color: #735af2 !important;
         }
       </style>
     </head>
@@ -1212,12 +1452,21 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
               <!-- Official ether logo -->
               <div style="text-align: center;">
                 <img
-                  src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
+                  src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark"
+                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
@@ -1235,15 +1484,15 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
               <div class="code-container">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelDomain}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelDomain}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #1E1B39;">${params.domain}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelStatus}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelStatus}</td>
                     <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600; font-size: 12px;">${valStatus}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
+                    <td class="label-text" style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
                   </tr>
                 </table>
