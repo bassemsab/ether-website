@@ -191,7 +191,7 @@ export async function sendContactEmail(payload: ContactPayload) {
               </div>
 
               <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                © ether · plateforme &amp; studio web · paris
+                © ether · plateforme web &amp; studio · paris
               </div>
 
             </div>
@@ -508,25 +508,56 @@ export interface PromptTopupEmailParams {
   prompts: number;
   priceFormatted: string;
   orderDate?: string;
+  locale?: string;
 }
 
 /**
  * Sends a confirmation email to the user when they purchase a prompt top-up pack.
  */
 export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailParams) {
-  const from = "ether · studio <contact@ether.paris>";
-  const subject = `Confirmation de commande · ${params.packName}`;
+  const isEn = params.locale === "en";
+  const rawFrom =
+    process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
+  const from = rawFrom.replace(/^Ether\b/, "ether");
+  const subject = isEn
+    ? `Order confirmation · ${params.packName}`
+    : `Confirmation de commande · ${params.packName}`;
   const studioUrl = `https://studio.ether.paris/studio?project=${encodeURIComponent(params.tenantSlug)}`;
+
+  const greeting = isEn ? "Hello," : "Bonjour,";
+  const intro = isEn
+    ? `Your prompt top-up <strong>${params.packName}</strong> (+${params.prompts} prompts) has been confirmed and credited to your studio account.`
+    : `Votre recharge de prompts <strong>${params.packName}</strong> (+${params.prompts} prompts) a été confirmée et créditée sur votre compte studio.`;
+  const labelPack = isEn ? "Item" : "Article";
+  const labelPrompts = isEn ? "Prompts credited" : "Prompts ajoutés";
+  const valPrompts = `+${params.prompts} prompts`;
+  const labelValidity = isEn ? "Validity" : "Validité";
+  const valValidity = isEn ? "No expiration" : "Sans expiration";
+  const labelSite = isEn ? "Associated site" : "Site associé";
+  const labelTotal = isEn ? "Total paid" : "Total réglé";
+  const valTotal = isEn ? `${params.priceFormatted} incl. VAT` : `${params.priceFormatted} TTC`;
+  const ctaButton = isEn ? "Open Studio &rarr;" : "Ouvrir le Studio &rarr;";
+  const note = isEn
+    ? "Your prompts are immediately available to generate, design, and edit your websites in the ether studio."
+    : "Vos prompts sont disponibles immédiatement pour concevoir, modifier et publier vos sites dans le studio ether.";
+  const footerText = isEn
+    ? "© ether · web platform &amp; studio · paris"
+    : "© ether · plateforme web &amp; studio · paris";
 
   const html = `
     <!DOCTYPE html>
-    <html lang="fr">
+    <html lang="${isEn ? 'en' : 'fr'}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta name="color-scheme" content="light dark">
-      <title>Confirmation de commande · ether studio</title>
+      <meta name="supported-color-schemes" content="light dark">
+      <title>${subject}</title>
       <style>
+        :root {
+          color-scheme: light dark;
+          supported-color-schemes: light dark;
+        }
         body {
           margin: 0;
           padding: 0;
@@ -535,6 +566,70 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
           color: #1E1B39;
           -webkit-font-smoothing: antialiased;
         }
+        .email-table {
+          width: 100%;
+          border-collapse: collapse;
+          background-color: #FBF9F5;
+          padding: 32px 16px;
+        }
+        .email-card {
+          max-width: 480px;
+          margin: 0 auto;
+          background-color: #FFFFFF;
+          border: 1.5px solid #1E1B39;
+          border-radius: 20px;
+          box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15);
+          padding: 36px 32px;
+          text-align: center;
+        }
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .brand-subtitle {
+          margin-top: 8px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          color: #78716C;
+        }
+        .greeting {
+          margin-top: 28px;
+          font-size: 15px;
+          line-height: 1.6;
+          color: #1E1B39;
+          text-align: left;
+        }
+        .code-container {
+          margin: 24px 0;
+          padding: 20px;
+          background-color: #FAF7F2;
+          border: 2px solid #1E1B39;
+          border-radius: 14px;
+          box-shadow: 3px 3px 0px 0px #1E1B39;
+          text-align: left;
+        }
+        .val-text {
+          color: #1E1B39;
+        }
+        .expiry-note {
+          font-size: 12px;
+          line-height: 1.5;
+          color: #78716C;
+          text-align: left;
+          margin: 0;
+        }
+        .footer-note {
+          margin-top: 32px;
+          padding-top: 20px;
+          border-top: 1px solid #E7E5E4;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          color: #A8A29E;
+          text-align: center;
+        }
         @media (prefers-color-scheme: dark) {
           body, .email-table {
             background-color: #0c0f17 !important;
@@ -542,17 +637,19 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
           .email-card {
             background-color: #151a28 !important;
             border-color: #384259 !important;
+            box-shadow: 4px 4px 0px 0px #384259 !important;
             color: #F1F5F9 !important;
           }
-          .card-title, .val-text {
+          .greeting, .val-text {
             color: #F8FAFC !important;
           }
-          .brand-subtitle, .sub-text {
+          .brand-subtitle, .expiry-note {
             color: #94A3B8 !important;
           }
-          .receipt-box {
+          .code-container {
             background-color: #1E2538 !important;
             border-color: #4B5563 !important;
+            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
           }
           .footer-note {
             border-top-color: #2D3748 !important;
@@ -561,74 +658,77 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
         }
       </style>
     </head>
-    <body style="margin: 0; padding: 0; background-color: #FBF9F5; color: #1E1B39; -webkit-font-smoothing: antialiased;">
-      <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; background-color: #FBF9F5; padding: 36px 16px;">
+    <body style="margin: 0; padding: 0; background-color: #FBF9F5; color: #1E1B39;">
+      <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #FBF9F5;">
         <tr>
-          <td align="center" style="padding: 36px 16px; background-color: #FBF9F5;">
-            <div class="email-card" style="max-width: 500px; margin: 0 auto; background-color: #FFFFFF; border: 1.5px solid #1E1B39; border-radius: 20px; box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15); padding: 36px 32px; text-align: left;">
+          <td align="center" style="padding: 32px 16px;">
+            <div class="email-card">
               
               <!-- Official ether logo -->
-              <div style="text-align: center; margin-bottom: 24px;">
+              <div style="text-align: center;">
                 <img
                   src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
                   alt="ether"
                   width="72"
+                  class="logo-mark"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
-                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
               </div>
 
-              <!-- Badge -->
-              <div style="text-align: center; margin-bottom: 16px;">
-                <span style="display: inline-block; background-color: #FAF7F2; border: 1.5px solid #1E1B39; padding: 4px 14px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #FF5500; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                  ether · studio
-                </span>
-              </div>
-
-              <h1 class="card-title" style="font-size: 22px; font-weight: 700; margin: 0 0 10px 0; color: #1E1B39; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; letter-spacing: -0.02em;">
-                Paiement confirmé 🎉
-              </h1>
-              <p class="sub-text" style="font-size: 14px; line-height: 1.6; color: #57534E; text-align: center; margin: 0 0 20px 0; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                Merci pour votre achat ! Votre solde de prompts a été crédité avec succès et est immédiatement actif dans votre studio.
+              <!-- Message body -->
+              <p class="greeting" style="margin-top: 28px; margin-bottom: 8px; font-size: 15px; line-height: 1.6; color: #1E1B39; text-align: left;">
+                ${greeting}
+              </p>
+              <p class="greeting" style="margin-top: 0; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #57534E; text-align: left;">
+                ${intro}
               </p>
 
-              <!-- Receipt Box -->
-              <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #FAF7F2; border: 1.5px solid #1E1B39; border-radius: 14px; box-shadow: 3px 3px 0px 0px #1E1B39;">
+              <!-- Details Box in ether retro style -->
+              <div class="code-container">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Article</td>
-                    <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 600; color: #1E1B39;">${params.packName}</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelPack}</td>
+                    <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; color: #1E1B39; font-size: 12px;">${params.packName}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Prompts ajoutés</td>
-                    <td style="padding: 6px 0; text-align: right; font-weight: 700; color: #059669;">+${params.prompts} prompts</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelPrompts}</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: 700; color: #059669; font-size: 12px;">${valPrompts}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Validité</td>
-                    <td class="val-text" style="padding: 6px 0; text-align: right; color: #1E1B39;">Sans expiration</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelValidity}</td>
+                    <td class="val-text" style="padding: 6px 0; text-align: right; color: #1E1B39; font-size: 12px;">${valValidity}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Site associé</td>
-                    <td style="padding: 6px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.tenantSlug}</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelSite}</td>
+                    <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #1E1B39; font-size: 12px;">${params.tenantSlug}</td>
                   </tr>
-                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
-                    <td style="padding: 12px 0 0 0; font-weight: 700; font-size: 14px; color: #1E1B39;">Total réglé</td>
-                    <td style="padding: 12px 0 0 0; text-align: right; font-weight: 700; font-size: 15px; color: #1E1B39;">${params.priceFormatted} TTC</td>
+                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
+                    <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 13px; color: #1E1B39;">${labelTotal}</td>
+                    <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 13px; color: #1E1B39;">${valTotal}</td>
                   </tr>
                 </table>
               </div>
 
-              <!-- Button -->
-              <div style="text-align: center; margin: 28px 0 16px 0;">
-                <a href="${studioUrl}" target="_blank" style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-weight: 700; font-size: 13px; letter-spacing: 0.05em; padding: 13px 28px; border-radius: 12px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                  Ouvrir le Studio &rarr;
+              <!-- Button in ether rounded-full pill design -->
+              <div style="text-align: center; margin: 26px 0 20px 0;">
+                <a
+                  href="${studioUrl}"
+                  target="_blank"
+                  style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center;"
+                >
+                  ${ctaButton}
                 </a>
               </div>
 
-              <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                © ether · plateforme &amp; studio web · paris
+              <p class="expiry-note" style="font-size: 12px; line-height: 1.5; color: #78716C; text-align: left; margin: 0;">
+                ${note}
+              </p>
+
+              <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center;">
+                ${footerText}
               </div>
 
             </div>
@@ -653,6 +753,7 @@ export interface DomainPurchaseEmailParams {
   tenantSlug: string;
   priceFormatted: string;
   forwardToEmail?: string;
+  locale?: string;
   smtp?: {
     host: string;
     port: number;
@@ -665,19 +766,51 @@ export interface DomainPurchaseEmailParams {
  * Sends a confirmation email to the user when they purchase a custom domain via Stripe checkout.
  */
 export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchaseEmailParams) {
-  const from = "ether · domaines <contact@ether.paris>";
-  const subject = `Activation de votre domaine · ${params.domain}`;
+  const isEn = params.locale === "en";
+  const rawFrom =
+    process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
+  const from = rawFrom.replace(/^Ether\b/, "ether");
+  const subject = isEn
+    ? `Your domain ${params.domain} is active`
+    : `Activation de votre domaine · ${params.domain}`;
   const siteUrl = `https://${params.domain}`;
+
+  const greeting = isEn ? "Hello," : "Bonjour,";
+  const intro = isEn
+    ? `Your custom domain <strong>${params.domain}</strong> has been registered and connected to your ether site.`
+    : `Votre nom de domaine <strong>${params.domain}</strong> a été réservé et relié à votre site ether.`;
+  const labelDomain = isEn ? "Domain" : "Domaine";
+  const labelProtection = isEn ? "DNS & SSL Protection" : "Protection DNS & SSL";
+  const labelForward = isEn ? "Email forwarding" : "Redirection e-mail";
+  const smtpSectionTitle = isEn
+    ? "Gmail Outbound (ether SMTP server)"
+    : "Envoi d'e-mails Gmail (Serveur SMTP ether)";
+  const labelServer = isEn ? "Server" : "Serveur";
+  const labelUser = isEn ? "Username" : "Utilisateur";
+  const labelPass = isEn ? "Password" : "Mot de passe";
+  const labelSubscription = isEn ? "Annual subscription" : "Abonnement annuel";
+  const ctaButton = isEn ? "View my live site &rarr;" : "Voir mon site en ligne &rarr;";
+  const forwardNote = isEn
+    ? `All emails sent to contact@${params.domain} are automatically forwarded to your personal inbox in real time.`
+    : `Tous les e-mails envoyés à contact@${params.domain} sont automatiquement transmis vers votre boîte personnelle en temps réel.`;
+  const footerText = isEn
+    ? "© ether · web platform &amp; studio · paris"
+    : "© ether · plateforme web &amp; studio · paris";
 
   const html = `
     <!DOCTYPE html>
-    <html lang="fr">
+    <html lang="${isEn ? 'en' : 'fr'}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta name="color-scheme" content="light dark">
-      <title>Activation de votre domaine · ether</title>
+      <meta name="supported-color-schemes" content="light dark">
+      <title>${subject}</title>
       <style>
+        :root {
+          color-scheme: light dark;
+          supported-color-schemes: light dark;
+        }
         body {
           margin: 0;
           padding: 0;
@@ -686,6 +819,70 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
           color: #1E1B39;
           -webkit-font-smoothing: antialiased;
         }
+        .email-table {
+          width: 100%;
+          border-collapse: collapse;
+          background-color: #FBF9F5;
+          padding: 32px 16px;
+        }
+        .email-card {
+          max-width: 480px;
+          margin: 0 auto;
+          background-color: #FFFFFF;
+          border: 1.5px solid #1E1B39;
+          border-radius: 20px;
+          box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15);
+          padding: 36px 32px;
+          text-align: center;
+        }
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .brand-subtitle {
+          margin-top: 8px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          color: #78716C;
+        }
+        .greeting {
+          margin-top: 28px;
+          font-size: 15px;
+          line-height: 1.6;
+          color: #1E1B39;
+          text-align: left;
+        }
+        .code-container {
+          margin: 24px 0;
+          padding: 20px;
+          background-color: #FAF7F2;
+          border: 2px solid #1E1B39;
+          border-radius: 14px;
+          box-shadow: 3px 3px 0px 0px #1E1B39;
+          text-align: left;
+        }
+        .val-text {
+          color: #1E1B39;
+        }
+        .expiry-note {
+          font-size: 12px;
+          line-height: 1.5;
+          color: #78716C;
+          text-align: left;
+          margin: 0;
+        }
+        .footer-note {
+          margin-top: 32px;
+          padding-top: 20px;
+          border-top: 1px solid #E7E5E4;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          color: #A8A29E;
+          text-align: center;
+        }
         @media (prefers-color-scheme: dark) {
           body, .email-table {
             background-color: #0c0f17 !important;
@@ -693,17 +890,19 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
           .email-card {
             background-color: #151a28 !important;
             border-color: #384259 !important;
+            box-shadow: 4px 4px 0px 0px #384259 !important;
             color: #F1F5F9 !important;
           }
-          .card-title, .val-text {
+          .greeting, .val-text {
             color: #F8FAFC !important;
           }
-          .brand-subtitle, .sub-text {
+          .brand-subtitle, .expiry-note {
             color: #94A3B8 !important;
           }
-          .receipt-box {
+          .code-container {
             background-color: #1E2538 !important;
             border-color: #4B5563 !important;
+            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
           }
           .footer-note {
             border-top-color: #2D3748 !important;
@@ -712,89 +911,92 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
         }
       </style>
     </head>
-    <body style="margin: 0; padding: 0; background-color: #FBF9F5; color: #1E1B39; -webkit-font-smoothing: antialiased;">
-      <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; background-color: #FBF9F5; padding: 36px 16px;">
+    <body style="margin: 0; padding: 0; background-color: #FBF9F5; color: #1E1B39;">
+      <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #FBF9F5;">
         <tr>
-          <td align="center" style="padding: 36px 16px; background-color: #FBF9F5;">
-            <div class="email-card" style="max-width: 500px; margin: 0 auto; background-color: #FFFFFF; border: 1.5px solid #1E1B39; border-radius: 20px; box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15); padding: 36px 32px; text-align: left;">
+          <td align="center" style="padding: 32px 16px;">
+            <div class="email-card">
               
               <!-- Official ether logo -->
-              <div style="text-align: center; margin-bottom: 24px;">
+              <div style="text-align: center;">
                 <img
                   src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
                   alt="ether"
                   width="72"
+                  class="logo-mark"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
-                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
               </div>
 
-              <!-- Badge -->
-              <div style="text-align: center; margin-bottom: 16px;">
-                <span style="display: inline-block; background-color: #FAF7F2; border: 1.5px solid #1E1B39; padding: 4px 14px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #FF5500; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                  ether · domaines
-                </span>
-              </div>
-
-              <h1 class="card-title" style="font-size: 22px; font-weight: 700; margin: 0 0 10px 0; color: #1E1B39; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; letter-spacing: -0.02em;">
-                Domaine réservé et actif 🎉
-              </h1>
-              <p class="sub-text" style="font-size: 14px; line-height: 1.6; color: #57534E; text-align: center; margin: 0 0 20px 0; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                Félicitations ! Votre nom de domaine personnalisé <strong style="color: #1E1B39;">${params.domain}</strong> a été réservé et relié à votre site.
+              <!-- Message body -->
+              <p class="greeting" style="margin-top: 28px; margin-bottom: 8px; font-size: 15px; line-height: 1.6; color: #1E1B39; text-align: left;">
+                ${greeting}
+              </p>
+              <p class="greeting" style="margin-top: 0; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #57534E; text-align: left;">
+                ${intro}
               </p>
 
-              <!-- Receipt Box -->
-              <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #FAF7F2; border: 1.5px solid #1E1B39; border-radius: 14px; box-shadow: 3px 3px 0px 0px #1E1B39;">
+              <!-- Details Box in ether retro style -->
+              <div class="code-container">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Domaine</td>
-                    <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; font-family: monospace; color: #1E1B39;">${params.domain}</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelDomain}</td>
+                    <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #1E1B39; font-size: 12px;">${params.domain}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Protection DNS &amp; SSL</td>
-                    <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600;">Cloudflare Edge + SSL</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelProtection}</td>
+                    <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600; font-size: 12px;">Cloudflare Edge + SSL</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Redirection entrante</td>
-                    <td style="padding: 6px 0; text-align: right; font-family: monospace; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
+                    <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
                   </tr>
                   ${params.smtp ? `
-                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
-                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 13px; color: #1E1B39;">
-                      Envoi d'e-mails depuis Gmail (SMTP Maddy) :
+                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
+                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 12px; color: #1E1B39;">
+                      ${smtpSectionTitle}
                     </td>
                   </tr>
                   <tr>
-                    <td style="padding: 4px 0; color: #78716C;">Serveur SMTP</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.smtp.host}:${params.smtp.port} (TLS)</td>
+                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelServer}</td>
+                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.host}:${params.smtp.port} (TLS)</td>
                   </tr>
                   <tr>
-                    <td style="padding: 4px 0; color: #78716C;">Nom d'utilisateur</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.smtp.username}</td>
+                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelUser}</td>
+                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.username}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 4px 0; color: #78716C;">Mot de passe SMTP</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #FF5500; font-weight: 700;">${params.smtp.password}</td>
+                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelPass}</td>
+                    <td style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #FF5500; font-weight: 700;">${params.smtp.password}</td>
                   </tr>
                   ` : ''}
-                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
-                    <td style="padding: 12px 0 0 0; font-weight: 700; font-size: 14px; color: #1E1B39;">Abonnement annuel</td>
-                    <td style="padding: 12px 0 0 0; text-align: right; font-weight: 700; font-size: 15px; color: #1E1B39;">${params.priceFormatted}</td>
+                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
+                    <td style="padding: 10px 0 0 0; font-weight: 700; font-size: 13px; color: #1E1B39;">${labelSubscription}</td>
+                    <td style="padding: 10px 0 0 0; text-align: right; font-weight: 700; font-size: 13px; color: #1E1B39;">${params.priceFormatted}</td>
                   </tr>
                 </table>
               </div>
 
-              <!-- Button -->
-              <div style="text-align: center; margin: 28px 0 16px 0;">
-                <a href="${siteUrl}" target="_blank" style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-weight: 700; font-size: 13px; letter-spacing: 0.05em; padding: 13px 28px; border-radius: 12px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                  Voir mon site en ligne &rarr;
+              <!-- Button in ether rounded-full pill design -->
+              <div style="text-align: center; margin: 26px 0 20px 0;">
+                <a
+                  href="${siteUrl}"
+                  target="_blank"
+                  style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center;"
+                >
+                  ${ctaButton}
                 </a>
               </div>
 
-              <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                © ether · plateforme &amp; studio web · paris
+              <p class="expiry-note" style="font-size: 12px; line-height: 1.5; color: #78716C; text-align: left; margin: 0;">
+                ${forwardNote}
+              </p>
+
+              <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center;">
+                ${footerText}
               </div>
 
             </div>
@@ -818,6 +1020,7 @@ export interface DomainLinkedEmailParams {
   domain: string;
   tenantSlug: string;
   forwardToEmail?: string;
+  locale?: string;
   smtp?: {
     host: string;
     port: number;
@@ -830,19 +1033,51 @@ export interface DomainLinkedEmailParams {
  * Sends a notification email when an existing domain has been verified and linked (NO purchase).
  */
 export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
-  const from = "ether · domaines <contact@ether.paris>";
-  const subject = `Domaine relié avec succès · ${params.domain}`;
+  const isEn = params.locale === "en";
+  const rawFrom =
+    process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
+  const from = rawFrom.replace(/^Ether\b/, "ether");
+  const subject = isEn
+    ? `Your domain ${params.domain} is connected`
+    : `Votre domaine ${params.domain} est connecté`;
   const siteUrl = `https://${params.domain}`;
+
+  const greeting = isEn ? "Hello," : "Bonjour,";
+  const intro = isEn
+    ? `Your custom domain <strong>${params.domain}</strong> is now connected and active on your ether site.`
+    : `Votre nom de domaine <strong>${params.domain}</strong> est désormais relié et actif sur votre site ether.`;
+  const labelDomain = isEn ? "Domain" : "Domaine";
+  const labelStatus = isEn ? "Status" : "Statut";
+  const valStatus = isEn ? "Verified & Active" : "Vérifié & Actif";
+  const labelForward = isEn ? "Email forwarding" : "Redirection e-mail";
+  const smtpSectionTitle = isEn
+    ? "Gmail Outbound (ether SMTP server)"
+    : "Envoi d'e-mails Gmail (Serveur SMTP ether)";
+  const labelServer = isEn ? "Server" : "Serveur";
+  const labelUser = isEn ? "Username" : "Utilisateur";
+  const labelPass = isEn ? "Password" : "Mot de passe";
+  const ctaButton = isEn ? "View my live site &rarr;" : "Voir mon site en ligne &rarr;";
+  const forwardNote = isEn
+    ? `All emails sent to contact@${params.domain} are automatically forwarded to your inbox in real time.`
+    : `Tous les e-mails envoyés à contact@${params.domain} sont automatiquement transmis vers votre boîte personnelle en temps réel.`;
+  const footerText = isEn
+    ? "© ether · web platform &amp; studio · paris"
+    : "© ether · plateforme web &amp; studio · paris";
 
   const html = `
     <!DOCTYPE html>
-    <html lang="fr">
+    <html lang="${isEn ? 'en' : 'fr'}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta name="color-scheme" content="light dark">
-      <title>Domaine relié avec succès · ether</title>
+      <meta name="supported-color-schemes" content="light dark">
+      <title>${subject}</title>
       <style>
+        :root {
+          color-scheme: light dark;
+          supported-color-schemes: light dark;
+        }
         body {
           margin: 0;
           padding: 0;
@@ -851,6 +1086,70 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           color: #1E1B39;
           -webkit-font-smoothing: antialiased;
         }
+        .email-table {
+          width: 100%;
+          border-collapse: collapse;
+          background-color: #FBF9F5;
+          padding: 32px 16px;
+        }
+        .email-card {
+          max-width: 480px;
+          margin: 0 auto;
+          background-color: #FFFFFF;
+          border: 1.5px solid #1E1B39;
+          border-radius: 20px;
+          box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15);
+          padding: 36px 32px;
+          text-align: center;
+        }
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .brand-subtitle {
+          margin-top: 8px;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          color: #78716C;
+        }
+        .greeting {
+          margin-top: 28px;
+          font-size: 15px;
+          line-height: 1.6;
+          color: #1E1B39;
+          text-align: left;
+        }
+        .code-container {
+          margin: 24px 0;
+          padding: 20px;
+          background-color: #FAF7F2;
+          border: 2px solid #1E1B39;
+          border-radius: 14px;
+          box-shadow: 3px 3px 0px 0px #1E1B39;
+          text-align: left;
+        }
+        .val-text {
+          color: #1E1B39;
+        }
+        .expiry-note {
+          font-size: 12px;
+          line-height: 1.5;
+          color: #78716C;
+          text-align: left;
+          margin: 0;
+        }
+        .footer-note {
+          margin-top: 32px;
+          padding-top: 20px;
+          border-top: 1px solid #E7E5E4;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          color: #A8A29E;
+          text-align: center;
+        }
         @media (prefers-color-scheme: dark) {
           body, .email-table {
             background-color: #0c0f17 !important;
@@ -858,17 +1157,19 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           .email-card {
             background-color: #151a28 !important;
             border-color: #384259 !important;
+            box-shadow: 4px 4px 0px 0px #384259 !important;
             color: #F1F5F9 !important;
           }
-          .card-title, .val-text {
+          .greeting, .val-text {
             color: #F8FAFC !important;
           }
-          .brand-subtitle, .sub-text {
+          .brand-subtitle, .expiry-note {
             color: #94A3B8 !important;
           }
-          .receipt-box {
+          .code-container {
             background-color: #1E2538 !important;
             border-color: #4B5563 !important;
+            box-shadow: 3px 3px 0px 0px #FF6B4A !important;
           }
           .footer-note {
             border-top-color: #2D3748 !important;
@@ -877,85 +1178,88 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
         }
       </style>
     </head>
-    <body style="margin: 0; padding: 0; background-color: #FBF9F5; color: #1E1B39; -webkit-font-smoothing: antialiased;">
-      <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; background-color: #FBF9F5; padding: 36px 16px;">
+    <body style="margin: 0; padding: 0; background-color: #FBF9F5; color: #1E1B39;">
+      <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #FBF9F5;">
         <tr>
-          <td align="center" style="padding: 36px 16px; background-color: #FBF9F5;">
-            <div class="email-card" style="max-width: 500px; margin: 0 auto; background-color: #FFFFFF; border: 1.5px solid #1E1B39; border-radius: 20px; box-shadow: 4px 4px 0px 0px rgba(30, 27, 57, 0.15); padding: 36px 32px; text-align: left;">
+          <td align="center" style="padding: 32px 16px;">
+            <div class="email-card">
               
               <!-- Official ether logo -->
-              <div style="text-align: center; margin-bottom: 24px;">
+              <div style="text-align: center;">
                 <img
                   src="https://img.ether.paris/ether-website/assets/ether-cropped.png?width=1000"
                   alt="ether"
                   width="72"
+                  class="logo-mark"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
-                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #78716C;">
                   studio &amp; hébergement web
                 </div>
               </div>
 
-              <!-- Badge -->
-              <div style="text-align: center; margin-bottom: 16px;">
-                <span style="display: inline-block; background-color: #FAF7F2; border: 1.5px solid #1E1B39; padding: 4px 14px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #FF5500; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                  ether · domaines
-                </span>
-              </div>
-
-              <h1 class="card-title" style="font-size: 22px; font-weight: 700; margin: 0 0 10px 0; color: #1E1B39; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; letter-spacing: -0.02em;">
-                Domaine relié avec succès 🔗
-              </h1>
-              <p class="sub-text" style="font-size: 14px; line-height: 1.6; color: #57534E; text-align: center; margin: 0 0 20px 0; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                Votre nom de domaine <strong style="color: #1E1B39;">${params.domain}</strong> a été validé et connecté à votre site.
+              <!-- Message body -->
+              <p class="greeting" style="margin-top: 28px; margin-bottom: 8px; font-size: 15px; line-height: 1.6; color: #1E1B39; text-align: left;">
+                ${greeting}
+              </p>
+              <p class="greeting" style="margin-top: 0; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #57534E; text-align: left;">
+                ${intro}
               </p>
 
-              <!-- Details Box -->
-              <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #FAF7F2; border: 1.5px solid #1E1B39; border-radius: 14px; box-shadow: 3px 3px 0px 0px #1E1B39;">
+              <!-- Details Box in ether retro style -->
+              <div class="code-container">
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Domaine</td>
-                    <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; font-family: monospace; color: #1E1B39;">${params.domain}</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelDomain}</td>
+                    <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 700; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #1E1B39;">${params.domain}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Statut</td>
-                    <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600;">Vérifié &amp; Actif</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelStatus}</td>
+                    <td style="padding: 6px 0; text-align: right; color: #059669; font-weight: 600; font-size: 12px;">${valStatus}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 6px 0; color: #78716C;">Redirection entrante</td>
-                    <td style="padding: 6px 0; text-align: right; font-family: monospace; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
+                    <td style="padding: 6px 0; color: #78716C; font-size: 12px;">${labelForward}</td>
+                    <td class="val-text" style="padding: 6px 0; text-align: right; font-family: 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #1E1B39;">contact@${params.domain} ➔ ${params.forwardToEmail || params.email}</td>
                   </tr>
                   ${params.smtp ? `
-                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.15);">
-                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 13px; color: #1E1B39;">
-                      Envoi d'e-mails depuis Gmail (SMTP Maddy) :
+                  <tr style="border-top: 1px solid rgba(30, 27, 57, 0.12);">
+                    <td colspan="2" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 12px; color: #1E1B39;">
+                      ${smtpSectionTitle}
                     </td>
                   </tr>
                   <tr>
-                    <td style="padding: 4px 0; color: #78716C;">Serveur SMTP</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.smtp.host}:${params.smtp.port} (TLS)</td>
+                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelServer}</td>
+                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.host}:${params.smtp.port}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 4px 0; color: #78716C;">Nom d'utilisateur</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #1E1B39;">${params.smtp.username}</td>
+                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelUser}</td>
+                    <td class="val-text" style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #1E1B39;">${params.smtp.username}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 4px 0; color: #78716C;">Mot de passe SMTP</td>
-                    <td style="padding: 4px 0; text-align: right; font-family: monospace; color: #FF5500; font-weight: 700;">${params.smtp.password}</td>
+                    <td style="padding: 4px 0; color: #78716C; font-size: 12px;">${labelPass}</td>
+                    <td style="padding: 4px 0; text-align: right; font-family: monospace; font-size: 12px; color: #FF5500; font-weight: 700;">${params.smtp.password}</td>
                   </tr>
                   ` : ''}
                 </table>
               </div>
 
-              <!-- Button -->
-              <div style="text-align: center; margin: 28px 0 16px 0;">
-                <a href="${siteUrl}" target="_blank" style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-weight: 700; font-size: 13px; letter-spacing: 0.05em; padding: 13px 28px; border-radius: 12px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                  Voir mon site en ligne &rarr;
+              <!-- Button in ether rounded-full pill design -->
+              <div style="text-align: center; margin: 26px 0 20px 0;">
+                <a
+                  href="${siteUrl}"
+                  target="_blank"
+                  style="display: inline-block; background-color: #FF5500; color: #FFFFFF !important; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; padding: 13px 32px; border-radius: 9999px; border: 1.5px solid #1E1B39; box-shadow: 3px 3px 0px 0px #1E1B39; text-align: center;"
+                >
+                  ${ctaButton}
                 </a>
               </div>
 
-              <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
-                © ether · plateforme &amp; studio web · paris
+              <p class="expiry-note" style="font-size: 12px; line-height: 1.5; color: #78716C; text-align: left; margin: 0;">
+                ${forwardNote}
+              </p>
+
+              <div class="footer-note" style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #E7E5E4; font-size: 11px; letter-spacing: 0.08em; color: #A8A29E; text-align: center;">
+                ${footerText}
               </div>
 
             </div>

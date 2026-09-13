@@ -266,12 +266,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // 6. Send clean "Domain Linked" notification email (NO purchase, NO invoice)
     const recipientEmail = tenant.email || locals.user.email;
     if (recipientEmail) {
+      const userLocale =
+        request.headers.get("accept-language")?.toLowerCase().startsWith("en")
+          ? "en"
+          : "fr";
       try {
         await sendDomainLinkedEmail({
           email: recipientEmail,
           domain: cleanDomain,
           tenantSlug: tenant.slug || "",
           forwardToEmail: recipientEmail,
+          locale: userLocale,
           smtp: smtpInfo || undefined,
         });
       } catch (emailErr: any) {

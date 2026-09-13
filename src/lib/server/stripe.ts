@@ -301,6 +301,11 @@ export async function processPromptTopupCheckoutSession(
       tenant?.email;
 
     if (customerEmail) {
+      const userLocale =
+        session.locale?.toLowerCase().startsWith("en") ||
+        session.metadata?.locale === "en"
+          ? "en"
+          : "fr";
       try {
         await sendPromptTopupConfirmationEmail({
           email: customerEmail,
@@ -308,6 +313,7 @@ export async function processPromptTopupCheckoutSession(
           packName: pack.name,
           prompts: promptsToAdd,
           priceFormatted: `${(pack.priceCents / 100).toFixed(2).replace(".", ",")} €`,
+          locale: userLocale,
         });
         console.log(
           `[Stripe Top-Up] Sent confirmation email to ${customerEmail}`,
@@ -344,6 +350,7 @@ export async function fulfillDomainPurchase({
   sessionId = null,
   customerEmail = null,
   priceCents = 0,
+  locale = "fr",
 }: {
   tenantId: number;
   domain: string;
@@ -352,6 +359,7 @@ export async function fulfillDomainPurchase({
   sessionId?: string | null;
   customerEmail?: string | null;
   priceCents?: number;
+  locale?: string;
 }): Promise<{ success: boolean; domain: string; dnsResult?: any; error?: string }> {
   console.log(
     `[fulfillDomainPurchase] Fulfilling domain for ${domain} (tenant ${tenantId}, provider ${provider})`,
@@ -415,6 +423,7 @@ export async function fulfillDomainPurchase({
           domain: cleanDomain,
           tenantSlug: tenant.slug || "",
           forwardToEmail: targetEmail,
+          locale,
           priceFormatted:
             priceCents > 0
               ? `${(priceCents / 100).toFixed(2).replace(".", ",")} € / an`
@@ -469,6 +478,11 @@ export async function processDomainCheckoutSession(
     const tenantId = parseInt(tenantIdStr, 10);
     const customerEmail =
       session.customer_details?.email || session.customer_email;
+    const userLocale =
+      session.locale?.toLowerCase().startsWith("en") ||
+      session.metadata?.locale === "en"
+        ? "en"
+        : "fr";
 
     const res = await fulfillDomainPurchase({
       tenantId,
@@ -478,6 +492,7 @@ export async function processDomainCheckoutSession(
       sessionId: session.id,
       customerEmail,
       priceCents,
+      locale: userLocale,
     });
 
     return { success: res.success, domain: res.domain };
@@ -539,6 +554,11 @@ export async function handleStripeWebhookEvent(
 
       if (tenantIdStr && domain) {
         const tenantId = parseInt(tenantIdStr, 10);
+        const userLocale =
+          session.locale?.toLowerCase().startsWith("en") ||
+          session.metadata?.locale === "en"
+            ? "en"
+            : "fr";
         await fulfillDomainPurchase({
           tenantId,
           domain,
@@ -547,6 +567,7 @@ export async function handleStripeWebhookEvent(
           sessionId: session.id,
           customerEmail,
           priceCents,
+          locale: userLocale,
         });
 
         return { received: true, action: "domain_activated" };
