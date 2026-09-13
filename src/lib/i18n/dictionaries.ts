@@ -360,7 +360,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             url: "https://rosee-minerale.fr",
           },
           {
-            title: "Le Chat Perdu",
+            title: "Artist's Inner Realm",
             sector: "Art Numérique & Portfolio Interactif",
             summary:
               "Artefact numérique immersif conçu pour dévoiler l'univers ésotérique d'un artiste. Un mécanisme circulaire rotatif interactif où la manipulation des anneaux et sigils déverrouille les chambres d'œuvres, dessins et sculptures.",
@@ -369,8 +369,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "Filtres procéduraux & textures parchemin",
               "Exploration non-linéaire d'œuvres d'art",
             ],
-            image:
-              "https://lechatperdu.ether.paris/og-image.jpg",
+            image: "/artists-inner-realm-jewellery.svg",
             url: "https://lechatperdu.ether.paris",
           },
         ],
@@ -655,7 +654,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             url: "https://rosee-minerale.fr",
           },
           {
-            title: "Le Chat Perdu",
+            title: "Artist's Inner Realm",
             sector: "Digital Art & Interactive Portfolio",
             summary:
               "Immersive digital artifact revealing an artist's esoteric universe. An interactive mechanical circular device where rotating rings and sigils unlock chambers of drawings and sculptures.",
@@ -664,8 +663,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "Procedural filters & parchment textures",
               "Non-linear artistic chamber exploration",
             ],
-            image:
-              "https://lechatperdu.ether.paris/og-image.jpg",
+            image: "/artists-inner-realm-jewellery.svg",
             url: "https://lechatperdu.ether.paris",
           },
         ],
@@ -949,7 +947,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             url: "https://rosee-minerale.fr",
           },
           {
-            title: "Le Chat Perdu",
+            title: "Artist's Inner Realm",
             sector: "فن رقمي ومعرض تفاعلي",
             summary:
               "تحفة رقمية تفاعلية تستعرض العالم الفني المبتكر لفنان تشكيلي. جهاز دائري ميكانيكي يدور ليكشف عن غرف اللوحات والمنحوتات والمجوهرات.",
@@ -958,8 +956,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "مرشحات رقمية بملمس الورق القديم",
               "استكشاف فني غير خطي للمعارض",
             ],
-            image:
-              "https://lechatperdu.ether.paris/og-image.jpg",
+            image: "/artists-inner-realm-jewellery.svg",
             url: "https://lechatperdu.ether.paris",
           },
         ],
