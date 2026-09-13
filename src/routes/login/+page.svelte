@@ -16,6 +16,7 @@
   let loading = $state(false);
   let statusMessage = $state<string | null>(null);
   let errorMessage = $state<string | null>(errorParam ? errorMessages[errorParam] || "Une erreur est survenue." : null);
+  let checkingAuth = $state(true);
 
   async function handleRequestCode(e: Event) {
     e.preventDefault();
@@ -96,6 +97,7 @@
     try {
       const savedToken = localStorage.getItem("ether_session_token");
       if (savedToken) {
+        checkingAuth = true;
         const res = await fetch("/api/auth/restore", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -105,31 +107,131 @@
           const json = await res.json();
           if (json.success) {
             const redirectParam = $page.url.searchParams.get("redirect");
-            window.location.href = redirectParam || "/studio";
+            window.location.replace(redirectParam || "/studio");
+            return;
           }
         }
+        try {
+          localStorage.removeItem("ether_session_token");
+        } catch {}
       }
+    } catch (err) {
+      console.warn("Auth restore error:", err);
+    }
+    checkingAuth = false;
+    try {
+      document.documentElement.classList.add("no-stored-token");
     } catch {}
   });
 </script>
 
 <svelte:head>
   <title>Connexion Studio | Ether</title>
+  <script>
+    try {
+      if (!localStorage.getItem("ether_session_token")) {
+        document.documentElement.classList.add("no-stored-token");
+      }
+    } catch {}
+  </script>
+  <style>
+    /* If no token exists at parse time, hide splash immediately without waiting */
+    html.no-stored-token #auth-splash-screen {
+      display: none !important;
+    }
+    html.no-stored-token #login-content-box {
+      opacity: 1 !important;
+      transform: none !important;
+      pointer-events: auto !important;
+    }
+    @keyframes ether-pulse-breath {
+      0%, 100% {
+        opacity: 0.3;
+        transform: scale(0.96);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 25px rgba(22, 46, 74, 0.3));
+      }
+    }
+    @keyframes ether-pulse-breath-dark {
+      0%, 100% {
+        opacity: 0.3;
+        transform: scale(0.96);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 25px rgba(255, 255, 255, 0.4));
+      }
+    }
+    .animate-ether-pulse {
+      animation: ether-pulse-breath 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    :global(.dark) .animate-ether-pulse {
+      animation-name: ether-pulse-breath-dark;
+    }
+    @keyframes shimmer-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    .animate-shimmer-slide {
+      animation: shimmer-slide 1.5s ease-in-out infinite;
+    }
+  </style>
 </svelte:head>
 
-<div class="min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-4 py-12 grain-overlay">
-  <!-- Brand logo header -->
-  <div class="mb-8 text-center">
-    <a href="/" class="transition-opacity hover:opacity-80 inline-block">
-      <BrandMark class="h-16 w-16" />
-    </a>
-  </div>
+<div class="relative min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-4 py-12 grain-overlay overflow-hidden">
+  <!-- Splash screen with flashing Ether logo while token is verified -->
+  {#if checkingAuth}
+    <div
+      id="auth-splash-screen"
+      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md transition-opacity duration-300"
+    >
+      <div class="relative flex flex-col items-center justify-center">
+        <!-- Ambient aura glow -->
+        <div class="absolute -inset-10 rounded-full bg-brand/10 blur-3xl pointer-events-none"></div>
 
-  <div class="retro-card w-full max-w-md p-8 md:p-10 space-y-6">
-    <div class="text-center space-y-2">
-      <h1 class="font-display text-2xl md:text-3xl text-foreground font-normal tracking-tight">Connexion Studio</h1>
-      <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Accédez à votre espace &amp; vos sites</p>
+        <!-- Flashing / breathing transparent Ether logo -->
+        <img
+          src="/ether-logo-official.png"
+          alt="ether"
+          width={130}
+          height={114}
+          class="h-16 sm:h-20 w-auto object-contain animate-ether-pulse dark:brightness-0 dark:invert relative z-10 select-none"
+        />
+
+        <!-- Status label -->
+        <p class="mt-8 font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground animate-pulse text-center">
+          Connexion au Studio...
+        </p>
+
+        <!-- Subtle loading indicator line -->
+        <div class="mt-4 h-0.5 w-28 overflow-hidden rounded-full bg-foreground/10 relative">
+          <div class="absolute inset-y-0 w-1/2 rounded-full bg-brand animate-shimmer-slide"></div>
+        </div>
+      </div>
     </div>
+  {/if}
+
+  <!-- Main login content (fades in once auth verification completes or if no token) -->
+  <div
+    id="login-content-box"
+    class="w-full max-w-md flex flex-col items-center transition-all duration-300 {checkingAuth ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}"
+  >
+    <!-- Brand logo header -->
+    <div class="mb-8 text-center">
+      <a href="/" class="transition-opacity hover:opacity-80 inline-block">
+        <BrandMark class="h-14 w-14" />
+      </a>
+    </div>
+
+    <div class="retro-card w-full p-8 md:p-10 space-y-6">
+      <div class="text-center space-y-2">
+        <h1 class="font-display text-2xl md:text-3xl text-foreground font-normal tracking-tight">Connexion Studio</h1>
+        <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Accédez à votre espace &amp; vos sites</p>
+      </div>
 
     {#if errorMessage}
       <div class="p-3.5 rounded-2xl bg-accent-soft/80 border border-accent/40 text-foreground text-sm flex items-start gap-2.5 font-neue">
@@ -237,6 +339,7 @@
       <a href="/" class="text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors">
         ← Retour à l'accueil
       </a>
+    </div>
     </div>
   </div>
 </div>

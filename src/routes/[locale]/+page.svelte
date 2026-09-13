@@ -83,7 +83,7 @@
 
         <div class="flex flex-col items-center justify-center gap-4 sm:flex-row pt-2">
           <Button
-            href="/login"
+            href="/studio"
             size="lg"
             variant="solid"
           >
