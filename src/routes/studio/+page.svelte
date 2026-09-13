@@ -17,6 +17,7 @@
   import ImagePreviewer from "$lib/components/studio/ImagePreviewer.svelte";
   import ThemeToggle from "$lib/components/theme-toggle.svelte";
   import DomainModal from "$lib/components/domain-modal.svelte";
+  import MenuPopover from "$lib/components/menu-popover.svelte";
   import { theme } from "$lib/stores/theme";
   import { oneDark } from "@codemirror/theme-one-dark";
   import { getFileCategory, isBinaryFile } from "$lib/utils/file-types";
@@ -1991,63 +1992,63 @@
                 </svg>
               </button>
 
-              {#if historyMenuOpen}
-                <div
-                  class="absolute right-0 top-full mt-1.5 w-72 bg-card dark:bg-[#18181f] border border-black/10 dark:border-white/10 rounded-xl shadow-retro-sm dark:shadow-xl p-1.5 text-xs font-mono z-50 flex flex-col gap-1 max-h-[360px] overflow-hidden"
-                >
-                  <div class="px-2.5 py-1.5 flex items-center justify-between border-b border-black/5 dark:border-white/10 text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">
-                    <span>Conversations</span>
-                    <button
-                      type="button"
-                      onclick={handleStartNewChat}
-                      class="text-brand hover:underline flex items-center gap-1 text-[11px] cursor-pointer"
+              <MenuPopover
+                open={historyMenuOpen}
+                bind:ref={historyMenuContainer}
+                align="right"
+                width="w-80"
+                maxHeight="max-h-[380px]"
+              >
+                {#snippet header()}
+                  <span>Conversations</span>
+                  <button
+                    type="button"
+                    onclick={handleStartNewChat}
+                    class="text-brand hover:underline flex items-center gap-1 text-[11px] cursor-pointer font-medium"
+                  >
+                    <span>+ Nouveau</span>
+                  </button>
+                {/snippet}
+
+                {#if conversations.length === 0}
+                  <div class="px-4 py-6 text-center text-muted-foreground text-xs font-neue">
+                    Aucun historique pour le moment.
+                  </div>
+                {:else}
+                  {#each conversations as conv}
+                    {@const isActive = (conversationId === conv.conversationId) || (!conversationId && conv.conversationId === 'default')}
+                    <div
+                      role="button"
+                      tabindex="0"
+                      onclick={() => selectConversation(conv.conversationId)}
+                      onkeydown={(e) => { if (e.key === 'Enter') selectConversation(conv.conversationId); }}
+                      class="group w-full flex items-start justify-between gap-3 px-3.5 py-2.5 rounded-xl transition-colors cursor-pointer text-left {isActive ? 'bg-black/5 dark:bg-white/10 text-foreground dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground dark:hover:text-white'}"
                     >
-                      <span>+ Nouveau</span>
-                    </button>
-                  </div>
-
-                  <div class="overflow-y-auto flex-1 space-y-0.5 py-0.5 pr-0.5">
-                    {#if conversations.length === 0}
-                      <div class="px-3 py-4 text-center text-muted-foreground text-xs">
-                        Aucun historique pour le moment.
-                      </div>
-                    {:else}
-                      {#each conversations as conv}
-                        {@const isActive = (conversationId === conv.conversationId) || (!conversationId && conv.conversationId === 'default')}
-                        <div
-                          role="button"
-                          tabindex="0"
-                          onclick={() => selectConversation(conv.conversationId)}
-                          onkeydown={(e) => { if (e.key === 'Enter') selectConversation(conv.conversationId); }}
-                          class="group w-full flex items-start justify-between gap-2 px-2.5 py-2 rounded-md last:rounded-b-xl transition-colors cursor-pointer text-left {isActive ? 'bg-black/5 dark:bg-white/10 text-foreground dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground dark:hover:text-white'}"
-                        >
-                          <div class="flex-1 min-w-0">
-                            <div class="font-medium {isActive ? 'text-foreground dark:text-white font-semibold' : 'text-foreground/90 dark:text-neutral-200'} truncate text-[12px] leading-snug">
-                              {conv.title || 'Discussion sans titre'}
-                            </div>
-                            <div class="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
-                              <span>{formatConversationDate(conv.lastMessageAt || conv.createdAt)}</span>
-                              <span>•</span>
-                              <span>{conv.messageCount} msg{conv.messageCount > 1 ? 's' : ''}</span>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onclick={(e) => handleDeleteConversation(conv.conversationId, e)}
-                            class="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-500 rounded transition-opacity cursor-pointer shrink-0"
-                            title="Supprimer la conversation"
-                          >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium {isActive ? 'text-foreground dark:text-white font-semibold' : 'text-foreground/90 dark:text-neutral-200'} truncate text-[12px] leading-snug">
+                          {conv.title || 'Discussion sans titre'}
                         </div>
-                      {/each}
-                    {/if}
-                  </div>
-                </div>
-              {/if}
+                        <div class="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                          <span>{formatConversationDate(conv.lastMessageAt || conv.createdAt)}</span>
+                          <span>•</span>
+                          <span>{conv.messageCount} msg{conv.messageCount > 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onclick={(e) => handleDeleteConversation(conv.conversationId, e)}
+                        class="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-red-500 rounded-md transition-opacity cursor-pointer shrink-0 mt-0.5"
+                        title="Supprimer la conversation"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  {/each}
+                {/if}
+              </MenuPopover>
             </div>
 
             <button
@@ -3213,9 +3214,9 @@
       </div>
 
       <!-- Quick Open Results List -->
-      <div class="flex-1 overflow-y-auto p-1.5 font-mono text-xs space-y-0.5">
+      <div class="flex-1 overflow-y-auto p-2 pb-4 font-mono text-xs space-y-1">
         {#if quickOpenResults.length === 0}
-          <div class="p-6 text-center text-xs text-muted-foreground">
+          <div class="p-6 text-center text-xs text-muted-foreground font-neue">
             Aucun fichier trouvé pour « {quickOpenQuery} »
           </div>
         {:else}
@@ -3224,7 +3225,7 @@
               type="button"
               onclick={() => handleQuickOpenSelect(file.path)}
               onmouseenter={() => quickOpenSelectedIndex = idx}
-              class="w-full text-left px-3 py-2 rounded-[8px] flex items-center justify-between gap-3 transition-colors cursor-pointer group {idx === quickOpenSelectedIndex ? 'bg-brand/15 dark:bg-brand/25 text-brand dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80 dark:text-neutral-300'}"
+              class="w-full text-left px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-3 transition-colors cursor-pointer group {idx === quickOpenSelectedIndex ? 'bg-brand/15 dark:bg-brand/25 text-brand dark:text-white' : 'hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80 dark:text-neutral-300'}"
             >
               <div class="flex items-center gap-2 min-w-0 flex-1">
                 {#if file.path.endsWith('.svelte')}
