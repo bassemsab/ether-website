@@ -1652,10 +1652,10 @@
 
     <!-- Center: Panel Docking Controls -->
     <div class="flex items-center gap-2">
-      <div class="flex items-center gap-[2px] rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-[#16161c] p-[2px] text-xs font-mono shadow-retro-sm dark:shadow-none">
+      <div class="flex items-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-[#16161c] p-1 text-xs font-mono shadow-retro-sm dark:shadow-none">
         <button
           onclick={() => togglePanel("chat")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
+          class="px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showChat ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
           title={showChat ? "Masquer le chat IA" : "Afficher le chat IA"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1665,7 +1665,7 @@
         </button>
         <button
           onclick={() => togglePanel("editor")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
+          class="px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showEditor ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
           title={showEditor ? "Masquer l'éditeur de code" : "Afficher l'éditeur de code"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1675,7 +1675,7 @@
         </button>
         <button
           onclick={() => togglePanel("preview")}
-          class="px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
+          class="px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer {showPreview ? 'bg-brand text-white font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground dark:hover:text-white'}"
           title={showPreview ? "Masquer l'aperçu du site" : "Afficher l'aperçu du site"}
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
