@@ -20,7 +20,11 @@ import {
   isDomainOwnedByTenant,
   getDomainOwnershipConflict,
 } from "../src/lib/server/db";
-import { searchDomains } from "../src/lib/server/domains";
+import {
+  searchDomains,
+  calculateMarkedUpPriceCents,
+  resolveLiveDomainPriceCents,
+} from "../src/lib/server/domains";
 import { checkEmailDomain } from "../src/lib/server/email-domain-check";
 
 describe("Email Domain & Acceptability Check (AMI frontend model)", () => {
@@ -221,8 +225,28 @@ describe("Tenant and Database Integration", () => {
   });
 });
 
-describe("Aggregated Domain Search", () => {
-  it("should return normalized domain results for common TLDs", async () => {
+describe("Aggregated Domain Search & Live Pricing", () => {
+  it("should calculate markup properly to cover processing fees", () => {
+    // 4.99 € (499 cents) + 10% markup = 548.9 -> 549 cents (5.49 €)
+    const frMarkedUp = calculateMarkedUpPriceCents(499, 10);
+    expect(frMarkedUp).toBe(549);
+
+    // 2.99 € (299 cents) + 10% markup = 328.9 -> 329 cents (3.29 €)
+    const shopMarkedUp = calculateMarkedUpPriceCents(299, 10);
+    expect(shopMarkedUp).toBe(329);
+
+    // 0 cents should return 0
+    expect(calculateMarkedUpPriceCents(0)).toBe(0);
+  });
+
+  it("should resolve live OVH pricing with Stripe fee markup", async () => {
+    const frPricing = await resolveLiveDomainPriceCents("fr");
+    expect(frPricing.rawCostCents).toBeGreaterThan(0);
+    expect(frPricing.priceCents).toBeGreaterThan(frPricing.rawCostCents);
+    expect(frPricing.priceCents).toBe(calculateMarkedUpPriceCents(frPricing.rawCostCents));
+  });
+
+  it("should return normalized domain results for common TLDs with live marked-up prices", async () => {
     const results = await searchDomains("moncafeparis");
     expect(results.length).toBeGreaterThan(0);
     const comResult = results.find((r) => r.tld === "com");
@@ -230,5 +254,6 @@ describe("Aggregated Domain Search", () => {
     expect(comResult?.domain).toBe("moncafeparis.com");
     expect(comResult?.currency).toBe("EUR");
     expect(comResult?.formattedPrice).toContain("€/an");
+    expect(comResult?.priceAnnualCents).toBeGreaterThan(0);
   });
 });

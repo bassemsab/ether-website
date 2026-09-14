@@ -154,3 +154,74 @@ export async function updateOvhNameservers(
     taskId,
   };
 }
+
+export interface OvhTldPrice {
+  tld: string;
+  currency: string;
+  creationPriceCents: number;
+  promoPriceCents?: number;
+  renewalPriceCents?: number;
+  activePriceCents: number;
+}
+
+const tldPricingCache = new Map<string, { timestamp: number; price: OvhTldPrice }>();
+const PRICING_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
+
+/**
+ * Fetches live TLD pricing directly from the OVH REST catalog API.
+ * Uses an in-memory cache to guarantee sub-millisecond lookups on repeated queries.
+ */
+export async function getOvhTldPricing(tld: string): Promise<OvhTldPrice | null> {
+  const cleanTld = tld.toLowerCase().replace(/^\./, "").trim();
+  if (!cleanTld) return null;
+
+  const cached = tldPricingCache.get(cleanTld);
+  if (cached && Date.now() - cached.timestamp < PRICING_CACHE_TTL_MS) {
+    return cached.price;
+  }
+
+  try {
+    const res = await callOvhApi(
+      "GET",
+      `/order/catalog/formatted/domain?ovhSubsidiary=FR&planCode=${encodeURIComponent(cleanTld)}`,
+    );
+
+    if (!res.ok || !res.data?.extensions?.[0]) {
+      return null;
+    }
+
+    const ext = res.data.extensions[0];
+    const creationCents = ext.prices?.creation?.value
+      ? Math.round(ext.prices.creation.value / 1_000_000)
+      : 0;
+    const promoCents = ext.promotion?.value
+      ? Math.round(ext.promotion.value / 1_000_000)
+      : undefined;
+    const renewalCents = ext.prices?.renewal?.value
+      ? Math.round(ext.prices.renewal.value / 1_000_000)
+      : undefined;
+
+    const activeCents =
+      promoCents !== undefined && promoCents > 0 ? promoCents : creationCents;
+
+    const price: OvhTldPrice = {
+      tld: cleanTld,
+      currency: ext.currency || "EUR",
+      creationPriceCents: creationCents,
+      promoPriceCents: promoCents,
+      renewalPriceCents: renewalCents,
+      activePriceCents: activeCents,
+    };
+
+    tldPricingCache.set(cleanTld, { timestamp: Date.now(), price });
+    return price;
+  } catch (err: any) {
+    console.warn(`[OVH] Failed to fetch live pricing for TLD .${cleanTld}:`, err?.message);
+    return null;
+  }
+}
+
+export function clearOvhPricingCache(): void {
+  tldPricingCache.clear();
+}
+

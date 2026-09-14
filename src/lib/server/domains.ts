@@ -1,5 +1,16 @@
-import { env } from "$env/dynamic/private";
-import { checkOvhDomain, updateOvhNameservers } from "$lib/server/ovh";
+let env: Record<string, string | undefined> = {};
+try {
+  // @ts-ignore
+  const dynamicPrivate = await import("$env/dynamic/private");
+  env = dynamicPrivate.env;
+} catch {
+  env = process.env as Record<string, string | undefined>;
+}
+import {
+  checkOvhDomain,
+  updateOvhNameservers,
+  getOvhTldPricing,
+} from "$lib/server/ovh";
 import { provisionMaddyCredentials, getOrCreateDkimRecord } from "$lib/server/maddy";
 
 export interface DomainSearchResult {
@@ -14,18 +25,73 @@ export interface DomainSearchResult {
 }
 
 const COMMON_TLDS = [
-  { tld: "com", basePriceCents: 1499, provider: "cloudflare" as const },
-  { tld: "fr", basePriceCents: 1499, provider: "ovh" as const },
-  { tld: "net", basePriceCents: 1799, provider: "cloudflare" as const },
-  { tld: "org", basePriceCents: 1699, provider: "cloudflare" as const },
-  { tld: "paris", basePriceCents: 4999, provider: "ovh" as const },
-  { tld: "io", basePriceCents: 4999, provider: "cloudflare" as const },
-  { tld: "shop", basePriceCents: 3499, provider: "ovh" as const },
-  { tld: "tech", basePriceCents: 2499, provider: "ovh" as const },
+  { tld: "com", basePriceCents: 799, provider: "ovh" as const },
+  { tld: "fr", basePriceCents: 499, provider: "ovh" as const },
+  { tld: "net", basePriceCents: 1099, provider: "ovh" as const },
+  { tld: "org", basePriceCents: 799, provider: "ovh" as const },
+  { tld: "paris", basePriceCents: 2499, provider: "ovh" as const },
+  { tld: "io", basePriceCents: 3099, provider: "ovh" as const },
+  { tld: "shop", basePriceCents: 299, provider: "ovh" as const },
+  { tld: "tech", basePriceCents: 699, provider: "ovh" as const },
 ];
 
 /**
- * Searches domain availability and annual pricing across OVH and Cloudflare.
+ * Calculates final consumer price in cents with markup applied to cover Stripe processing fees.
+ * Default markup is 10% (can be configured via DOMAIN_MARKUP_PERCENT).
+ */
+export function calculateMarkedUpPriceCents(
+  basePriceCents: number,
+  customMarkupPercent?: number,
+): number {
+  if (basePriceCents <= 0) return 0;
+  const configured =
+    customMarkupPercent !== undefined
+      ? customMarkupPercent
+      : Number(env.DOMAIN_MARKUP_PERCENT || process.env.DOMAIN_MARKUP_PERCENT || 10);
+  const markupPercent = isNaN(configured) ? 10 : configured;
+  const factor = 1 + markupPercent / 100;
+  return Math.ceil(basePriceCents * factor);
+}
+
+/**
+ * Resolves live pricing for a specific domain/TLD from the OVH catalog with Stripe markup.
+ */
+export async function resolveLiveDomainPriceCents(
+  tldOrDomain: string,
+): Promise<{ priceCents: number; rawCostCents: number; provider: "ovh" | "cloudflare" }> {
+  let cleanTld = tldOrDomain.toLowerCase().trim();
+  if (cleanTld.includes(".")) {
+    const parts = cleanTld.split(".");
+    cleanTld = parts.slice(1).join(".");
+  }
+
+  const matchedConfig = COMMON_TLDS.find((t) => t.tld === cleanTld);
+  const fallbackCents = matchedConfig ? matchedConfig.basePriceCents : 999;
+  const provider = matchedConfig?.provider || "ovh";
+
+  try {
+    const livePricing = await getOvhTldPricing(cleanTld);
+    if (livePricing && livePricing.activePriceCents > 0) {
+      const markedUp = calculateMarkedUpPriceCents(livePricing.activePriceCents);
+      return {
+        priceCents: markedUp,
+        rawCostCents: livePricing.activePriceCents,
+        provider,
+      };
+    }
+  } catch (err: any) {
+    console.warn(`[resolveLiveDomainPriceCents] Live price fallback for .${cleanTld}:`, err?.message);
+  }
+
+  return {
+    priceCents: calculateMarkedUpPriceCents(fallbackCents),
+    rawCostCents: fallbackCents,
+    provider,
+  };
+}
+
+/**
+ * Searches domain availability and annual pricing across OVH with live catalog pricing and Stripe markup.
  */
 export async function searchDomains(
   query: string,
@@ -41,9 +107,6 @@ export async function searchDomains(
     return [];
   }
 
-  const cfToken = env.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
-  const results: DomainSearchResult[] = [];
-
   // Check if user entered an exact domain with extension (e.g. example.com or mydomain.com)
   const hasExtension = rawClean.includes(".") && rawClean.split(".").length >= 2;
   let baseName = rawClean;
@@ -53,78 +116,60 @@ export async function searchDomains(
     const parts = rawClean.split(".");
     explicitTld = parts.slice(1).join(".");
     baseName = parts[0].replace(/[^a-z0-9-]/g, "");
-
-    const exactDomain = `${baseName}.${explicitTld}`;
-    let isAvailable = true;
-
-    // Check public DNS availability
-    try {
-      const dnsRes = await fetch(
-        `https://cloudflare-dns.com/dns-query?name=${exactDomain}&type=NS`,
-        { headers: { Accept: "application/dns-json" } },
-      );
-      if (dnsRes.ok) {
-        const dnsData = await dnsRes.json();
-        if (dnsData.Answer && dnsData.Answer.length > 0) {
-          isAvailable = false;
-        }
-      }
-    } catch {}
-
-    const matchedTldConfig = COMMON_TLDS.find((t) => t.tld === explicitTld);
-    const priceCents = matchedTldConfig ? matchedTldConfig.basePriceCents : 1499;
-
-    results.push({
-      domain: exactDomain,
-      tld: explicitTld,
-      available: isAvailable,
-      provider: matchedTldConfig?.provider || "cloudflare",
-      priceAnnualCents: priceCents,
-      currency: "EUR",
-      formattedPrice: `${(priceCents / 100).toFixed(2)} €/an`,
-    });
   } else {
     baseName = rawClean.replace(/[^a-z0-9-]/g, "");
   }
 
   if (!baseName || baseName.length < 2) {
-    return results;
+    return [];
   }
 
-  // Query common TLDs across providers
-  for (const item of COMMON_TLDS) {
-    if (hasExtension && item.tld === explicitTld) {
-      continue; // already added above
-    }
+  const tldList = hasExtension
+    ? [explicitTld, ...COMMON_TLDS.map((t) => t.tld).filter((t) => t !== explicitTld)]
+    : COMMON_TLDS.map((t) => t.tld);
 
-    const domain = `${baseName}.${item.tld}`;
+  const domainPromises = tldList.map(async (tld) => {
+    const domain = `${baseName}.${tld}`;
     let isAvailable = true;
 
-    try {
-      const dnsRes = await fetch(
-        `https://cloudflare-dns.com/dns-query?name=${domain}&type=NS`,
-        { headers: { Accept: "application/dns-json" } },
-      );
-      if (dnsRes.ok) {
+    // Parallelize DNS check and live OVH catalog lookup
+    const [dnsRes, livePricing] = await Promise.all([
+      fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=NS`, {
+        headers: { Accept: "application/dns-json" },
+      }).catch(() => null),
+      getOvhTldPricing(tld).catch(() => null),
+    ]);
+
+    if (dnsRes && dnsRes.ok) {
+      try {
         const dnsData = await dnsRes.json();
         if (dnsData.Answer && dnsData.Answer.length > 0) {
           isAvailable = false;
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
-    results.push({
+    const matchedConfig = COMMON_TLDS.find((t) => t.tld === tld);
+    const baseCostCents =
+      livePricing && livePricing.activePriceCents > 0
+        ? livePricing.activePriceCents
+        : matchedConfig?.basePriceCents || 999;
+
+    const finalPriceCents = calculateMarkedUpPriceCents(baseCostCents);
+    const provider = matchedConfig?.provider || "ovh";
+
+    return {
       domain,
-      tld: item.tld,
+      tld,
       available: isAvailable,
-      provider: item.provider,
-      priceAnnualCents: item.basePriceCents,
+      provider,
+      priceAnnualCents: finalPriceCents,
       currency: "EUR",
-      formattedPrice: `${(item.basePriceCents / 100).toFixed(2)} €/an`,
-    });
-  }
+      formattedPrice: `${(finalPriceCents / 100).toFixed(2)} €/an`,
+    };
+  });
 
-  return results;
+  return await Promise.all(domainPromises);
 }
 
 /**

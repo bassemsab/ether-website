@@ -2,6 +2,7 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { createDomainCheckoutSession } from "$lib/server/stripe";
 import { recordDomainOrder, getTenantById } from "$lib/server/db";
+import { resolveLiveDomainPriceCents } from "$lib/server/domains";
 
 export const POST: RequestHandler = async ({ request, locals, url }) => {
   if (!locals.user) {
@@ -10,9 +11,10 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
   try {
     const body = await request.json();
-    const { tenantId, domain, provider, priceCents } = body;
+    const { tenantId, domain, provider } = body;
+    let clientPriceCents = body.priceCents;
 
-    if (!tenantId || !domain || !priceCents) {
+    if (!tenantId || !domain) {
       return json(
         { success: false, error: "Paramètres manquants" },
         { status: 400 },
@@ -27,6 +29,14 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
       );
     }
 
+    // Resolve live marked-up price on server to guarantee authenticity
+    const resolved = await resolveLiveDomainPriceCents(domain);
+    const effectivePriceCents =
+      clientPriceCents && Math.abs(clientPriceCents - resolved.priceCents) <= 50
+        ? clientPriceCents
+        : resolved.priceCents;
+    const effectiveProvider = provider || resolved.provider || "ovh";
+
     const origin = url.origin;
     const successUrl = `${origin}/dashboard?domain_success=true&domain=${encodeURIComponent(domain)}`;
     const cancelUrl = `${origin}/dashboard?domain_canceled=true`;
@@ -34,8 +44,8 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     const { url: checkoutUrl, sessionId } = await createDomainCheckoutSession({
       tenantId,
       domain,
-      provider: provider || "cloudflare",
-      priceCents,
+      provider: effectiveProvider,
+      priceCents: effectivePriceCents,
       customerEmail: locals.user.email || tenant.email,
       successUrl,
       cancelUrl,
@@ -45,9 +55,9 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     await recordDomainOrder(
       tenantId,
       domain,
-      provider || "cloudflare",
+      effectiveProvider,
       sessionId,
-      priceCents,
+      effectivePriceCents,
       "eur",
     );
 
