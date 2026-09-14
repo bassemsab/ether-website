@@ -280,17 +280,7 @@ try {
   safeAddColumn("tenants", "extra_prompts INTEGER DEFAULT 0");
   safeAddColumn("studio_chat_messages", "image_url TEXT");
 
-  // Automated cleanup of unintended/auto-generated projects requested by user
-  try {
-    const unwantedSlugs = ["bassem1alsa", "bassem-bme"];
-    for (const slug of unwantedSlugs) {
-      db.run("DELETE FROM studio_chat_messages WHERE tenant_slug = ?", [slug]);
-      db.run("DELETE FROM tenant_prompt_usage WHERE tenant_slug = ?", [slug]);
-      db.run("DELETE FROM tenants WHERE slug = ?", [slug]);
-    }
-  } catch (err) {
-    console.warn("[DB Init] Error clearing auto-generated tenants:", err);
-  }
+
 } catch (error) {
   console.error(`❌ Failed to initialize bun:sqlite at ${DB_PATH}:`, error);
 }
@@ -642,8 +632,8 @@ export async function deleteTenantBySlug(slug: string): Promise<boolean> {
   if (!db) return false;
   try {
     const cleanSlug = slug.trim().toLowerCase();
-    db.run(`DELETE FROM studio_chat_messages WHERE tenant_slug = ?`, [cleanSlug]);
-    db.run(`DELETE FROM tenant_prompt_usage WHERE tenant_slug = ?`, [cleanSlug]);
+    // Note: studio_chat_messages and tenant_prompt_usage are intentionally preserved
+    // to maintain historical token accounting, audit logs, and billing session records.
     db.run(`DELETE FROM tenants WHERE slug = ?`, [cleanSlug]);
     return true;
   } catch (err) {

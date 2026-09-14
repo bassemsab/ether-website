@@ -5,6 +5,7 @@ import {
   readFileSync,
   readdirSync,
   statSync,
+  rmSync,
 } from "fs";
 import { join, relative, dirname, resolve } from "path";
 import { Database } from "bun:sqlite";
@@ -399,15 +400,95 @@ function isQuotaError(output: string): boolean {
 }
 
 /**
- * Prepares the tenant codebase directory as a real Git clone or repository with SvelteKit.
+ * Resolves tenant Git clone credentials from database or Gitea cluster API if missing.
  */
-function ensureTenantCodebase(
+async function resolveTenantGitCredentials(
   tenantSlug: string,
   gitRepoUrl?: string,
   gitToken?: string,
-): string {
+): Promise<{ gitRepoUrl?: string; gitToken?: string }> {
+  if (gitRepoUrl && gitToken) {
+    return { gitRepoUrl, gitToken };
+  }
+
+  // 1. Check local/mounted SQLite database
+  const dbPaths = [
+    process.env.DB_PATH,
+    join(DATA_DIR, "visitors.sqlite"),
+    "/data/visitors.sqlite",
+  ].filter(Boolean) as string[];
+
+  for (const dbPath of dbPaths) {
+    if (existsSync(dbPath)) {
+      try {
+        const db = new Database(dbPath, { readonly: true });
+        const row = db
+          .query("SELECT git_repo_url, git_access_token FROM tenants WHERE slug = ?")
+          .get(tenantSlug) as any;
+        db.close();
+        if (row?.git_repo_url) {
+          return {
+            gitRepoUrl: gitRepoUrl || row.git_repo_url,
+            gitToken:
+              gitToken ||
+              row.git_access_token ||
+              process.env.GITEA_ADMIN_TOKEN ||
+              "6ef87fd9ad70970b5ab87bfe0c5dad0abdea75fe",
+          };
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Query Gitea API directly inside cluster
+  const giteaAdminToken =
+    process.env.GITEA_ADMIN_TOKEN || "6ef87fd9ad70970b5ab87bfe0c5dad0abdea75fe";
+  const giteaApiUrl =
+    process.env.GITEA_API_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "http://gitea-http.git.svc.cluster.local:3000/api/v1"
+      : "https://git.ether.paris/api/v1");
+
+  try {
+    const res = await fetch(
+      `${giteaApiUrl}/repos/search?q=${encodeURIComponent(tenantSlug)}`,
+      {
+        headers: { Authorization: `token ${giteaAdminToken}` },
+        signal: AbortSignal.timeout(3000),
+      },
+    );
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      const repo = data?.data?.find(
+        (r: any) => r.name.toLowerCase() === tenantSlug.toLowerCase(),
+      );
+      if (repo?.clone_url) {
+        return {
+          gitRepoUrl: gitRepoUrl || repo.clone_url,
+          gitToken: gitToken || giteaAdminToken,
+        };
+      }
+    }
+  } catch {}
+
+  return { gitRepoUrl, gitToken };
+}
+
+/**
+ * Prepares the tenant codebase directory as a real Git clone or repository with SvelteKit.
+ */
+async function ensureTenantCodebase(
+  tenantSlug: string,
+  gitRepoUrl?: string,
+  gitToken?: string,
+): Promise<string> {
   const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
   mkdirSync(codeDir, { recursive: true });
+
+  // Resolve git credentials if missing
+  const creds = await resolveTenantGitCredentials(tenantSlug, gitRepoUrl, gitToken);
+  gitRepoUrl = creds.gitRepoUrl;
+  gitToken = creds.gitToken;
 
   const gitDir = join(codeDir, ".git");
   if (!existsSync(gitDir)) {
@@ -481,6 +562,7 @@ function ensureTenantCodebase(
             dev: "vite dev",
             build: "vite build",
             preview: "vite preview",
+            start: "bun ./build/index.js",
           },
         },
         null,
@@ -489,11 +571,29 @@ function ensureTenantCodebase(
     );
   }
 
+  // Ensure tailwind.config.js
+  const tailwindConfig = join(codeDir, "tailwind.config.js");
+  if (!existsSync(tailwindConfig)) {
+    writeFileSync(
+      tailwindConfig,
+      `/** @type {import('tailwindcss').Config} */\nexport default {\n  content: ['./src/**/*.{html,js,svelte,ts}'],\n  darkMode: 'class',\n  theme: {\n    extend: {\n      colors: {\n        background: 'hsl(var(--background, 0 0% 100%))',\n        foreground: 'hsl(var(--foreground, 240 10% 3.9%))',\n        brand: {\n          DEFAULT: 'hsl(var(--brand, 250 90% 64%))',\n          foreground: 'hsl(var(--brand-foreground, 0 0% 100%))',\n        },\n        muted: {\n          DEFAULT: 'hsl(var(--muted, 240 4.8% 95.9%))',\n          foreground: 'hsl(var(--muted-foreground, 240 3.8% 46.1%))',\n        },\n      },\n    },\n  },\n  plugins: [],\n};\n`,
+    );
+  }
+
+  // Ensure postcss.config.js
+  const postcssConfig = join(codeDir, "postcss.config.js");
+  if (!existsSync(postcssConfig)) {
+    writeFileSync(
+      postcssConfig,
+      `export default {\n  plugins: {\n    tailwindcss: {},\n  },\n};\n`,
+    );
+  }
+
   const svelteConfig = join(codeDir, "svelte.config.js");
   if (!existsSync(svelteConfig)) {
     writeFileSync(
       svelteConfig,
-      `import adapter from "svelte-adapter-bun";\n\n/** @type {import("@sveltejs/kit").Config} */\nconst config = {\n  kit: {\n    adapter: adapter()\n  }\n};\n\nexport default config;\n`,
+      `import adapter from "svelte-adapter-bun";\nimport { vitePreprocess } from "@sveltejs/vite-plugin-svelte";\n\n/** @type {import("@sveltejs/kit").Config} */\nconst config = {\n  preprocess: vitePreprocess(),\n  kit: {\n    adapter: adapter()\n  }\n};\n\nexport default config;\n`,
     );
   }
 
@@ -512,7 +612,7 @@ function ensureTenantCodebase(
   if (!existsSync(appHtml)) {
     writeFileSync(
       appHtml,
-      `<!doctype html>\n<html lang="fr">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    %sveltekit.head%\n  </head>\n  <body data-sveltekit-preload-data="hover">\n    <div style="display: contents">%sveltekit.body%</div>\n  </body>\n</html>\n`,
+      `<!doctype html>\n<html lang="fr" class="dark">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    %sveltekit.head%\n  </head>\n  <body data-sveltekit-preload-data="hover" class="bg-background text-foreground min-h-screen">\n    <div style="display: contents">%sveltekit.body%</div>\n  </body>\n</html>\n`,
     );
   }
 
@@ -520,7 +620,18 @@ function ensureTenantCodebase(
   if (!existsSync(appCss)) {
     writeFileSync(
       appCss,
-      `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n`,
+      `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n:root {\n  --background: 0 0% 100%;\n  --foreground: 240 10% 3.9%;\n  --brand: 250 90% 64%;\n  --brand-foreground: 0 0% 100%;\n  --muted: 240 4.8% 95.9%;\n  --muted-foreground: 240 3.8% 46.1%;\n}\n\n.dark {\n  --background: 222 47% 11%;\n  --foreground: 210 40% 98%;\n  --brand: 250 90% 64%;\n  --brand-foreground: 0 0% 100%;\n  --muted: 217 33% 17%;\n  --muted-foreground: 215 20% 65%;\n}\n`,
+    );
+  }
+
+  const libServerDir = join(srcDir, "lib", "server");
+  mkdirSync(libServerDir, { recursive: true });
+
+  const dbTs = join(libServerDir, "db.ts");
+  if (!existsSync(dbTs)) {
+    writeFileSync(
+      dbTs,
+      `import { Database } from "bun:sqlite";\nimport { dirname } from "path";\nimport { mkdirSync } from "fs";\n\nconst DB_PATH = process.env.DB_PATH || "/data/app.db";\ntry {\n  mkdirSync(dirname(DB_PATH), { recursive: true });\n} catch {}\n\nexport const db = new Database(DB_PATH, { create: true });\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS page_views (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    path TEXT NOT NULL,\n    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS contact_submissions (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    email TEXT NOT NULL,\n    message TEXT NOT NULL,\n    created_at DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n`,
     );
   }
 
@@ -535,15 +646,36 @@ function ensureTenantCodebase(
     );
   }
 
+  const pageServerTs = join(routesDir, "+page.server.ts");
+  if (!existsSync(pageServerTs)) {
+    writeFileSync(
+      pageServerTs,
+      `import type { Actions, PageServerLoad } from "./$types";\nimport { db } from "$lib/server/db";\n\nexport const load: PageServerLoad = async ({ url }) => {\n  try {\n    db.run("INSERT INTO page_views (path) VALUES (?)", [url.pathname]);\n    const viewsRow = db.query("SELECT COUNT(*) as count FROM page_views").get() as { count: number } | null;\n    return {\n      viewCount: viewsRow?.count || 1,\n    };\n  } catch {\n    return { viewCount: 1 };\n  }\n};\n\nexport const actions: Actions = {\n  default: async ({ request }) => {\n    const data = await request.formData();\n    const name = (data.get("name") as string || "").trim();\n    const email = (data.get("email") as string || "").trim();\n    const message = (data.get("message") as string || "").trim();\n\n    if (!name || !email || !message) {\n      return { success: false, error: "Veuillez remplir tous les champs obligatoires." };\n    }\n\n    try {\n      db.run(\n        "INSERT INTO contact_submissions (name, email, message) VALUES (?, ?, ?)",\n        [name, email, message]\n      );\n      return { success: true, message: "Merci pour votre message ! Nous vous répondrons bientôt." };\n    } catch (err: any) {\n      return { success: false, error: "Erreur lors de l'enregistrement du message." };\n    }\n  }\n};\n`,
+    );
+  }
+
   const pageSvelte = join(routesDir, "+page.svelte");
   if (!existsSync(pageSvelte)) {
     writeFileSync(
       pageSvelte,
-      `<script lang="ts">\n  let count = $state(0);\n</script>\n\n<svelte:head>\n  <title>${tenantSlug} — Site Officiel</title>\n</svelte:head>\n\n<main class="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6">\n  <div class="max-w-2xl w-full text-center space-y-6">\n    <h1 class="text-4xl font-bold">Bienvenue sur ${tenantSlug}</h1>\n    <p class="text-muted-foreground">Site propulsé par Ether Studio et Svelte 5</p>\n    <button onclick={() => count++} class="px-4 py-2 rounded bg-brand text-white font-medium cursor-pointer">\n      Compteur : {count}\n    </button>\n  </div>\n</main>\n`,
+      `<script lang="ts">\n  let { data, form } = $props();\n  let count = $state(0);\n  let isDark = $state(true);\n\n  function toggleDarkMode() {\n    isDark = !isDark;\n    if (typeof document !== "undefined") {\n      document.documentElement.classList.toggle("dark", isDark);\n    }\n  }\n</script>\n\n<svelte:head>\n  <title>${tenantSlug} — Site Officiel</title>\n</svelte:head>\n\n<div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-300">\n  <header class="border-b border-slate-800/80 bg-slate-900/50 backdrop-blur sticky top-0 z-50">\n    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">\n      <div class="flex items-center gap-3">\n        <div class="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">\n          ${tenantSlug.slice(0, 1).toUpperCase()}\n        </div>\n        <span class="font-bold text-lg tracking-tight text-white">${tenantSlug}</span>\n      </div>\n      <div class="flex items-center gap-4">\n        <a href="#features" class="text-sm text-slate-400 hover:text-white transition">Fonctionnalités</a>\n        <a href="#contact" class="text-sm text-slate-400 hover:text-white transition">Contact</a>\n        <button\n          onclick={toggleDarkMode}\n          aria-label="Toggle Dark Mode"\n          class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-sm cursor-pointer"\n        >\n          {isDark ? "🌙" : "☀️"}\n        </button>\n      </div>\n    </div>\n  </header>\n\n  <main class="flex-1">\n    <section class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-16 text-center space-y-6">\n      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono">\n        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>\n        ${tenantSlug}.ether.paris · En ligne\n      </div>\n\n      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-indigo-300 max-w-3xl mx-auto">\n        Bienvenue sur ${tenantSlug}\n      </h1>\n\n      <p class="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">\n        Votre nouveau site web haute performance propulsé par Ether Studio, SvelteKit 5 Runes et Bun Runtime.\n      </p>\n\n      <div class="flex flex-wrap items-center justify-center gap-4 pt-4">\n        <button\n          onclick={() => count++}\n          class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center gap-2"\n        >\n          <span>Compteur interactif</span>\n          <span class="px-2 py-0.5 rounded-full bg-indigo-700/80 text-xs font-mono font-bold">{count}</span>\n        </button>\n        <a\n          href="#contact"\n          class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium border border-slate-700/60 transition"\n        >\n          Nous contacter\n        </a>\n      </div>\n\n      <div class="pt-6 flex items-center justify-center gap-6 text-xs text-slate-500">\n        <div class="flex items-center gap-1.5">\n          <span class="text-indigo-400">⚡</span> Svelte 5 Runes\n        </div>\n        <div class="flex items-center gap-1.5">\n          <span class="text-emerald-400">💾</span> Bun SQLite (/data/app.db)\n        </div>\n        <div class="flex items-center gap-1.5">\n          <span class="text-sky-400">👀</span> {data?.viewCount || 1} visites\n        </div>\n      </div>\n    </section>\n\n    <section id="features" class="max-w-6xl mx-auto px-4 sm:px-6 py-12 border-t border-slate-900">\n      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">\n        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">\n          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4 text-lg">⚡</div>\n          <h2 class="text-lg font-semibold text-white mb-2">Performances Bun</h2>\n          <p class="text-sm text-slate-400">Temps de réponse instantanés grâce au moteur d'exécution Bun natif et à Vite dev HMR.</p>\n        </div>\n        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">\n          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4 text-lg">🔒</div>\n          <h2 class="text-lg font-semibold text-white mb-2">Base de données SQLite</h2>\n          <p class="text-sm text-slate-400">Stockage persistant sur disque isolé par tenant (/data/app.db) avec requêtes typées à haute vitesse.</p>\n        </div>\n        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">\n          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mb-4 text-lg">🎨</div>\n          <h2 class="text-lg font-semibold text-white mb-2">Tailwind CSS & Runes</h2>\n          <p class="text-sm text-slate-400">Styles modernes précompilés avec Tailwind 3, Dark Mode réactif et la syntaxe Runes de Svelte 5.</p>\n        </div>\n      </div>\n    </section>\n\n    <section id="contact" class="max-w-3xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-900">\n      <div class="text-center mb-8">\n        <h2 class="text-2xl sm:text-3xl font-bold text-white">Contactez-nous</h2>\n        <p class="text-sm text-slate-400 mt-2">Envoyez-nous un message directement sauvegardé dans la base SQLite locale.</p>\n      </div>\n\n      <div class="p-6 sm:p-8 rounded-2xl bg-slate-900/60 border border-slate-800 shadow-xl">\n        {#if form?.success}\n          <div class="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm flex items-center gap-3">\n            <span>✅</span>\n            <span>{form.message}</span>\n          </div>\n        {:else if form?.error}\n          <div class="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm flex items-center gap-3">\n            <span>⚠️</span>\n            <span>{form.error}</span>\n          </div>\n        {/if}\n\n        <form method="POST" class="space-y-4">\n          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">\n            <div>\n              <label for="name" class="block text-xs font-medium text-slate-300 mb-1.5">Nom complet</label>\n              <input\n                type="text"\n                id="name"\n                name="name"\n                required\n                placeholder="Jean Dupont"\n                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n              />\n            </div>\n            <div>\n              <label for="email" class="block text-xs font-medium text-slate-300 mb-1.5">Adresse e-mail</label>\n              <input\n                type="email"\n                id="email"\n                name="email"\n                required\n                placeholder="jean@exemple.fr"\n                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n              />\n            </div>\n          </div>\n          <div>\n            <label for="message" class="block text-xs font-medium text-slate-300 mb-1.5">Message</label>\n            <textarea\n              id="message"\n              name="message"\n              rows="4"\n              required\n              placeholder="Votre message ici..."\n              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n            ></textarea>\n          </div>\n          <button\n            type="submit"\n            class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer text-sm"\n          >\n            Envoyer le message\n          </button>\n        </form>\n      </div>\n    </section>\n  </main>\n\n  <footer class="border-t border-slate-900 bg-slate-950 py-8 text-center text-xs text-slate-600">\n    <div class="max-w-6xl mx-auto px-4 space-y-2">\n      <p>© ${new Date().getFullYear()} ${tenantSlug}. Tous droits réservés.</p>\n      <p class="text-slate-500">Hébergé et géré via Ether Platform · ${tenantSlug}.ether.paris</p>\n    </div>\n  </footer>\n</div>\n`,
     );
   }
 
-  ensureTenantSystemUser(tenantSlug);
+  const tenantUser = ensureTenantSystemUser(tenantSlug);
+  if (isLinuxRoot()) {
+    Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, codeDir]);
+  }
+
+  // Ensure dependencies installed if node_modules is missing
+  const nodeModulesDir = join(codeDir, "node_modules");
+  if (!existsSync(nodeModulesDir)) {
+    const installCmd = isLinuxRoot()
+      ? ["runuser", "-u", tenantUser, "--", "bun", "install"]
+      : ["bun", "install"];
+    Bun.spawnSync(installCmd, { cwd: codeDir });
+  }
+
   return codeDir;
 }
 
@@ -557,14 +689,18 @@ interface DevServerInstance {
 const tenantDevServers = new Map<string, DevServerInstance>();
 let nextAvailablePort = 5200;
 
-async function getOrLaunchTenantDevServer(slug: string): Promise<number> {
+async function getOrLaunchTenantDevServer(
+  slug: string,
+  gitRepoUrl?: string,
+  gitToken?: string,
+): Promise<number> {
   const existing = tenantDevServers.get(slug);
   if (existing && !existing.proc.killed) {
     existing.lastActive = Date.now();
     return existing.port;
   }
 
-  const codeDir = ensureTenantCodebase(slug);
+  const codeDir = await ensureTenantCodebase(slug, gitRepoUrl, gitToken);
   const tenantUser = ensureTenantSystemUser(slug);
   const isRoot = isLinuxRoot();
   const port = nextAvailablePort++;
@@ -581,6 +717,7 @@ async function getOrLaunchTenantDevServer(slug: string): Promise<number> {
       env: {
         ...process.env,
         PORT: String(port),
+        DB_PATH: join(DATA_DIR, "tenants", slug, "app.db"),
       },
       stdout: "inherit",
       stderr: "inherit",
@@ -621,7 +758,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
     return existing.port;
   }
 
-  const codeDir = ensureTenantCodebase(slug);
+  const codeDir = await ensureTenantCodebase(slug);
   const tenantUser = ensureTenantSystemUser(slug);
   const isRoot = isLinuxRoot();
   const port = nextAvailableProdPort++;
@@ -650,6 +787,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
             ...process.env,
             PORT: String(port),
             HOST: "0.0.0.0",
+            DB_PATH: join(DATA_DIR, "tenants", slug, "app.db"),
           },
           stdout: "inherit",
           stderr: "inherit",
@@ -768,7 +906,9 @@ const server = Bun.serve({
       }
 
       try {
-        const devPort = await getOrLaunchTenantDevServer(tenantSlug);
+        const gitRepoUrl = req.headers.get("x-git-repo-url") || undefined;
+        const gitToken = req.headers.get("x-git-token") || undefined;
+        const devPort = await getOrLaunchTenantDevServer(tenantSlug, gitRepoUrl, gitToken);
 
         // Check for WebSocket Upgrade request (Vite HMR)
         if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
@@ -873,7 +1013,9 @@ const server = Bun.serve({
     const filesMatch = path.match(/^\/files\/([a-zA-Z0-9_-]+)$/);
     if (filesMatch) {
       const tenantSlug = filesMatch[1];
-      const codeDir = ensureTenantCodebase(tenantSlug);
+      const gitRepoUrl = req.headers.get("x-git-repo-url") || undefined;
+      const gitToken = req.headers.get("x-git-token") || undefined;
+      const codeDir = await ensureTenantCodebase(tenantSlug, gitRepoUrl, gitToken);
 
       if (req.method === "GET") {
         const files: Record<string, any> = {};
@@ -1054,7 +1196,7 @@ const server = Bun.serve({
     const sqliteMatch = path.match(/^\/sqlite\/([a-zA-Z0-9_-]+)$/);
     if (sqliteMatch && req.method === "POST") {
       const tenantSlug = sqliteMatch[1];
-      const codeDir = ensureTenantCodebase(tenantSlug);
+      const codeDir = await ensureTenantCodebase(tenantSlug);
 
       try {
         const body = (await req.json().catch(() => ({}))) as any;
@@ -1281,7 +1423,7 @@ const server = Bun.serve({
     const buildMatch = path.match(/^\/build\/([a-zA-Z0-9_-]+)$/);
     if (buildMatch && req.method === "POST") {
       const tenantSlug = buildMatch[1];
-      const codeDir = ensureTenantCodebase(tenantSlug);
+      const codeDir = await ensureTenantCodebase(tenantSlug);
       const tenantUser = ensureTenantSystemUser(tenantSlug);
       const isRoot = isLinuxRoot();
 
@@ -1391,6 +1533,52 @@ const server = Bun.serve({
         success: sendProc.exitCode === 0,
         tenant: tenantSlug,
         output,
+      }, { headers: corsHeaders });
+    }
+
+    // Tenant Resource Deletion & Cleanup Endpoint
+    const tenantDeleteMatch = path.match(/^\/tenant\/([a-zA-Z0-9_-]+)$/);
+    if (tenantDeleteMatch && (req.method === "DELETE" || req.method === "POST")) {
+      const tenantSlug = tenantDeleteMatch[1];
+      console.log(`[Cleanup] Terminating and cleaning resources for tenant: ${tenantSlug}`);
+
+      // 1. Kill and remove active Vite dev server
+      const devInst = tenantDevServers.get(tenantSlug);
+      if (devInst) {
+        try {
+          devInst.proc.kill();
+        } catch {}
+        tenantDevServers.delete(tenantSlug);
+      }
+
+      // 2. Kill and remove active Production server
+      const prodInst = tenantProdServers.get(tenantSlug);
+      if (prodInst) {
+        try {
+          prodInst.proc.kill();
+        } catch {}
+        tenantProdServers.delete(tenantSlug);
+      }
+
+      // 3. Kill tmux session if running
+      try {
+        const tenantUser = `tenant_${tenantSlug.toLowerCase().replace(/[^a-z0-9_-]/g, "")}`;
+        Bun.spawnSync(["runuser", "-u", tenantUser, "--", "tmux", "-S", `/data/tenants/${tenantSlug}/tmux.sock`, "kill-server"]);
+      } catch {}
+
+      // 4. Remove /data/tenants/<slug> directory
+      const tenantDir = join(DATA_DIR, "tenants", tenantSlug);
+      if (existsSync(tenantDir)) {
+        try {
+          rmSync(tenantDir, { recursive: true, force: true });
+        } catch (err: any) {
+          console.warn(`[Cleanup] Failed to remove ${tenantDir}:`, err.message);
+        }
+      }
+
+      return Response.json({
+        success: true,
+        message: `Tenant ${tenantSlug} resources cleaned up on runner`,
       }, { headers: corsHeaders });
     }
 
@@ -1555,7 +1743,7 @@ const server = Bun.serve({
           );
         }
 
-        const tenantCodeDir = ensureTenantCodebase(project);
+        const tenantCodeDir = await ensureTenantCodebase(project);
         const triedProfiles: string[] = [];
 
         // If an image was attached, decode and save it into static/uploads/

@@ -2,6 +2,7 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { getTenantBySlug, deleteTenantBySlug } from "$lib/server/db";
 import { deleteTenantK8s } from "$lib/server/k8s-tenant";
+import { deleteGiteaRepo } from "$lib/server/gitea";
 
 export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   if (!locals.user) {
@@ -38,16 +39,44 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       );
     }
 
-    // Delete k8s namespace if one was assigned
-    if (tenant.k8s_namespace) {
+    // 1. Delete Gitea repository if one was assigned
+    if (tenant.git_repo_url) {
       try {
-        await deleteTenantK8s(tenant.k8s_namespace);
-      } catch (k8sErr) {
-        console.warn(`[Delete Tenant] K8s cleanup note for ${tenant.k8s_namespace}:`, k8sErr);
+        const u = new URL(tenant.git_repo_url);
+        const parts = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "").split("/");
+        if (parts.length >= 2) {
+          await deleteGiteaRepo(parts[0], parts[1]);
+        }
+      } catch (gitErr: any) {
+        console.warn(`[Delete Tenant] Gitea cleanup note for ${slug}:`, gitErr.message);
       }
     }
 
-    // Delete database records
+    // 2. Clean up Runner dev/prod server and cached files
+    const runnerUrl =
+      process.env.RUNNER_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "http://agent-runner.ether.svc.cluster.local:8080"
+        : "http://localhost:8085");
+    try {
+      await fetch(`${runnerUrl}/tenant/${slug}`, {
+        method: "DELETE",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (runnerErr: any) {
+      console.warn(`[Delete Tenant] Runner cleanup note for ${slug}:`, runnerErr.message);
+    }
+
+    // 3. Delete k8s namespace and all pods/pvc within it
+    if (tenant.k8s_namespace) {
+      try {
+        await deleteTenantK8s(tenant.k8s_namespace);
+      } catch (k8sErr: any) {
+        console.warn(`[Delete Tenant] K8s cleanup note for ${tenant.k8s_namespace}:`, k8sErr.message);
+      }
+    }
+
+    // 4. Delete database records
     await deleteTenantBySlug(slug);
 
     // Clear active workspace cookie if pointing to deleted site

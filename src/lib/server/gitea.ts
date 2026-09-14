@@ -181,6 +181,36 @@ export async function createGiteaRepo(
 }
 
 /**
+ * Deletes a repository on Gitea.
+ */
+export async function deleteGiteaRepo(
+  username: string,
+  repoName: string,
+): Promise<boolean> {
+  const safeRepoName = repoName.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+  if (!GITEA_ADMIN_TOKEN) return true;
+
+  try {
+    const res = await fetch(
+      `${GITEA_API_URL}/repos/${username}/${safeRepoName}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `token ${GITEA_ADMIN_TOKEN}`,
+        },
+      },
+    );
+    return res.ok || res.status === 404;
+  } catch (err: any) {
+    console.warn(
+      `[Gitea] Failed to delete repo ${username}/${safeRepoName}:`,
+      err.message,
+    );
+    return false;
+  }
+}
+
+/**
  * Commits a file into the Gitea repository.
  */
 export async function commitGiteaFile(
@@ -222,61 +252,130 @@ export async function seedTenantRepoTemplate(
   const packageJson = JSON.stringify(
     {
       name: site.slug,
-      version: "0.1.0",
+      version: "1.0.0",
       private: true,
       type: "module",
       scripts: {
-        dev: "vite dev --host 0.0.0.0",
+        dev: "vite dev",
         build: "vite build",
         preview: "vite preview",
         start: "bun ./build/index.js",
       },
       dependencies: {
-        "@sveltejs/adapter-node": "^5.2.0",
-        "@tailwindcss/vite": "^4.0.0",
-        tailwindcss: "^4.0.0",
-      },
-      devDependencies: {
-        "@sveltejs/kit": "^2.16.0",
-        "@sveltejs/vite-plugin-svelte": "^5.0.0",
+        "@sveltejs/kit": "^2.0.0",
         svelte: "^5.0.0",
-        vite: "^6.0.0",
+        tailwindcss: "^3.4.3",
+        "svelte-adapter-bun": "^1.0.1",
       },
     },
     null,
     2,
   );
 
-  const svelteConfig = `import adapter from '@sveltejs/adapter-node';
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+  const tailwindConfig = `/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./src/**/*.{html,js,svelte,ts}'],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        background: 'hsl(var(--background, 0 0% 100%))',
+        foreground: 'hsl(var(--foreground, 240 10% 3.9%))',
+        brand: {
+          DEFAULT: 'hsl(var(--brand, 250 90% 64%))',
+          foreground: 'hsl(var(--brand-foreground, 0 0% 100%))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted, 240 4.8% 95.9%))',
+          foreground: 'hsl(var(--muted-foreground, 240 3.8% 46.1%))',
+        },
+      },
+    },
+  },
+  plugins: [],
+};
+`;
 
-/** @type {import('@sveltejs/kit').Config} */
+  const postcssConfig = `export default {
+  plugins: {
+    tailwindcss: {},
+  },
+};
+`;
+
+  const svelteConfig = `import adapter from "svelte-adapter-bun";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+
+/** @type {import("@sveltejs/kit").Config} */
 const config = {
-	preprocess: vitePreprocess(),
-	kit: {
-		adapter: adapter({ out: 'build' })
-	}
+  preprocess: vitePreprocess(),
+  kit: {
+    adapter: adapter()
+  }
 };
 
 export default config;
 `;
 
-  const viteConfig = `import { sveltekit } from '@sveltejs/kit/vite';
-import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+  const viteConfig = `import { sveltekit } from "@sveltejs/kit/vite";
+import { defineConfig } from "vite";
 
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit()],
-	server: {
-		watch: {
-			usePolling: true,
-			interval: 100
-		},
-		hmr: {
-			clientPort: 443
-		}
-	}
+  plugins: [sveltekit()],
+  server: {
+    watch: {
+      usePolling: true,
+      interval: 100
+    },
+    hmr: {
+      clientPort: 443
+    }
+  }
 });
+`;
+
+  const appHtml = `<!doctype html>
+<html lang="fr" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover" class="bg-background text-foreground min-h-screen">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>
+`;
+
+  const appCss = `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --brand: 250 90% 64%;
+  --brand-foreground: 0 0% 100%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+}
+
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --brand: 250 90% 64%;
+  --brand-foreground: 0 0% 100%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+}
+`;
+
+  const layoutSvelte = `<script lang="ts">
+  import "../app.css";
+  let { children } = $props();
+</script>
+
+{@render children()}
 `;
 
   const dockerfile = `FROM oven/bun:1.2-alpine AS builder
@@ -301,8 +400,14 @@ CMD ["bun", "./build/index.js"]
 `;
 
   const dbHelper = `import { Database } from "bun:sqlite";
+import { dirname } from "path";
+import { mkdirSync } from "fs";
 
 const DB_PATH = process.env.DB_PATH || "/data/app.db";
+try {
+  mkdirSync(dirname(DB_PATH), { recursive: true });
+} catch {}
+
 export const db = new Database(DB_PATH, { create: true });
 
 // Initialize database schema
@@ -313,46 +418,239 @@ db.run(\`
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 \`);
+
+db.run(\`
+  CREATE TABLE IF NOT EXISTS contact_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+\`);
+`;
+
+  const pageServerTs = `import type { Actions, PageServerLoad } from "./$types";
+import { db } from "$lib/server/db";
+
+export const load: PageServerLoad = async ({ url }) => {
+  try {
+    db.run("INSERT INTO page_views (path) VALUES (?)", [url.pathname]);
+    const viewsRow = db.query("SELECT COUNT(*) as count FROM page_views").get() as { count: number } | null;
+    return {
+      viewCount: viewsRow?.count || 1,
+    };
+  } catch {
+    return { viewCount: 1 };
+  }
+};
+
+export const actions: Actions = {
+  default: async ({ request }) => {
+    const data = await request.formData();
+    const name = (data.get("name") as string || "").trim();
+    const email = (data.get("email") as string || "").trim();
+    const message = (data.get("message") as string || "").trim();
+
+    if (!name || !email || !message) {
+      return { success: false, error: "Veuillez remplir tous les champs obligatoires." };
+    }
+
+    try {
+      db.run(
+        "INSERT INTO contact_submissions (name, email, message) VALUES (?, ?, ?)",
+        [name, email, message]
+      );
+      return { success: true, message: "Merci pour votre message ! Nous vous répondrons bientôt." };
+    } catch (err: any) {
+      return { success: false, error: "Erreur lors de l'enregistrement du message." };
+    }
+  }
+};
 `;
 
   const pageSvelte = `<script lang="ts">
+  let { data, form } = $props();
   let count = $state(0);
-  const brandName = "${site.brandName.replace(/"/g, '\\"')}";
-  const domain = "${site.domain}";
+  let isDark = $state(true);
+
+  function toggleDarkMode() {
+    isDark = !isDark;
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark", isDark);
+    }
+  }
 </script>
 
 <svelte:head>
-  <title>{brandName}</title>
+  <title>${site.brandName.replace(/"/g, '\\"')} — Site Officiel</title>
 </svelte:head>
 
-<main class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white flex flex-col items-center justify-center p-6">
-  <div class="max-w-2xl w-full text-center space-y-6">
-    <div class="inline-block px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-full text-indigo-400 text-xs font-mono tracking-wider">
-      {domain}
+<div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-300">
+  <!-- Navigation -->
+  <header class="border-b border-slate-800/80 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">
+          ${site.brandName.slice(0, 1).toUpperCase()}
+        </div>
+        <span class="font-bold text-lg tracking-tight text-white">${site.brandName.replace(/"/g, '\\"')}</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="#features" class="text-sm text-slate-400 hover:text-white transition">Fonctionnalités</a>
+        <a href="#contact" class="text-sm text-slate-400 hover:text-white transition">Contact</a>
+        <button
+          onclick={toggleDarkMode}
+          aria-label="Toggle Dark Mode"
+          class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-sm cursor-pointer"
+        >
+          {isDark ? "🌙" : "☀️"}
+        </button>
+      </div>
     </div>
-    
-    <h1 class="text-5xl font-extrabold tracking-tight sm:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-indigo-300">
-      {brandName}
-    </h1>
-    
-    <p class="text-lg text-slate-300">
-      Propulsé par Ether Studio · SvelteKit 5 Runes & Bun Runtime
-    </p>
+  </header>
 
-    <div class="p-6 bg-slate-900/60 border border-slate-800 rounded-2xl shadow-xl flex items-center justify-center gap-4">
-      <button 
-        onclick={() => count++}
-        class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
-      >
-        Compteur interactif : {count}
-      </button>
+  <!-- Hero Section -->
+  <main class="flex-1">
+    <section class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-16 text-center space-y-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        ${site.domain} · En ligne
+      </div>
+
+      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-indigo-300 max-w-3xl mx-auto">
+        Bienvenue sur ${site.brandName.replace(/"/g, '\\"')}
+      </h1>
+
+      <p class="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+        Votre nouveau site web haute performance propulsé par Ether Studio, SvelteKit 5 Runes et Bun Runtime.
+      </p>
+
+      <div class="flex flex-wrap items-center justify-center gap-4 pt-4">
+        <button
+          onclick={() => count++}
+          class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center gap-2"
+        >
+          <span>Compteur interactif</span>
+          <span class="px-2 py-0.5 rounded-full bg-indigo-700/80 text-xs font-mono font-bold">{count}</span>
+        </button>
+        <a
+          href="#contact"
+          class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium border border-slate-700/60 transition"
+        >
+          Nous contacter
+        </a>
+      </div>
+
+      <div class="pt-6 flex items-center justify-center gap-6 text-xs text-slate-500">
+        <div class="flex items-center gap-1.5">
+          <span class="text-indigo-400">⚡</span> Svelte 5 Runes
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-emerald-400">💾</span> Bun SQLite (/data/app.db)
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-sky-400">👀</span> {data?.viewCount || 1} visites
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section id="features" class="max-w-6xl mx-auto px-4 sm:px-6 py-12 border-t border-slate-900">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4 text-lg">⚡</div>
+          <h2 class="text-lg font-semibold text-white mb-2">Performances Bun</h2>
+          <p class="text-sm text-slate-400">Temps de réponse instantanés grâce au moteur d'exécution Bun natif et à Vite dev HMR.</p>
+        </div>
+        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4 text-lg">🔒</div>
+          <h2 class="text-lg font-semibold text-white mb-2">Base de données SQLite</h2>
+          <p class="text-sm text-slate-400">Stockage persistant sur disque isolé par tenant (/data/app.db) avec requêtes typées à haute vitesse.</p>
+        </div>
+        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">
+          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mb-4 text-lg">🎨</div>
+          <h2 class="text-lg font-semibold text-white mb-2">Tailwind CSS & Runes</h2>
+          <p class="text-sm text-slate-400">Styles modernes précompilés avec Tailwind 3, Dark Mode réactif et la syntaxe Runes de Svelte 5.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact Form Section -->
+    <section id="contact" class="max-w-3xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-900">
+      <div class="text-center mb-8">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Contactez-nous</h2>
+        <p class="text-sm text-slate-400 mt-2">Envoyez-nous un message directement sauvegardé dans la base SQLite locale.</p>
+      </div>
+
+      <div class="p-6 sm:p-8 rounded-2xl bg-slate-900/60 border border-slate-800 shadow-xl">
+        {#if form?.success}
+          <div class="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm flex items-center gap-3">
+            <span>✅</span>
+            <span>{form.message}</span>
+          </div>
+        {:else if form?.error}
+          <div class="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm flex items-center gap-3">
+            <span>⚠️</span>
+            <span>{form.error}</span>
+          </div>
+        {/if}
+
+        <form method="POST" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="name" class="block text-xs font-medium text-slate-300 mb-1.5">Nom complet</label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                required
+                placeholder="Jean Dupont"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
+              />
+            </div>
+            <div>
+              <label for="email" class="block text-xs font-medium text-slate-300 mb-1.5">Adresse e-mail</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                required
+                placeholder="jean@exemple.fr"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label for="message" class="block text-xs font-medium text-slate-300 mb-1.5">Message</label>
+            <textarea
+              id="message"
+              name="message"
+              rows="4"
+              required
+              placeholder="Votre message ici..."
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
+            ></textarea>
+          </div>
+          <button
+            type="submit"
+            class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer text-sm"
+          >
+            Envoyer le message
+          </button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-8 text-center text-xs text-slate-600">
+    <div class="max-w-6xl mx-auto px-4 space-y-2">
+      <p>© {new Date().getFullYear()} ${site.brandName.replace(/"/g, '\\"')}. Tous droits réservés.</p>
+      <p class="text-slate-500">Hébergé et géré via Ether Platform · ${site.domain}</p>
     </div>
-
-    <p class="text-xs text-slate-500">
-      Base de données persistante SQLite connectée sur <code>/data/app.db</code>
-    </p>
-  </div>
-</main>
+  </footer>
+</div>
 `;
 
   const readme = `# ${site.brandName}
@@ -361,6 +659,7 @@ Website created with **Ether Studio**.
 
 - **URL:** https://${site.domain}
 - **Framework:** SvelteKit 5 (Runes) + Bun
+- **Styling:** Tailwind CSS + PostCSS
 - **Database:** Bun SQLite (\`bun:sqlite\`) on \`/data/app.db\`
 - **Deployment:** Kubernetes container workload
 `;
@@ -382,6 +681,20 @@ Website created with **Ether Studio**.
   await commitGiteaFile(
     username,
     repoName,
+    "tailwind.config.js",
+    tailwindConfig,
+    "Add tailwind.config.js",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "postcss.config.js",
+    postcssConfig,
+    "Add postcss.config.js",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
     "svelte.config.js",
     svelteConfig,
     "Add svelte.config.js",
@@ -389,9 +702,9 @@ Website created with **Ether Studio**.
   await commitGiteaFile(
     username,
     repoName,
-    "vite.config.ts",
+    "vite.config.js",
     viteConfig,
-    "Add vite.config.ts",
+    "Add vite.config.js",
   );
   await commitGiteaFile(
     username,
@@ -403,9 +716,37 @@ Website created with **Ether Studio**.
   await commitGiteaFile(
     username,
     repoName,
+    "src/app.html",
+    appHtml,
+    "Add src/app.html",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "src/app.css",
+    appCss,
+    "Add src/app.css",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
     "src/lib/server/db.ts",
     dbHelper,
     "Add Bun SQLite helper",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "src/routes/+layout.svelte",
+    layoutSvelte,
+    "Add layout",
+  );
+  await commitGiteaFile(
+    username,
+    repoName,
+    "src/routes/+page.server.ts",
+    pageServerTs,
+    "Add server actions",
   );
   await commitGiteaFile(
     username,

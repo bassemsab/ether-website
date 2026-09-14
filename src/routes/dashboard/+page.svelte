@@ -2,6 +2,8 @@
   import type { PageData } from "./$types";
   import BrandMark from "$lib/components/brand-mark.svelte";
   import DomainModal from "$lib/components/domain-modal.svelte";
+  import DeleteTenantModal from "$lib/components/delete-tenant-modal.svelte";
+  import { toast } from "$lib/stores/toast";
 
   interface Props {
     data: PageData;
@@ -9,14 +11,19 @@
 
   let { data }: Props = $props();
   let user = $derived(data.user);
-  let tenants = $derived(data.tenants || []);
+
+  let localTenants = $state<any[] | null>(null);
+  let tenants = $derived(localTenants !== null ? localTenants : (data.tenants || []));
+  let tenantErrors = $state<Record<string, { step: string; error: string }>>({});
 
   // UI state
   let isCreateModalOpen = $state(false);
   let isDomainModalOpen = $state(false);
   let isGitModalOpen = $state(false);
   let isSupportModalOpen = $state(false);
+  let isDeleteModalOpen = $state(false);
   let selectedTenant = $state<any>(null);
+  let tenantToDelete = $state<any>(null);
 
   // New site creation form
   let newSiteBrand = $state("");
@@ -223,28 +230,26 @@
     window.location.href = "/studio";
   }
 
-  async function handleDeleteSite(tenant: any) {
-    const slug = tenant?.slug || tenant?.domain;
-    if (!slug) return;
-    if (!confirm(`Voulez-vous vraiment supprimer définitivement le site '${slug}' du système ?`)) {
-      return;
+  function handleDeleteSite(tenant: any) {
+    tenantToDelete = tenant;
+    isDeleteModalOpen = true;
+  }
+
+  function handleDeleteSuccess(slug: string) {
+    isDeleteModalOpen = false;
+    tenantToDelete = null;
+    delete tenantErrors[slug];
+    localTenants = tenants.filter((t: any) => (t.slug || t.domain) !== slug);
+    toast.success(`Le site '${slug}' a été entièrement supprimé du système.`);
+  }
+
+  function handleDeleteError(step: string, error: string) {
+    const slug = tenantToDelete?.slug || tenantToDelete?.domain;
+    isDeleteModalOpen = false;
+    if (slug) {
+      tenantErrors[slug] = { step, error };
     }
-    try {
-      const res = await fetch("/api/tenant/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        alert(data.error || "Impossible de supprimer le site.");
-        return;
-      }
-      actionMessage = data.message || `Site ${slug} supprimé avec succès.`;
-      window.location.reload();
-    } catch (err: any) {
-      alert(err.message || "Erreur lors de la suppression.");
-    }
+    toast.error(`Échec lors du nettoyage (${step}) : ${error}`);
   }
 </script>
 
@@ -344,9 +349,15 @@
                     </svg>
                   </a>
                 </div>
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
-                  {tenant.status || 'actif'}
-                </span>
+                {#if tenantErrors[tenant.slug]}
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-mono uppercase tracking-wider bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                    Suppression incomplète
+                  </span>
+                {:else}
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-700 border border-emerald-500/20">
+                    {tenant.status || 'actif'}
+                  </span>
+                {/if}
               </div>
 
               <!-- Tech Pills -->
@@ -397,10 +408,14 @@
 
               <button
                 onclick={() => handleDeleteSite(tenant)}
-                class="px-3 py-2 rounded-full border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-600 text-xs uppercase tracking-[0.15em] transition-all cursor-pointer text-center"
-                title="Supprimer ce site du système"
+                class="px-3 py-2 rounded-full border transition-all cursor-pointer text-center text-xs uppercase tracking-[0.15em] {
+                  tenantErrors[tenant.slug]
+                    ? 'border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-400 font-semibold'
+                    : 'border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-600'
+                }"
+                title={tenantErrors[tenant.slug] ? "Reprendre la suppression de ce site" : "Supprimer ce site du système"}
               >
-                Supprimer
+                {tenantErrors[tenant.slug] ? "Reprendre" : "Supprimer"}
               </button>
             </div>
           </div>
@@ -648,4 +663,13 @@
       </div>
     </div>
   {/if}
+
+  <!-- Modal: Delete Tenant Confirmation & Multi-Step Progress -->
+  <DeleteTenantModal
+    tenant={tenantToDelete}
+    isOpen={isDeleteModalOpen}
+    onClose={() => { isDeleteModalOpen = false; tenantToDelete = null; }}
+    onSuccess={handleDeleteSuccess}
+    onError={handleDeleteError}
+  />
 </div>

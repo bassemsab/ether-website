@@ -163,6 +163,13 @@ export const handle: Handle = async ({ event, resolve }) => {
       forwardHeaders.set("x-forwarded-host", rawHost);
       forwardHeaders.set("accept-encoding", "identity");
 
+      if (event.locals.tenant?.git_repo_url) {
+        forwardHeaders.set("x-git-repo-url", event.locals.tenant.git_repo_url);
+      }
+      if (event.locals.tenant?.git_access_token) {
+        forwardHeaders.set("x-git-token", event.locals.tenant.git_access_token);
+      }
+
       const devRes = await fetch(proxyUrl, {
         method: event.request.method,
         headers: forwardHeaders,
@@ -173,24 +180,23 @@ export const handle: Handle = async ({ event, resolve }) => {
         signal: AbortSignal.timeout(15000),
       });
 
-      if (devRes.ok || (devRes.status >= 300 && devRes.status < 500)) {
-        const responseHeaders = new Headers(devRes.headers);
-        responseHeaders.delete("x-frame-options");
-        responseHeaders.delete("content-security-policy");
-        responseHeaders.delete("content-encoding");
-        responseHeaders.delete("content-length");
-        responseHeaders.set(
-          "cache-control",
-          "no-store, no-cache, must-revalidate, max-age=0",
-        );
-        responseHeaders.set("pragma", "no-cache");
-        responseHeaders.set("expires", "0");
-        return new Response(devRes.body, {
-          status: devRes.status,
-          statusText: devRes.statusText,
-          headers: responseHeaders,
-        });
-      }
+      // Forward Vite dev server response directly to avoid falling through to platform TenantSite
+      const responseHeaders = new Headers(devRes.headers);
+      responseHeaders.delete("x-frame-options");
+      responseHeaders.delete("content-security-policy");
+      responseHeaders.delete("content-encoding");
+      responseHeaders.delete("content-length");
+      responseHeaders.set(
+        "cache-control",
+        "no-store, no-cache, must-revalidate, max-age=0",
+      );
+      responseHeaders.set("pragma", "no-cache");
+      responseHeaders.set("expires", "0");
+      return new Response(devRes.body, {
+        status: devRes.status,
+        statusText: devRes.statusText,
+        headers: responseHeaders,
+      });
     } catch (err: any) {
       console.warn(
         `[Preview Proxy] Runner dev server unreachable for ${tenantSlug}:`,
