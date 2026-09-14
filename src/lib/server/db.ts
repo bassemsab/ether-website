@@ -291,20 +291,6 @@ try {
   } catch (err) {
     console.warn("[DB Init] Error clearing auto-generated tenants:", err);
   }
-
-  // Ensure miaw.ovh is seeded as an active owned domain for the test tenant
-  try {
-    const existingMiaw = db.prepare(`SELECT id FROM domain_orders WHERE domain = 'miaw.ovh'`).get();
-    if (!existingMiaw) {
-      const firstTenant = db.prepare(`SELECT id FROM tenants ORDER BY id ASC LIMIT 1`).get() as any;
-      if (firstTenant) {
-        db.prepare(`
-          INSERT INTO domain_orders (tenant_id, domain, provider, status, price_cents, currency)
-          VALUES (?, 'miaw.ovh', 'ovh', 'active', 1499, 'eur')
-        `).run(firstTenant.id);
-      }
-    }
-  } catch {}
 } catch (error) {
   console.error(`❌ Failed to initialize bun:sqlite at ${DB_PATH}:`, error);
 }
@@ -1051,6 +1037,62 @@ export function isDomainOwnedByTenant(tenantId: number, domain: string): boolean
     }
   } catch {
     return false;
+  }
+}
+
+/**
+ * Checks if a domain is already registered to or linked by another tenant / user.
+ * Prevents cross-tenant domain hijacking.
+ */
+export function getDomainOwnershipConflict(
+  domain: string,
+  tenantId: number,
+  userId?: number | null,
+): { conflict: boolean; message?: string } {
+  if (!db) return { conflict: false };
+  try {
+    const clean = domain.toLowerCase().trim().replace(/^www\./, "");
+
+    // 1. Check if another tenant (with a different user_id) already purchased this domain in domain_orders
+    const orderRow = db.prepare(`
+      SELECT do.id, do.tenant_id, t.user_id, t.slug
+      FROM domain_orders do
+      JOIN tenants t ON do.tenant_id = t.id
+      WHERE LOWER(do.domain) = ? AND do.status = 'active'
+    `).get(clean) as { id: number; tenant_id: number; user_id: number; slug: string } | undefined;
+
+    if (orderRow) {
+      const isSameUser = userId && orderRow.user_id === userId;
+      const isSameTenant = orderRow.tenant_id === tenantId;
+      if (!isSameUser && !isSameTenant) {
+        return {
+          conflict: true,
+          message: `Ce nom de domaine (${clean}) appartient à un autre compte et ne peut pas être relié à ce site.`,
+        };
+      }
+    }
+
+    // 2. Check if another tenant (different user) has already linked this domain as custom_domain
+    const linkedTenant = db.prepare(`
+      SELECT id, user_id, slug
+      FROM tenants
+      WHERE LOWER(custom_domain) = ? AND id != ?
+    `).get(clean, tenantId) as { id: number; user_id: number; slug: string } | undefined;
+
+    if (linkedTenant) {
+      const isSameUser = userId && linkedTenant.user_id === userId;
+      if (!isSameUser) {
+        return {
+          conflict: true,
+          message: `Ce domaine est déjà relié à un autre site (${linkedTenant.slug}).`,
+        };
+      }
+    }
+
+    return { conflict: false };
+  } catch (err: any) {
+    console.error("Error checking domain conflict:", err);
+    return { conflict: false };
   }
 }
 

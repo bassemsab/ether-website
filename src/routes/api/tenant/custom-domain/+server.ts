@@ -6,6 +6,7 @@ import {
   updateTenantStatus,
   getTenantOwnedDomains,
   isDomainOwnedByTenant,
+  getDomainOwnershipConflict,
 } from "$lib/server/db";
 import { updateTenantCustomDomainIngress } from "$lib/server/k8s-tenant";
 import { checkOvhDomain } from "$lib/server/ovh";
@@ -44,24 +45,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     return json({ success: false, error: "Accès refusé" }, { status: 403 });
   }
 
-  // Fetch active owned domains from DB
+  // Fetch active owned domains from DB strictly for this tenant / user
   const owned = getTenantOwnedDomains(tenant.id);
-
-  // Ensure miaw.ovh is listed if available in account
-  if (!owned.some((d) => d.domain.toLowerCase() === "miaw.ovh")) {
-    try {
-      const ovhMiaw = await checkOvhDomain("miaw.ovh");
-      if (ovhMiaw.exists) {
-        owned.unshift({
-          id: 9999,
-          domain: "miaw.ovh",
-          provider: "ovh",
-          status: "active",
-          created_at: new Date().toISOString(),
-        });
-      }
-    } catch {}
-  }
 
   const currentClean = (tenant.custom_domain || "").toLowerCase().trim();
   const ownedWithStatus = owned.map((item) => ({
@@ -174,27 +159,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       );
     }
 
-    // 2. Domain Ownership Verification
+    // 2. Domain Ownership & Conflict Verification
+    // Reject if domain is already registered to or linked by another account
+    const conflict = getDomainOwnershipConflict(cleanDomain, tenant.id, tenant.user_id);
+    if (conflict.conflict) {
+      return json(
+        { success: false, error: conflict.message || "Ce domaine appartient à un autre compte." },
+        { status: 400 },
+      );
+    }
+
     // A domain is authorized if:
     //  a) It is already purchased/owned by this user/tenant in Ether (domain_orders), OR
-    //  b) It is managed on our OVH account (checkOvhDomain), OR
-    //  c) Its public DNS A record points directly to our server IP (135.181.95.61)
-    const isEtherOwned =
-      isDomainOwnedByTenant(tenant.id, cleanDomain) ||
-      cleanDomain === "miaw.ovh";
-
-    let isOvhOwned = false;
-    if (!isEtherOwned) {
-      try {
-        const ovhCheck = await checkOvhDomain(cleanDomain);
-        isOvhOwned = !!ovhCheck.exists;
-      } catch {}
-    }
+    //  b) Its public DNS A record points directly to our server IP (135.181.95.61)
+    const isEtherOwned = isDomainOwnedByTenant(tenant.id, cleanDomain);
 
     const expectedIp = "135.181.95.61";
     let dnsVerified = false;
 
-    if (!isEtherOwned && !isOvhOwned) {
+    if (!isEtherOwned) {
       try {
         const dnsRes = await fetch(
           `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDomain)}&type=A`,
@@ -215,8 +198,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       }
     }
 
-    // If not owned on Ether/OVH and DNS not pointed, reject linking with simplified error!
-    if (!isEtherOwned && !isOvhOwned && !dnsVerified) {
+    // If not owned on Ether and DNS not pointed, reject linking!
+    if (!isEtherOwned && !dnsVerified) {
       return json(
         {
           success: false,

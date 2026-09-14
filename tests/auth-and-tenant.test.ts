@@ -14,6 +14,11 @@ import {
   deleteTenantBySlug,
   createDefaultTenantForUser,
   resolveUserWorkspace,
+  recordDomainOrder,
+  updateDomainOrderStatus,
+  getTenantOwnedDomains,
+  isDomainOwnedByTenant,
+  getDomainOwnershipConflict,
 } from "../src/lib/server/db";
 import { searchDomains } from "../src/lib/server/domains";
 import { checkEmailDomain } from "../src/lib/server/email-domain-check";
@@ -183,6 +188,36 @@ describe("Tenant and Database Integration", () => {
     await deleteTenantBySlug(testSiteSlug);
     const afterDelete = await getTenantsByUserId(user1!.id, "bassem.bme@gmail.com");
     expect(afterDelete.some((t) => t.slug === testSiteSlug)).toBe(false);
+
+    // 4. Domain Ownership Isolation test between bassem.bme and bassem1alsa
+    const bmeSiteSlug = `bme-test-${Date.now()}`;
+    const alsaSiteSlug = `alsa-test-${Date.now()}`;
+    const bmeSite = await createTenantWebsite(user1!.id, bmeSiteSlug, "BME Site", "bassem.bme@gmail.com");
+    const alsaSite = await createTenantWebsite(user2!.id, alsaSiteSlug, "Alsa Site", "bassem1alsa@gmail.com");
+
+    // bassem.bme acquires a domain order
+    const sessionId = `test-session-${Date.now()}`;
+    const domainOrder = await recordDomainOrder(bmeSite!.id, "miaw-isolated.ovh", "ovh", sessionId, 1499, "eur");
+    expect(domainOrder).toBeDefined();
+    await updateDomainOrderStatus(sessionId, "active");
+
+    // Verify bassem.bme's site owns and sees the domain
+    const bmeOwned = getTenantOwnedDomains(bmeSite!.id);
+    expect(bmeOwned.some((d) => d.domain === "miaw-isolated.ovh")).toBe(true);
+    expect(isDomainOwnedByTenant(bmeSite!.id, "miaw-isolated.ovh")).toBe(true);
+
+    // Verify bassem1alsa's site NEVER sees or owns bassem.bme's domain
+    const alsaOwned = getTenantOwnedDomains(alsaSite!.id);
+    expect(alsaOwned.some((d) => d.domain === "miaw-isolated.ovh")).toBe(false);
+    expect(isDomainOwnedByTenant(alsaSite!.id, "miaw-isolated.ovh")).toBe(false);
+
+    // Verify conflict check prevents bassem1alsa from hijacking bassem.bme's domain
+    const conflictCheck = getDomainOwnershipConflict("miaw-isolated.ovh", alsaSite!.id, user2!.id);
+    expect(conflictCheck.conflict).toBe(true);
+
+    // Clean up test sites
+    await deleteTenantBySlug(bmeSiteSlug);
+    await deleteTenantBySlug(alsaSiteSlug);
   });
 });
 

@@ -44,7 +44,7 @@ export async function searchDomains(
   const cfToken = env.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
   const results: DomainSearchResult[] = [];
 
-  // Check if user entered an exact domain with extension (e.g. miaw.ovh or mydomain.com)
+  // Check if user entered an exact domain with extension (e.g. example.com or mydomain.com)
   const hasExtension = rawClean.includes(".") && rawClean.split(".").length >= 2;
   let baseName = rawClean;
   let explicitTld = "";
