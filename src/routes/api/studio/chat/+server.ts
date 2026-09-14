@@ -8,6 +8,7 @@ import {
   saveStudioChatMessage,
   getStudioChatHistory,
   getStudioConversations,
+  resolveUserWorkspace,
 } from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
@@ -29,7 +30,7 @@ function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   return isOwner || isAdmin;
 }
 
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   if (!locals.user) {
     return json(
       { success: false, error: "Non autorisé. Veuillez vous connecter." },
@@ -37,18 +38,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     );
   }
 
-  const projectSlug = url.searchParams.get("project") || "tester";
-  const tenant = await getTenantBySlug(projectSlug);
-  if (!tenant) {
-    return json({ success: false, error: "Site introuvable." }, { status: 404 });
-  }
-
-  if (!isUserAuthorizedForTenant(locals, tenant)) {
-    return json(
-      { success: false, error: "Accès refusé : vous n'êtes pas autorisé à gérer ce site." },
-      { status: 403 },
-    );
-  }
+  const requestedSlug = url.searchParams.get("project");
+  const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+  const projectSlug = tenant.slug || "workspace";
 
   const conversationsOnly = url.searchParams.get("conversations") === "true";
   const conversationId = url.searchParams.get("conversationId");
@@ -58,23 +50,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     return json({ success: true, conversations });
   }
 
-  if (conversationId) {
-    const history = getStudioChatHistory(projectSlug, 100, conversationId);
-    return json({ success: true, history });
-  }
-
-  const plan = tenant?.plan || "demo";
-  const quota = checkTenantPromptLimit(projectSlug, plan);
-
-  return json({
-    success: true,
-    project: projectSlug,
-    plan,
-    ...quota,
-  });
+  const history = getStudioChatHistory(projectSlug, 100, conversationId);
+  return json({ success: true, history });
 };
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   if (!locals.user) {
     return json(
       { success: false, error: "Non autorisé. Veuillez vous connecter." },
@@ -87,24 +67,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const body = await request.json();
     const prompt = (body.prompt || "").trim();
     const image = body.image; // Optional image attachment { name, type, base64, dataUrl }
-    const projectSlug = (body.projectSlug || "tester").trim();
+    const requestedSlug = body.projectSlug;
+    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const projectSlug = tenant.slug || "workspace";
     const conversationId =
       (body.conversationId && typeof body.conversationId === "string" && body.conversationId.trim())
         ? body.conversationId.trim()
         : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const preferredProfile = body.profile === "auto" ? undefined : body.profile;
-
-    const tenant = await getTenantBySlug(projectSlug);
-    if (!tenant) {
-      return json({ success: false, error: "Site introuvable." }, { status: 404 });
-    }
-
-    if (!isUserAuthorizedForTenant(locals, tenant)) {
-      return json(
-        { success: false, error: "Accès refusé : vous n'êtes pas autorisé à modifier ce site." },
-        { status: 403 },
-      );
-    }
 
     if (!prompt && !image) {
       return json(

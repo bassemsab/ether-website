@@ -594,6 +594,130 @@ export async function createDefaultTenantForUser(
   }
 }
 
+export async function getUserPersonalTenant(
+  userId: number,
+  userEmail?: string | null,
+): Promise<TenantRecord | null> {
+  if (!db) return null;
+  const normalizedEmail = (userEmail || "").trim().toLowerCase();
+  try {
+    const stmt = db.prepare(`
+      SELECT * FROM tenants 
+      WHERE user_id = ? OR (email IS NOT NULL AND LOWER(email) = ?) 
+      ORDER BY id ASC LIMIT 1
+    `);
+    const row = stmt.get(userId, normalizedEmail) as TenantRecord | null;
+    return row || null;
+  } catch (err) {
+    console.error("Failed to get personal tenant:", err);
+    return null;
+  }
+}
+
+export async function ensureUserPersonalWorkspace(
+  user: { id: number; email?: string | null },
+): Promise<TenantRecord> {
+  const email = (user.email || `user-${user.id}@ether.paris`).trim().toLowerCase();
+  const existing = await getUserPersonalTenant(user.id, email);
+  if (existing && existing.slug) {
+    return existing;
+  }
+
+  // Provision personal tenant
+  const created = await createDefaultTenantForUser(user.id, email);
+  if (created) {
+    return created;
+  }
+
+  // In-memory fallback if DB fails
+  const fallbackSlug =
+    email.split("@")[0].replace(/[^a-z0-9]/g, "-").slice(0, 20) || `user-${user.id}`;
+  return {
+    id: user.id,
+    user_id: user.id,
+    slug: fallbackSlug,
+    subdomain: `${fallbackSlug}.ether.paris`,
+    brand_name: fallbackSlug,
+    domain: `${fallbackSlug}.ether.paris`,
+    email,
+    custom_domain: null,
+    k8s_namespace: `tenant-${fallbackSlug}`,
+    git_repo_url: null,
+    git_access_token: null,
+    stripe_subscription_id: null,
+    plan: "demo",
+    github_repo: null,
+    aws_ses_verified: false,
+    aws_ses_token: null,
+    stalwart_user_created: false,
+    stalwart_username: null,
+    stalwart_password: null,
+    k8s_ingress_created: false,
+    cloudflare_dns_records: null,
+    status: "active",
+    error_message: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export async function resolveUserWorkspace(
+  localsUser: any,
+  cookies: any,
+  explicitSlug?: string | null,
+): Promise<TenantRecord> {
+  if (!localsUser) {
+    throw new Error("Unauthorized: user is required to resolve workspace");
+  }
+
+  const userEmail = (localsUser.email || "").trim().toLowerCase();
+  const adminEmails = [
+    "bassem.bme@gmail.com",
+    "bassem1alsa@gmail.com",
+    process.env.ADMIN_EMAIL,
+    process.env.RESEND_CONTACT_EMAIL,
+  ]
+    .filter(Boolean)
+    .map((e) => e!.trim().toLowerCase());
+
+  const isAdmin =
+    adminEmails.includes(userEmail) ||
+    cookies?.get?.("ether_admin_auth") === "true" ||
+    userEmail.endsWith("@ether.paris");
+
+  // 1. If explicitSlug provided (e.g. from URL parameter or link), verify authorization
+  if (explicitSlug && explicitSlug.trim()) {
+    const cleanSlug = explicitSlug.trim();
+    const tenant = await getTenantBySlug(cleanSlug);
+    if (tenant) {
+      const isOwner =
+        tenant.user_id === localsUser.id ||
+        (tenant.email && tenant.email.trim().toLowerCase() === userEmail);
+      if (isOwner || isAdmin) {
+        return tenant;
+      }
+    }
+  }
+
+  // 2. Check active workspace cookie (set when switching workspace via clean session API)
+  const cookieWorkspace = cookies?.get?.("ether_active_workspace");
+  if (cookieWorkspace && cookieWorkspace.trim()) {
+    const cleanCookieSlug = cookieWorkspace.trim();
+    const tenant = await getTenantBySlug(cleanCookieSlug);
+    if (tenant) {
+      const isOwner =
+        tenant.user_id === localsUser.id ||
+        (tenant.email && tenant.email.trim().toLowerCase() === userEmail);
+      if (isOwner || isAdmin) {
+        return tenant;
+      }
+    }
+  }
+
+  // 3. Guaranteed personal isolated workspace for this user
+  return ensureUserPersonalWorkspace(localsUser);
+}
+
 // User Helpers
 export async function getOrCreateUserByEmail(
   email: string,

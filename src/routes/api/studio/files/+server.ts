@@ -1,7 +1,7 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { isBinaryFile, listTenantFiles, saveTenantFile } from "$lib/server/tenant-files";
-import { getTenantBySlug } from "$lib/server/db";
+import { getTenantBySlug, resolveUserWorkspace } from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   if (!locals.user) return false;
@@ -22,7 +22,7 @@ function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   return isOwner || isAdmin;
 }
 
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   if (!locals.user) {
     return json(
       { success: false, error: "Non autorisé. Veuillez vous connecter." },
@@ -30,18 +30,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     );
   }
 
-  const projectSlug = (url.searchParams.get("project") || "tester").trim();
-  const tenant = await getTenantBySlug(projectSlug);
-  if (!tenant) {
-    return json({ success: false, error: "Site introuvable." }, { status: 404 });
-  }
-
-  if (!isUserAuthorizedForTenant(locals, tenant)) {
-    return json(
-      { success: false, error: "Accès refusé : vous n'êtes pas autorisé à accéder aux fichiers de ce site." },
-      { status: 403 },
-    );
-  }
+  const requestedSlug = url.searchParams.get("project");
+  const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+  const projectSlug = tenant.slug || "workspace";
 
   const runnerUrl =
     process.env.RUNNER_API_URL ||
@@ -77,7 +68,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   }
 };
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   if (!locals.user) {
     return json(
       { success: false, error: "Non autorisé. Veuillez vous connecter." },
@@ -87,18 +78,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   try {
     const body = await request.json();
-    const projectSlug = (body.projectSlug || "tester").trim();
-    const tenant = await getTenantBySlug(projectSlug);
-    if (!tenant) {
-      return json({ success: false, error: "Site introuvable." }, { status: 404 });
-    }
-
-    if (!isUserAuthorizedForTenant(locals, tenant)) {
-      return json(
-        { success: false, error: "Accès refusé : vous n'êtes pas autorisé à modifier les fichiers de ce site." },
-        { status: 403 },
-      );
-    }
+    const requestedSlug = body.projectSlug;
+    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const projectSlug = tenant.slug || "workspace";
     const filePath = (body.path || "").trim();
     const content = typeof body.content === "string" ? body.content : "";
 

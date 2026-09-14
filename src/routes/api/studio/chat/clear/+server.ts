@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { clearStudioChatHistory, deleteStudioConversation, getTenantBySlug } from "$lib/server/db";
+import { clearStudioChatHistory, deleteStudioConversation, getTenantBySlug, resolveUserWorkspace } from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   if (!locals.user) return false;
@@ -21,7 +21,7 @@ function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   return isOwner || isAdmin;
 }
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   if (!locals.user) {
     return json(
       { success: false, error: "Non autorisé. Veuillez vous connecter." },
@@ -31,19 +31,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   try {
     const body = await request.json();
-    const projectSlug = (body.projectSlug || "tester").trim();
+    const requestedSlug = body.projectSlug;
+    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const projectSlug = tenant.slug || "workspace";
     const conversationId = body.conversationId ? String(body.conversationId).trim() : null;
-    const tenant = await getTenantBySlug(projectSlug);
-    if (!tenant) {
-      return json({ success: false, error: "Site introuvable." }, { status: 404 });
-    }
-
-    if (!isUserAuthorizedForTenant(locals, tenant)) {
-      return json(
-        { success: false, error: "Accès refusé : vous n'êtes pas autorisé à modifier ce site." },
-        { status: 403 },
-      );
-    }
 
     if (conversationId) {
       deleteStudioConversation(projectSlug, conversationId);

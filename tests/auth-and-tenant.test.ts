@@ -11,6 +11,7 @@ import {
   getTenantBySlug,
   getUserOwnedTenants,
   createDefaultTenantForUser,
+  resolveUserWorkspace,
 } from "../src/lib/server/db";
 import { searchDomains } from "../src/lib/server/domains";
 import { checkEmailDomain } from "../src/lib/server/email-domain-check";
@@ -129,6 +130,31 @@ describe("Tenant and Database Integration", () => {
 
     expect(ownedB.some((t) => t.slug === tenantB!.slug)).toBe(true);
     expect(ownedB.some((t) => t.slug === tenantA!.slug)).toBe(false);
+  });
+
+  it("should resolve distinct isolated workspaces for bassem.bme and bassem1alsa without URL parameters", async () => {
+    const user1 = await getOrCreateUserByEmail("bassem.bme@gmail.com");
+    const user2 = await getOrCreateUserByEmail("bassem1alsa@gmail.com");
+
+    expect(user1).not.toBeNull();
+    expect(user2).not.toBeNull();
+
+    // Zero URL parameters, no cookies
+    const dummyCookies = { get: () => undefined };
+
+    const workspace1 = await resolveUserWorkspace(user1, dummyCookies, null);
+    const workspace2 = await resolveUserWorkspace(user2, dummyCookies, null);
+
+    expect(workspace1).toBeDefined();
+    expect(workspace2).toBeDefined();
+    expect(workspace1.slug).not.toBe(workspace2.slug);
+    expect(workspace1.user_id).toBe(user1!.id);
+    expect(workspace2.user_id).toBe(user2!.id);
+
+    // Verify workspace switching via cookie
+    const switchCookies = { get: (name: string) => name === "ether_active_workspace" ? workspace1.slug : undefined };
+    const switched = await resolveUserWorkspace(user1, switchCookies, null);
+    expect(switched.slug).toBe(workspace1.slug);
   });
 });
 

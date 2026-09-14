@@ -7,7 +7,7 @@ import {
   getStudioConversations,
   getUserOwnedTenants,
   getAllTenants,
-  createDefaultTenantForUser,
+  resolveUserWorkspace,
 } from "$lib/server/db";
 import {
   processPromptTopupCheckoutSession,
@@ -15,11 +15,36 @@ import {
 } from "$lib/server/stripe";
 import { getRunnerProfiles } from "$lib/server/agent-bridge";
 import { listTenantFiles } from "$lib/server/tenant-files";
+import { getSessionCookieDomain } from "$lib/server/auth";
 
-export const load: PageServerLoad = async ({ url, locals, cookies }) => {
+export const load: PageServerLoad = async ({ url, locals, cookies, request }) => {
   if (!locals.user) {
     const returnUrl = url.pathname + url.search;
     throw redirect(302, `/login?redirect=${encodeURIComponent(returnUrl)}`);
+  }
+
+  const explicitProject = url.searchParams.get("project");
+  if (explicitProject) {
+    const tenant = await resolveUserWorkspace(locals.user, cookies, explicitProject);
+    const host =
+      request.headers.get("x-forwarded-host") ||
+      request.headers.get("host") ||
+      url.hostname;
+    const cookieDomain = getSessionCookieDomain(host);
+
+    cookies.set("ether_active_workspace", tenant.slug || explicitProject, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 365,
+      domain: cookieDomain,
+    });
+
+    const cleanParams = new URLSearchParams(url.searchParams);
+    cleanParams.delete("project");
+    const cleanSearch = cleanParams.toString() ? `?${cleanParams.toString()}` : "";
+    throw redirect(302, `/studio${cleanSearch}`);
   }
 
   const adminEmails = [
@@ -40,54 +65,10 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
   const ownedTenants = await getUserOwnedTenants(locals.user.id, locals.user.email);
   const allAccessibleTenants = isAdmin ? await getAllTenants() : ownedTenants;
 
-  let requestedSlug = url.searchParams.get("project");
-
-  // If no project specified in URL, resolve to user's own project or auto-create one
-  if (!requestedSlug) {
-    if (ownedTenants.length > 0 && ownedTenants[0].slug) {
-      const params = new URLSearchParams(url.searchParams);
-      params.set("project", ownedTenants[0].slug);
-      throw redirect(302, `/studio?${params.toString()}`);
-    } else {
-      // Auto-provision a default personal tenant workspace for this user
-      const newTenant = await createDefaultTenantForUser(locals.user.id, userEmail || "user@ether.paris");
-      if (newTenant && newTenant.slug) {
-        const params = new URLSearchParams(url.searchParams);
-        params.set("project", newTenant.slug);
-        throw redirect(302, `/studio?${params.toString()}`);
-      }
-      // If unable to provision, redirect to dashboard
-      throw redirect(302, "/dashboard");
-    }
-  }
-
-  const projectSlug = requestedSlug;
-
-  // Verify access authorization
-  let tenant = await getTenantBySlug(projectSlug);
-  const isOwner = tenant && (tenant.user_id === locals.user.id || (tenant.email && tenant.email.toLowerCase() === userEmail));
-
-  if (!isOwner && !isAdmin && projectSlug !== "tester") {
-    if (ownedTenants.length > 0 && ownedTenants[0].slug) {
-      const params = new URLSearchParams(url.searchParams);
-      params.set("project", ownedTenants[0].slug);
-      throw redirect(302, `/studio?${params.toString()}`);
-    }
-    throw redirect(302, "/dashboard");
-  }
-
-  const tenantData = tenant || {
-    id: 0,
-    slug: projectSlug,
-    subdomain: `${projectSlug}.ether.paris`,
-    brand_name: projectSlug,
-    domain: `${projectSlug}.ether.paris`,
-    custom_domain: null,
-    k8s_namespace: `tenant-${projectSlug}`,
-    git_repo_url: `https://git.ether.paris/${projectSlug}/${projectSlug}.git`,
-    plan: "demo",
-    status: "active",
-  };
+  // Resolve user workspace from session / active workspace cookie / personal tenant (Zero URL params)
+  const tenant = await resolveUserWorkspace(locals.user, cookies, null);
+  const projectSlug = tenant.slug || "workspace";
+  const tenantData = tenant;
 
   // If returning from Stripe top-up checkout, synchronously verify and credit session
   const topupSessionId = url.searchParams.get("session_id");

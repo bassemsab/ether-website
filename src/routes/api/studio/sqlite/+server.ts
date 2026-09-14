@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { getTenantBySlug } from "$lib/server/db";
+import { getTenantBySlug, resolveUserWorkspace } from "$lib/server/db";
 import { getTenantCodeDir } from "$lib/server/tenant-files";
 import { existsSync } from "fs";
 import { resolve } from "path";
@@ -24,7 +24,7 @@ function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   return isOwner || isAdmin;
 }
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   if (!locals.user) {
     return json(
       { success: false, error: "Non autorisé. Veuillez vous connecter." },
@@ -34,21 +34,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const projectSlug = (body.projectSlug || "tester").trim();
-    const tenant = await getTenantBySlug(projectSlug);
-    if (!tenant) {
-      return json({ success: false, error: "Site introuvable." }, { status: 404 });
-    }
-
-    if (!isUserAuthorizedForTenant(locals, tenant)) {
-      return json(
-        {
-          success: false,
-          error: "Accès refusé : vous n'êtes pas autorisé à inspecter la base de données de ce site.",
-        },
-        { status: 403 },
-      );
-    }
+    const requestedSlug = body.projectSlug;
+    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const projectSlug = tenant.slug || "workspace";
 
     const runnerUrl =
       process.env.RUNNER_API_URL ||

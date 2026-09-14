@@ -138,6 +138,28 @@
     window.location.href = "/logout";
   }
 
+  async function handleSwitchWorkspace(slug: string) {
+    if (slug === projectSlug) {
+      isProjectMenuOpen = false;
+      return;
+    }
+    isProjectMenuOpen = false;
+    try {
+      const res = await fetch("/api/studio/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      if (res.ok) {
+        window.location.href = "/studio";
+        return;
+      }
+    } catch (err) {
+      console.error("Failed to switch workspace:", err);
+    }
+    window.location.href = `/studio?project=${slug}`;
+  }
+
   // Domain Management Modal States
   let isDomainModalOpen = $state(false);
   let domainInput = $state("miaw.ovh");
@@ -1836,10 +1858,10 @@
               </div>
               <div class="max-h-60 overflow-y-auto space-y-0.5">
                 {#each userTenants as ut}
-                  <a
-                    href="/studio?project={ut.slug}"
-                    onclick={() => { isProjectMenuOpen = false; }}
-                    class="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-neue transition-colors {ut.slug === projectSlug ? 'bg-brand/10 text-brand font-semibold' : 'text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
+                  <button
+                    type="button"
+                    onclick={() => handleSwitchWorkspace(ut.slug)}
+                    class="w-full text-left flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-neue transition-colors cursor-pointer {ut.slug === projectSlug ? 'bg-brand/10 text-brand font-semibold' : 'text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
                   >
                     <div class="truncate mr-2">
                       <div class="truncate font-medium">{ut.brand_name}</div>
@@ -1848,7 +1870,7 @@
                     {#if ut.slug === projectSlug}
                       <span class="w-2 h-2 rounded-full bg-brand shrink-0"></span>
                     {/if}
-                  </a>
+                  </button>
                 {/each}
               </div>
               <div class="pt-1.5 mt-1 border-t border-black/5 dark:border-white/5">
