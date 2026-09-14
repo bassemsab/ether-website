@@ -747,8 +747,8 @@ const server = Bun.serve({
     const devMatch = path.match(/^\/(?:dev|preview)\/([a-zA-Z0-9_-]+)(\/.*)?$/);
 
     if (hostTenantSlug || devMatch) {
-      const tenantSlug = hostTenantSlug || devMatch![1];
-      const subPath = hostTenantSlug ? (path + url.search) : ((devMatch![2] || "/") + url.search);
+      const tenantSlug = devMatch ? devMatch[1] : hostTenantSlug!;
+      const subPath = (devMatch ? (devMatch[2] || "/") : path) + url.search;
 
       // Serve user uploads from persistent directory outside git (/data/tenants/{tenant}/uploads/)
       if (subPath.startsWith("/uploads/")) {
