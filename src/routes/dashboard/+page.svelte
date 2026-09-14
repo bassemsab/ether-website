@@ -222,6 +222,30 @@
     }
     window.location.href = "/studio";
   }
+
+  async function handleDeleteSite(tenant: any) {
+    const slug = tenant?.slug || tenant?.domain;
+    if (!slug) return;
+    if (!confirm(`Voulez-vous vraiment supprimer définitivement le site '${slug}' du système ?`)) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/tenant/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || "Impossible de supprimer le site.");
+        return;
+      }
+      actionMessage = data.message || `Site ${slug} supprimé avec succès.`;
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la suppression.");
+    }
+  }
 </script>
 
 <svelte:head>
@@ -342,7 +366,7 @@
             </div>
 
             <!-- Action Buttons -->
-            <div class="pt-4 border-t border-black/5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div class="pt-4 border-t border-black/5 grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button
                 onclick={() => handleOpenStudio(tenant.slug || tenant.domain)}
                 class="px-3 py-2 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 shadow-retro-sm hover:-translate-y-0.5 transition-all text-center cursor-pointer"
@@ -369,6 +393,14 @@
                 class="px-3 py-2 rounded-full border border-black/10 bg-surface/80 hover:bg-surface text-foreground text-xs uppercase tracking-[0.15em] transition-all cursor-pointer text-center"
               >
                 Git &amp; DB
+              </button>
+
+              <button
+                onclick={() => handleDeleteSite(tenant)}
+                class="px-3 py-2 rounded-full border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-600 text-xs uppercase tracking-[0.15em] transition-all cursor-pointer text-center"
+                title="Supprimer ce site du système"
+              >
+                Supprimer
               </button>
             </div>
           </div>

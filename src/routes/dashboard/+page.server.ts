@@ -1,10 +1,6 @@
 import type { PageServerLoad } from "./$types";
 import { redirect } from "@sveltejs/kit";
-import {
-  getSessionByToken,
-  getTenantsByUserId,
-  ensureUserPersonalWorkspace,
-} from "$lib/server/db";
+import { getSessionByToken, getTenantsByUserId } from "$lib/server/db";
 import { processDomainCheckoutSession } from "$lib/server/stripe";
 
 export const load: PageServerLoad = async ({ cookies, url }) => {
@@ -43,14 +39,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
     avatar_url: session.avatar_url,
   };
 
-  let tenants = await getTenantsByUserId(session.user_id, session.email);
-  if (tenants.length === 0) {
-    const personalTenant = await ensureUserPersonalWorkspace({
-      id: session.user_id,
-      email: session.email || session.github_email,
-    });
-    tenants = [personalTenant];
-  }
+  const tenants = await getTenantsByUserId(session.user_id, session.email);
 
   return {
     user,

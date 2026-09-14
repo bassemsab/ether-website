@@ -280,6 +280,18 @@ try {
   safeAddColumn("tenants", "extra_prompts INTEGER DEFAULT 0");
   safeAddColumn("studio_chat_messages", "image_url TEXT");
 
+  // Automated cleanup of unintended/auto-generated projects requested by user
+  try {
+    const unwantedSlugs = ["bassem1alsa", "bassem-bme"];
+    for (const slug of unwantedSlugs) {
+      db.run("DELETE FROM studio_chat_messages WHERE tenant_slug = ?", [slug]);
+      db.run("DELETE FROM tenant_prompt_usage WHERE tenant_slug = ?", [slug]);
+      db.run("DELETE FROM tenants WHERE slug = ?", [slug]);
+    }
+  } catch (err) {
+    console.warn("[DB Init] Error clearing auto-generated tenants:", err);
+  }
+
   // Ensure miaw.ovh is seeded as an active owned domain for the test tenant
   try {
     const existingMiaw = db.prepare(`SELECT id FROM domain_orders WHERE domain = 'miaw.ovh'`).get();
@@ -608,13 +620,7 @@ export async function ensureUserPersonalWorkspace(
     return existing;
   }
 
-  // Provision personal tenant
-  const created = await createDefaultTenantForUser(user.id, email);
-  if (created) {
-    return created;
-  }
-
-  // In-memory fallback if DB fails
+  // Return an in-memory/ephemeral workspace WITHOUT saving to the tenants database table
   const fallbackSlug =
     email.split("@")[0].replace(/[^a-z0-9]/g, "-").slice(0, 20) || `user-${user.id}`;
   return {
@@ -644,6 +650,20 @@ export async function ensureUserPersonalWorkspace(
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
+}
+
+export async function deleteTenantBySlug(slug: string): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const cleanSlug = slug.trim().toLowerCase();
+    db.run(`DELETE FROM studio_chat_messages WHERE tenant_slug = ?`, [cleanSlug]);
+    db.run(`DELETE FROM tenant_prompt_usage WHERE tenant_slug = ?`, [cleanSlug]);
+    db.run(`DELETE FROM tenants WHERE slug = ?`, [cleanSlug]);
+    return true;
+  } catch (err) {
+    console.error(`Failed to delete tenant ${slug}:`, err);
+    return false;
+  }
 }
 
 export async function resolveUserWorkspace(
