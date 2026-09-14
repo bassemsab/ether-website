@@ -95,6 +95,19 @@
 
   onMount(async () => {
     try {
+      const isLoggedOut = $page.url.searchParams.get("logged_out") === "1";
+      if (isLoggedOut) {
+        try {
+          localStorage.removeItem("ether_session_token");
+          localStorage.removeItem("ether_user_email");
+        } catch {}
+        checkingAuth = false;
+        try {
+          document.documentElement.classList.add("no-stored-token");
+        } catch {}
+        return;
+      }
+
       const savedToken = localStorage.getItem("ether_session_token");
       if (savedToken) {
         checkingAuth = true;
@@ -113,6 +126,7 @@
         }
         try {
           localStorage.removeItem("ether_session_token");
+          localStorage.removeItem("ether_user_email");
         } catch {}
       }
     } catch (err) {
@@ -129,7 +143,12 @@
   <title>Connexion Studio | Ether</title>
   <script>
     try {
-      if (!localStorage.getItem("ether_session_token")) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("logged_out") === "1") {
+        localStorage.removeItem("ether_session_token");
+        localStorage.removeItem("ether_user_email");
+      }
+      if (!localStorage.getItem("ether_session_token") || url.searchParams.get("logged_out") === "1") {
         document.documentElement.classList.add("no-stored-token");
       }
     } catch {}

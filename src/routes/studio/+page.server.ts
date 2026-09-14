@@ -5,6 +5,9 @@ import {
   checkTenantPromptLimit,
   getStudioChatHistory,
   getStudioConversations,
+  getUserOwnedTenants,
+  getAllTenants,
+  createDefaultTenantForUser,
 } from "$lib/server/db";
 import {
   processPromptTopupCheckoutSession,
@@ -19,7 +22,72 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
     throw redirect(302, `/login?redirect=${encodeURIComponent(returnUrl)}`);
   }
 
-  const projectSlug = url.searchParams.get("project") || "tester";
+  const adminEmails = [
+    "bassem.bme@gmail.com",
+    "bassem1alsa@gmail.com",
+    process.env.ADMIN_EMAIL,
+    process.env.RESEND_CONTACT_EMAIL,
+  ]
+    .filter(Boolean)
+    .map((e) => e!.trim().toLowerCase());
+
+  const userEmail = (locals.user?.email || "").trim().toLowerCase();
+  const isAdmin =
+    adminEmails.includes(userEmail) ||
+    cookies.get("ether_admin_auth") === "true" ||
+    userEmail.endsWith("@ether.paris");
+
+  const ownedTenants = await getUserOwnedTenants(locals.user.id, locals.user.email);
+  const allAccessibleTenants = isAdmin ? await getAllTenants() : ownedTenants;
+
+  let requestedSlug = url.searchParams.get("project");
+
+  // If no project specified in URL, resolve to user's own project or auto-create one
+  if (!requestedSlug) {
+    if (ownedTenants.length > 0 && ownedTenants[0].slug) {
+      const params = new URLSearchParams(url.searchParams);
+      params.set("project", ownedTenants[0].slug);
+      throw redirect(302, `/studio?${params.toString()}`);
+    } else {
+      // Auto-provision a default personal tenant workspace for this user
+      const newTenant = await createDefaultTenantForUser(locals.user.id, userEmail || "user@ether.paris");
+      if (newTenant && newTenant.slug) {
+        const params = new URLSearchParams(url.searchParams);
+        params.set("project", newTenant.slug);
+        throw redirect(302, `/studio?${params.toString()}`);
+      }
+      // If unable to provision, redirect to dashboard
+      throw redirect(302, "/dashboard");
+    }
+  }
+
+  const projectSlug = requestedSlug;
+
+  // Verify access authorization
+  let tenant = await getTenantBySlug(projectSlug);
+  const isOwner = tenant && (tenant.user_id === locals.user.id || (tenant.email && tenant.email.toLowerCase() === userEmail));
+
+  if (!isOwner && !isAdmin && projectSlug !== "tester") {
+    if (ownedTenants.length > 0 && ownedTenants[0].slug) {
+      const params = new URLSearchParams(url.searchParams);
+      params.set("project", ownedTenants[0].slug);
+      throw redirect(302, `/studio?${params.toString()}`);
+    }
+    throw redirect(302, "/dashboard");
+  }
+
+  const tenantData = tenant || {
+    id: 0,
+    slug: projectSlug,
+    subdomain: `${projectSlug}.ether.paris`,
+    brand_name: projectSlug,
+    domain: `${projectSlug}.ether.paris`,
+    custom_domain: null,
+    k8s_namespace: `tenant-${projectSlug}`,
+    git_repo_url: `https://git.ether.paris/${projectSlug}/${projectSlug}.git`,
+    plan: "demo",
+    status: "active",
+  };
 
   // If returning from Stripe top-up checkout, synchronously verify and credit session
   const topupSessionId = url.searchParams.get("session_id");
@@ -40,38 +108,8 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
     }
   }
 
-  let tenant = await getTenantBySlug(projectSlug);
-
-  const tenantData = tenant || {
-    id: 0,
-    slug: projectSlug,
-    subdomain: `${projectSlug}.ether.paris`,
-    brand_name: projectSlug,
-    domain: `${projectSlug}.ether.paris`,
-    custom_domain: null,
-    k8s_namespace: `tenant-${projectSlug}`,
-    git_repo_url: `https://git.ether.paris/${projectSlug}/${projectSlug}.git`,
-    plan: "demo",
-    status: "active",
-  };
-
   const plan = tenant?.plan || "demo";
   const promptQuota = checkTenantPromptLimit(projectSlug, plan);
-
-  const adminEmails = [
-    "bassem.bme@gmail.com",
-    "bassem1alsa@gmail.com",
-    process.env.ADMIN_EMAIL,
-    process.env.RESEND_CONTACT_EMAIL,
-  ]
-    .filter(Boolean)
-    .map((e) => e!.trim().toLowerCase());
-
-  const userEmail = (locals.user?.email || "").trim().toLowerCase();
-  const isAdmin =
-    adminEmails.includes(userEmail) ||
-    cookies.get("ether_admin_auth") === "true" ||
-    userEmail.endsWith("@ether.paris");
 
   let rawProfiles: { name: string; email: string | null }[] = [
     { name: "primary", email: "bassem1alsa@gmail.com" },
@@ -121,11 +159,22 @@ export const load: PageServerLoad = async ({ url, locals, cookies }) => {
   const chatHistory = activeConvId ? getStudioChatHistory(projectSlug, 50, activeConvId) : getStudioChatHistory(projectSlug, 50);
   const lastConversationId = activeConvId || (chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].conversationId || null : null);
 
+  const currentUser = locals.user;
+  const formattedUserTenants = allAccessibleTenants
+    .filter((t) => Boolean(t.slug))
+    .map((t) => ({
+      slug: t.slug as string,
+      brand_name: t.brand_name || t.slug || "Site",
+      domain: t.custom_domain || t.subdomain || t.domain,
+      isOwner: t.user_id === currentUser.id || (t.email && t.email.toLowerCase() === userEmail),
+    }));
+
   return {
     tenant: tenantData,
     projectSlug,
     user: locals.user,
     isAdmin,
+    userTenants: formattedUserTenants,
     promptQuota: {
       ...promptQuota,
       plan,

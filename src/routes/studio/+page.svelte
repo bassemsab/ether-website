@@ -117,12 +117,26 @@
 
   const tenant = $derived(data.tenant);
   const projectSlug = $derived(data.projectSlug || "tester");
+  const user = $derived(data.user);
+  const userTenants = $derived(data.userTenants || []);
   let currentCustomDomain = $state(data.tenant?.custom_domain || null);
   const liveUrl = $derived(
     currentCustomDomain
       ? `https://${currentCustomDomain}`
       : `https://${projectSlug}.ether.paris`
   );
+
+  // Project Switcher Dropdown State
+  let isProjectMenuOpen = $state(false);
+  let projectMenuContainer = $state<HTMLDivElement | null>(null);
+
+  function handleLogout() {
+    try {
+      localStorage.removeItem("ether_session_token");
+      localStorage.removeItem("ether_user_email");
+    } catch {}
+    window.location.href = "/logout";
+  }
 
   // Domain Management Modal States
   let isDomainModalOpen = $state(false);
@@ -172,11 +186,15 @@
     if (historyMenuOpen && historyMenuContainer && !historyMenuContainer.contains(event.target as Node)) {
       historyMenuOpen = false;
     }
+    if (isProjectMenuOpen && projectMenuContainer && !projectMenuContainer.contains(event.target as Node)) {
+      isProjectMenuOpen = false;
+    }
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       if (historyMenuOpen) historyMenuOpen = false;
+      if (isProjectMenuOpen) isProjectMenuOpen = false;
       if (isQuickOpenOpen) closeQuickOpen();
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -1792,7 +1810,62 @@
       </a>
       <span class="text-muted-foreground/30 select-none">/</span>
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-        <span class="font-display font-medium text-sm text-foreground truncate">{tenant.brand_name || projectSlug}</span>
+        <!-- Project Switcher Dropdown -->
+        <div class="relative" bind:this={projectMenuContainer}>
+          <button
+            type="button"
+            onclick={() => { isProjectMenuOpen = !isProjectMenuOpen; }}
+            class="flex items-center gap-1.5 px-2 py-1 -ml-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer group"
+            title="Changer de projet"
+          >
+            <span class="font-display font-medium text-sm text-foreground truncate max-w-[130px] sm:max-w-[180px]">
+              {tenant.brand_name || projectSlug}
+            </span>
+            <svg class="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-transform duration-200 {isProjectMenuOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {#if isProjectMenuOpen}
+            <div
+              class="absolute left-0 top-full mt-1.5 w-64 rounded-2xl border border-black/10 dark:border-white/10 bg-surface dark:bg-[#1a1a24] shadow-retro p-2 z-50"
+            >
+              <div class="px-2.5 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground border-b border-black/5 dark:border-white/5 mb-1 flex items-center justify-between">
+                <span>Vos Projets</span>
+                <span class="text-brand font-bold">{userTenants.length}</span>
+              </div>
+              <div class="max-h-60 overflow-y-auto space-y-0.5">
+                {#each userTenants as ut}
+                  <a
+                    href="/studio?project={ut.slug}"
+                    onclick={() => { isProjectMenuOpen = false; }}
+                    class="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-neue transition-colors {ut.slug === projectSlug ? 'bg-brand/10 text-brand font-semibold' : 'text-foreground hover:bg-black/5 dark:hover:bg-white/5'}"
+                  >
+                    <div class="truncate mr-2">
+                      <div class="truncate font-medium">{ut.brand_name}</div>
+                      <div class="text-[10px] font-mono text-muted-foreground truncate">{ut.domain || `${ut.slug}.ether.paris`}</div>
+                    </div>
+                    {#if ut.slug === projectSlug}
+                      <span class="w-2 h-2 rounded-full bg-brand shrink-0"></span>
+                    {/if}
+                  </a>
+                {/each}
+              </div>
+              <div class="pt-1.5 mt-1 border-t border-black/5 dark:border-white/5">
+                <a
+                  href="/dashboard"
+                  class="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs text-brand font-medium hover:bg-brand/5 transition-colors"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Créer un nouveau site</span>
+                </a>
+              </div>
+            </div>
+          {/if}
+        </div>
+
         <div class="flex items-center gap-1">
           <button
             onclick={() => {
@@ -1898,6 +1971,22 @@
       <div class="flex items-center">
         <ThemeToggle />
       </div>
+
+      {#if user}
+        <div class="hidden md:flex items-center gap-2 text-xs font-mono text-muted-foreground border-l border-black/10 dark:border-white/10 pl-3">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Connecté"></span>
+          <span class="truncate max-w-[120px] lg:max-w-[160px]">{user.email || user.github_username}</span>
+        </div>
+      {/if}
+
+      <button
+        type="button"
+        onclick={handleLogout}
+        class="focus-ring text-[11px] uppercase tracking-[0.15em] px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer"
+        title="Se déconnecter"
+      >
+        Déconnexion
+      </button>
 
       <a
         href="/dashboard"

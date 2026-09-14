@@ -23,7 +23,10 @@ function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   const userEmail = (locals.user.email || "").trim().toLowerCase();
   const isAdmin =
     adminEmails.includes(userEmail) || userEmail.endsWith("@ether.paris");
-  return tenant.user_id === locals.user.id || isAdmin;
+  const isOwner =
+    tenant.user_id === locals.user.id ||
+    (tenant.email && tenant.email.trim().toLowerCase() === userEmail);
+  return isOwner || isAdmin;
 }
 
 export const GET: RequestHandler = async ({ url, locals }) => {

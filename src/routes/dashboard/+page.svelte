@@ -233,7 +233,16 @@
             <span>{user.email || user.github_username}</span>
           </div>
         {/if}
-        <form method="POST" action="/logout">
+        <form
+          method="POST"
+          action="/logout"
+          onsubmit={() => {
+            try {
+              localStorage.removeItem("ether_session_token");
+              localStorage.removeItem("ether_user_email");
+            } catch {}
+          }}
+        >
           <button type="submit" class="focus-ring text-xs uppercase tracking-[0.15em] px-4 py-1.5 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-foreground transition-all cursor-pointer">
             Déconnexion
           </button>

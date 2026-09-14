@@ -9,6 +9,8 @@ import {
   getOrCreateUserByEmail,
   createTenantWebsite,
   getTenantBySlug,
+  getUserOwnedTenants,
+  createDefaultTenantForUser,
 } from "../src/lib/server/db";
 import { searchDomains } from "../src/lib/server/domains";
 import { checkEmailDomain } from "../src/lib/server/email-domain-check";
@@ -98,6 +100,35 @@ describe("Tenant and Database Integration", () => {
     const fetched = await getTenantBySlug(slug);
     expect(fetched).not.toBeNull();
     expect(fetched?.brand_name).toBe("Test Brand");
+  });
+
+  it("should auto-provision unique workspaces and isolate tenants between different users", async () => {
+    const emailA = `bassem-a-${Date.now()}@example.com`;
+    const emailB = `bassem-b-${Date.now()}@example.com`;
+
+    const userA = await getOrCreateUserByEmail(emailA);
+    const userB = await getOrCreateUserByEmail(emailB);
+    expect(userA).not.toBeNull();
+    expect(userB).not.toBeNull();
+    expect(userA!.id).not.toBe(userB!.id);
+
+    const tenantA = await createDefaultTenantForUser(userA!.id, emailA);
+    const tenantB = await createDefaultTenantForUser(userB!.id, emailB);
+
+    expect(tenantA).not.toBeNull();
+    expect(tenantB).not.toBeNull();
+    expect(tenantA!.slug).not.toBe(tenantB!.slug);
+    expect(tenantA!.user_id).toBe(userA!.id);
+    expect(tenantB!.user_id).toBe(userB!.id);
+
+    const ownedA = await getUserOwnedTenants(userA!.id, emailA);
+    const ownedB = await getUserOwnedTenants(userB!.id, emailB);
+
+    expect(ownedA.some((t) => t.slug === tenantA!.slug)).toBe(true);
+    expect(ownedA.some((t) => t.slug === tenantB!.slug)).toBe(false);
+
+    expect(ownedB.some((t) => t.slug === tenantB!.slug)).toBe(true);
+    expect(ownedB.some((t) => t.slug === tenantA!.slug)).toBe(false);
   });
 });
 

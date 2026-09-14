@@ -519,6 +519,81 @@ export async function getTenantsByUserId(
   }
 }
 
+export async function getUserOwnedTenants(
+  userId: number,
+  userEmail?: string | null,
+): Promise<TenantRecord[]> {
+  if (!db) return [];
+
+  try {
+    const normalizedEmail = (userEmail || "").trim().toLowerCase();
+    const stmt = db.prepare(
+      `SELECT * FROM tenants WHERE user_id = ? OR LOWER(email) = ? ORDER BY created_at DESC`,
+    );
+    return stmt.all(userId, normalizedEmail) as TenantRecord[];
+  } catch (error) {
+    console.error("Failed to get user owned tenants:", error);
+    return [];
+  }
+}
+
+export async function createDefaultTenantForUser(
+  userId: number,
+  userEmail: string,
+): Promise<TenantRecord | null> {
+  if (!db) return null;
+  const normalizedEmail = userEmail.trim().toLowerCase();
+  const rawPrefix =
+    normalizedEmail
+      .split("@")[0]
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 24) || "site";
+
+  // Find an available slug
+  let candidateSlug = rawPrefix;
+  let counter = 1;
+  while (true) {
+    const existing = db.prepare(`SELECT id FROM tenants WHERE slug = ?`).get(candidateSlug);
+    if (!existing) break;
+    counter++;
+    candidateSlug = `${rawPrefix}-${counter}`;
+  }
+
+  const brandName = candidateSlug
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  const subdomain = `${candidateSlug}.ether.paris`;
+  const domain = subdomain;
+  const k8sNamespace = `tenant-${candidateSlug}`;
+
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO tenants (
+        user_id, slug, subdomain, domain, email, brand_name, k8s_namespace, status, plan
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'free')
+      RETURNING *
+    `);
+    const tenant = stmt.get(
+      userId,
+      candidateSlug,
+      subdomain,
+      domain,
+      normalizedEmail,
+      brandName,
+      k8sNamespace,
+    ) as TenantRecord | null;
+
+    return tenant;
+  } catch (err) {
+    console.error("Failed to create default tenant for user:", err);
+    return null;
+  }
+}
+
 // User Helpers
 export async function getOrCreateUserByEmail(
   email: string,
