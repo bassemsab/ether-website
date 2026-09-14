@@ -157,7 +157,7 @@
     } catch (err) {
       console.error("Failed to switch workspace:", err);
     }
-    window.location.href = `/studio?project=${slug}`;
+    window.location.href = "/studio";
   }
 
   // Domain Management Modal States

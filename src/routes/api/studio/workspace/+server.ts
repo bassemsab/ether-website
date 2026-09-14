@@ -26,8 +26,6 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 
     const userEmail = (locals.user.email || "").trim().toLowerCase();
     const adminEmails = [
-      "bassem.bme@gmail.com",
-      "bassem1alsa@gmail.com",
       process.env.ADMIN_EMAIL,
       process.env.RESEND_CONTACT_EMAIL,
     ]

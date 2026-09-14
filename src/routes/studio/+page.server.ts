@@ -6,7 +6,6 @@ import {
   getStudioChatHistory,
   getStudioConversations,
   getUserOwnedTenants,
-  getAllTenants,
   resolveUserWorkspace,
 } from "$lib/server/db";
 import {
@@ -48,8 +47,6 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
   }
 
   const adminEmails = [
-    "bassem.bme@gmail.com",
-    "bassem1alsa@gmail.com",
     process.env.ADMIN_EMAIL,
     process.env.RESEND_CONTACT_EMAIL,
   ]
@@ -63,7 +60,6 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
     userEmail.endsWith("@ether.paris");
 
   const ownedTenants = await getUserOwnedTenants(locals.user.id, locals.user.email);
-  const allAccessibleTenants = isAdmin ? await getAllTenants() : ownedTenants;
 
   // Resolve user workspace from session / active workspace cookie / personal tenant (Zero URL params)
   const tenant = await resolveUserWorkspace(locals.user, cookies, null);
@@ -93,8 +89,8 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
   const promptQuota = checkTenantPromptLimit(projectSlug, plan);
 
   let rawProfiles: { name: string; email: string | null }[] = [
-    { name: "primary", email: "bassem1alsa@gmail.com" },
-    { name: "secondary", email: "bassem.bme@gmail.com" },
+    { name: "primary", email: null },
+    { name: "secondary", email: null },
   ];
   try {
     const runnerProfiles = await getRunnerProfiles();
@@ -140,14 +136,18 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
   const chatHistory = activeConvId ? getStudioChatHistory(projectSlug, 50, activeConvId) : getStudioChatHistory(projectSlug, 50);
   const lastConversationId = activeConvId || (chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].conversationId || null : null);
 
-  const currentUser = locals.user;
-  const formattedUserTenants = allAccessibleTenants
+  const displayTenants = [...ownedTenants];
+  if (!displayTenants.some((t) => t.slug === tenant.slug)) {
+    displayTenants.unshift(tenant);
+  }
+
+  const formattedUserTenants = displayTenants
     .filter((t) => Boolean(t.slug))
     .map((t) => ({
       slug: t.slug as string,
       brand_name: t.brand_name || t.slug || "Site",
       domain: t.custom_domain || t.subdomain || t.domain,
-      isOwner: t.user_id === currentUser.id || (t.email && t.email.toLowerCase() === userEmail),
+      isOwner: true,
     }));
 
   return {

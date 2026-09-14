@@ -10,6 +10,7 @@ import {
   createTenantWebsite,
   getTenantBySlug,
   getUserOwnedTenants,
+  getTenantsByUserId,
   createDefaultTenantForUser,
   resolveUserWorkspace,
 } from "../src/lib/server/db";
@@ -155,6 +156,20 @@ describe("Tenant and Database Integration", () => {
     const switchCookies = { get: (name: string) => name === "ether_active_workspace" ? workspace1.slug : undefined };
     const switched = await resolveUserWorkspace(user1, switchCookies, null);
     expect(switched.slug).toBe(workspace1.slug);
+
+    // Cross-user cookie test: user2 must NOT get user1's workspace via cookie
+    const crossCookies = { get: (name: string) => name === "ether_active_workspace" ? workspace1.slug : undefined };
+    const crossResolved = await resolveUserWorkspace(user2, crossCookies, null);
+    expect(crossResolved.slug).toBe(workspace2.slug);
+    expect(crossResolved.slug).not.toBe(workspace1.slug);
+
+    // Dashboard getTenantsByUserId isolation test
+    const tenants1 = await getTenantsByUserId(user1!.id, "bassem.bme@gmail.com");
+    const tenants2 = await getTenantsByUserId(user2!.id, "bassem1alsa@gmail.com");
+    expect(tenants1.some((t) => t.slug === workspace1.slug)).toBe(true);
+    expect(tenants1.some((t) => t.slug === workspace2.slug)).toBe(false);
+    expect(tenants2.some((t) => t.slug === workspace2.slug)).toBe(true);
+    expect(tenants2.some((t) => t.slug === workspace1.slug)).toBe(false);
   });
 });
 

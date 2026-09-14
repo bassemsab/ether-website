@@ -25,11 +25,15 @@ async function performLogout({
     } catch (err) {
       console.warn("[Logout] Error deleting session:", err);
     }
-
-    // Clear session cookie across .ether.paris domain and host
-    cookies.delete("session", { path: "/", domain: cookieDomain });
-    cookies.delete("session", { path: "/" });
   }
+
+  // Clear session and workspace cookies across .ether.paris domain and host
+  cookies.delete("session", { path: "/", domain: cookieDomain });
+  cookies.delete("session", { path: "/" });
+  cookies.delete("ether_active_workspace", { path: "/", domain: cookieDomain });
+  cookies.delete("ether_active_workspace", { path: "/" });
+  cookies.delete("ether_admin_auth", { path: "/", domain: cookieDomain });
+  cookies.delete("ether_admin_auth", { path: "/" });
 
   throw redirect(302, "/login?logged_out=1");
 }

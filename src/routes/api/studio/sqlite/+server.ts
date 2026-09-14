@@ -8,8 +8,6 @@ import { resolve } from "path";
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   if (!locals.user) return false;
   const adminEmails = [
-    "bassem.bme@gmail.com",
-    "bassem1alsa@gmail.com",
     process.env.ADMIN_EMAIL,
     process.env.RESEND_CONTACT_EMAIL,
   ]

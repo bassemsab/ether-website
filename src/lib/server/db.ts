@@ -495,30 +495,6 @@ export async function getAllTenants(): Promise<TenantRecord[]> {
   }
 }
 
-export async function getTenantsByUserId(
-  userId: number,
-  userEmail?: string | null,
-): Promise<TenantRecord[]> {
-  if (!db) return [];
-
-  try {
-    const adminEmails = ["bassem.bme@gmail.com", "bassem1alsa@gmail.com"];
-    const normalizedEmail = (userEmail || "").trim().toLowerCase();
-    if (normalizedEmail && adminEmails.includes(normalizedEmail)) {
-      const stmt = db.prepare(`SELECT * FROM tenants ORDER BY created_at DESC`);
-      return stmt.all() as TenantRecord[];
-    }
-
-    const stmt = db.prepare(
-      `SELECT * FROM tenants WHERE user_id = ? OR email = ? ORDER BY created_at DESC`,
-    );
-    return stmt.all(userId, normalizedEmail) as TenantRecord[];
-  } catch (error) {
-    console.error("Failed to get tenants by user:", error);
-    return [];
-  }
-}
-
 export async function getUserOwnedTenants(
   userId: number,
   userEmail?: string | null,
@@ -528,13 +504,22 @@ export async function getUserOwnedTenants(
   try {
     const normalizedEmail = (userEmail || "").trim().toLowerCase();
     const stmt = db.prepare(
-      `SELECT * FROM tenants WHERE user_id = ? OR LOWER(email) = ? ORDER BY created_at DESC`,
+      `SELECT * FROM tenants 
+       WHERE user_id = ? OR (email IS NOT NULL AND LOWER(email) = ? AND ? != '') 
+       ORDER BY created_at DESC`,
     );
-    return stmt.all(userId, normalizedEmail) as TenantRecord[];
+    return stmt.all(userId, normalizedEmail, normalizedEmail) as TenantRecord[];
   } catch (error) {
     console.error("Failed to get user owned tenants:", error);
     return [];
   }
+}
+
+export async function getTenantsByUserId(
+  userId: number,
+  userEmail?: string | null,
+): Promise<TenantRecord[]> {
+  return getUserOwnedTenants(userId, userEmail);
 }
 
 export async function createDefaultTenantForUser(
@@ -672,8 +657,6 @@ export async function resolveUserWorkspace(
 
   const userEmail = (localsUser.email || "").trim().toLowerCase();
   const adminEmails = [
-    "bassem.bme@gmail.com",
-    "bassem1alsa@gmail.com",
     process.env.ADMIN_EMAIL,
     process.env.RESEND_CONTACT_EMAIL,
   ]
@@ -708,7 +691,7 @@ export async function resolveUserWorkspace(
       const isOwner =
         tenant.user_id === localsUser.id ||
         (tenant.email && tenant.email.trim().toLowerCase() === userEmail);
-      if (isOwner || isAdmin) {
+      if (isOwner) {
         return tenant;
       }
     }

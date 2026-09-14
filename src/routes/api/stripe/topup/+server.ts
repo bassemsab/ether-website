@@ -29,8 +29,6 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
     }
 
     const adminEmails = [
-      "bassem.bme@gmail.com",
-      "bassem1alsa@gmail.com",
       process.env.ADMIN_EMAIL,
       process.env.RESEND_CONTACT_EMAIL,
     ]

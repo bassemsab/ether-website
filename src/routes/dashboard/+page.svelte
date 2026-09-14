@@ -207,6 +207,21 @@
       supportLoading = false;
     }
   }
+
+  async function handleOpenStudio(slug?: string) {
+    if (slug) {
+      try {
+        await fetch("/api/studio/workspace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug }),
+        });
+      } catch (err) {
+        console.error("Failed to switch workspace:", err);
+      }
+    }
+    window.location.href = "/studio";
+  }
 </script>
 
 <svelte:head>
@@ -328,14 +343,12 @@
 
             <!-- Action Buttons -->
             <div class="pt-4 border-t border-black/5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <a
-                href="https://studio.ether.paris/?project={tenant.slug || tenant.domain}"
-                target="_blank"
-                rel="noopener"
-                class="px-3 py-2 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 shadow-retro-sm hover:-translate-y-0.5 transition-all text-center"
+              <button
+                onclick={() => handleOpenStudio(tenant.slug || tenant.domain)}
+                class="px-3 py-2 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 shadow-retro-sm hover:-translate-y-0.5 transition-all text-center cursor-pointer"
               >
                 Studio
-              </a>
+              </button>
 
               <button
                 onclick={() => handlePublishSite(tenant)}
