@@ -334,7 +334,7 @@ export default defineConfig({
 `;
 
   const appHtml = `<!doctype html>
-<html lang="fr" class="dark">
+<html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -471,12 +471,27 @@ export const actions: Actions = {
   const pageSvelte = `<script lang="ts">
   let { data, form } = $props();
   let count = $state(0);
-  let isDark = $state(true);
+  let isDark = $state(false);
+
+  $effect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("theme");
+      if (stored) {
+        isDark = stored === "dark";
+      } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        isDark = true;
+      }
+      document.documentElement.classList.toggle("dark", isDark);
+    }
+  });
 
   function toggleDarkMode() {
     isDark = !isDark;
     if (typeof document !== "undefined") {
       document.documentElement.classList.toggle("dark", isDark);
+      try {
+        localStorage.setItem("theme", isDark ? "dark" : "light");
+      } catch {}
     }
   }
 </script>
@@ -485,23 +500,23 @@ export const actions: Actions = {
   <title>${site.brandName.replace(/"/g, '\\"')} — Site Officiel</title>
 </svelte:head>
 
-<div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-300">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
   <!-- Navigation -->
-  <header class="border-b border-slate-800/80 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+  <header class="border-b border-slate-200 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/50 backdrop-blur sticky top-0 z-50">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">
           ${site.brandName.slice(0, 1).toUpperCase()}
         </div>
-        <span class="font-bold text-lg tracking-tight text-white">${site.brandName.replace(/"/g, '\\"')}</span>
+        <span class="font-bold text-lg tracking-tight text-slate-900 dark:text-white">${site.brandName.replace(/"/g, '\\"')}</span>
       </div>
       <div class="flex items-center gap-4">
-        <a href="#features" class="text-sm text-slate-400 hover:text-white transition">Fonctionnalités</a>
-        <a href="#contact" class="text-sm text-slate-400 hover:text-white transition">Contact</a>
+        <a href="#features" class="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Fonctionnalités</a>
+        <a href="#contact" class="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Contact</a>
         <button
           onclick={toggleDarkMode}
           aria-label="Toggle Dark Mode"
-          class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-sm cursor-pointer"
+          class="p-2 rounded-lg bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition text-sm cursor-pointer"
         >
           {isDark ? "🌙" : "☀️"}
         </button>
@@ -512,16 +527,16 @@ export const actions: Actions = {
   <!-- Hero Section -->
   <main class="flex-1">
     <section class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-16 text-center space-y-6">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono">
-        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-xs font-mono">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         ${site.domain} · En ligne
       </div>
 
-      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-indigo-300 max-w-3xl mx-auto">
+      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-950 via-slate-800 to-indigo-600 dark:from-white dark:via-slate-200 dark:to-indigo-300 max-w-3xl mx-auto">
         Bienvenue sur ${site.brandName.replace(/"/g, '\\"')}
       </h1>
 
-      <p class="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+      <p class="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
         Votre nouveau site web haute performance propulsé par Ether Studio, SvelteKit 5 Runes et Bun Runtime.
       </p>
 
@@ -531,65 +546,65 @@ export const actions: Actions = {
           class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center gap-2"
         >
           <span>Compteur interactif</span>
-          <span class="px-2 py-0.5 rounded-full bg-indigo-700/80 text-xs font-mono font-bold">{count}</span>
+          <span class="px-2 py-0.5 rounded-full bg-indigo-700/80 text-xs font-mono font-bold text-white">{count}</span>
         </button>
         <a
           href="#contact"
-          class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium border border-slate-700/60 transition"
+          class="px-6 py-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700/60 shadow-sm transition"
         >
           Nous contacter
         </a>
       </div>
 
-      <div class="pt-6 flex items-center justify-center gap-6 text-xs text-slate-500">
+      <div class="pt-6 flex items-center justify-center gap-6 text-xs text-slate-500 dark:text-slate-400">
         <div class="flex items-center gap-1.5">
-          <span class="text-indigo-400">⚡</span> Svelte 5 Runes
+          <span class="text-indigo-500 dark:text-indigo-400">⚡</span> Svelte 5 Runes
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="text-emerald-400">💾</span> Bun SQLite (/data/app.db)
+          <span class="text-emerald-500 dark:text-emerald-400">💾</span> Bun SQLite (/data/app.db)
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="text-sky-400">👀</span> {data?.viewCount || 1} visites
+          <span class="text-sky-500 dark:text-sky-400">👀</span> {data?.viewCount || 1} visites
         </div>
       </div>
     </section>
 
     <!-- Features Grid -->
-    <section id="features" class="max-w-6xl mx-auto px-4 sm:px-6 py-12 border-t border-slate-900">
+    <section id="features" class="max-w-6xl mx-auto px-4 sm:px-6 py-12 border-t border-slate-200 dark:border-slate-900">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">
-          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4 text-lg">⚡</div>
-          <h2 class="text-lg font-semibold text-white mb-2">Performances Bun</h2>
-          <p class="text-sm text-slate-400">Temps de réponse instantanés grâce au moteur d'exécution Bun natif et à Vite dev HMR.</p>
+        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">
+          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 text-lg">⚡</div>
+          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Performances Bun</h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400">Temps de réponse instantanés grâce au moteur d'exécution Bun natif et à Vite dev HMR.</p>
         </div>
-        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">
-          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4 text-lg">🔒</div>
-          <h2 class="text-lg font-semibold text-white mb-2">Base de données SQLite</h2>
-          <p class="text-sm text-slate-400">Stockage persistant sur disque isolé par tenant (/data/app.db) avec requêtes typées à haute vitesse.</p>
+        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 text-lg">🔒</div>
+          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Base de données SQLite</h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400">Stockage persistant sur disque isolé par tenant (/data/app.db) avec requêtes typées à haute vitesse.</p>
         </div>
-        <div class="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition">
-          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mb-4 text-lg">🎨</div>
-          <h2 class="text-lg font-semibold text-white mb-2">Tailwind CSS & Runes</h2>
-          <p class="text-sm text-slate-400">Styles modernes précompilés avec Tailwind 3, Dark Mode réactif et la syntaxe Runes de Svelte 5.</p>
+        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">
+          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-4 text-lg">🎨</div>
+          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Tailwind CSS & Runes</h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400">Styles modernes précompilés avec Tailwind 3, Dark Mode réactif et la syntaxe Runes de Svelte 5.</p>
         </div>
       </div>
     </section>
 
     <!-- Contact Form Section -->
-    <section id="contact" class="max-w-3xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-900">
+    <section id="contact" class="max-w-3xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-200 dark:border-slate-900">
       <div class="text-center mb-8">
-        <h2 class="text-2xl sm:text-3xl font-bold text-white">Contactez-nous</h2>
-        <p class="text-sm text-slate-400 mt-2">Envoyez-nous un message directement sauvegardé dans la base SQLite locale.</p>
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Contactez-nous</h2>
+        <p class="text-sm text-slate-600 dark:text-slate-400 mt-2">Envoyez-nous un message directement sauvegardé dans la base SQLite locale.</p>
       </div>
 
-      <div class="p-6 sm:p-8 rounded-2xl bg-slate-900/60 border border-slate-800 shadow-xl">
+      <div class="p-6 sm:p-8 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xl">
         {#if form?.success}
-          <div class="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm flex items-center gap-3">
+          <div class="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-3">
             <span>✅</span>
             <span>{form.message}</span>
           </div>
         {:else if form?.error}
-          <div class="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm flex items-center gap-3">
+          <div class="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm flex items-center gap-3">
             <span>⚠️</span>
             <span>{form.error}</span>
           </div>
@@ -598,37 +613,37 @@ export const actions: Actions = {
         <form method="POST" class="space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label for="name" class="block text-xs font-medium text-slate-300 mb-1.5">Nom complet</label>
+              <label for="name" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Nom complet</label>
               <input
                 type="text"
                 id="name"
                 name="name"
                 required
                 placeholder="Jean Dupont"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
               />
             </div>
             <div>
-              <label for="email" class="block text-xs font-medium text-slate-300 mb-1.5">Adresse e-mail</label>
+              <label for="email" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Adresse e-mail</label>
               <input
                 type="email"
                 id="email"
                 name="email"
                 required
                 placeholder="jean@exemple.fr"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
               />
             </div>
           </div>
           <div>
-            <label for="message" class="block text-xs font-medium text-slate-300 mb-1.5">Message</label>
+            <label for="message" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Message</label>
             <textarea
               id="message"
               name="message"
               rows="4"
               required
               placeholder="Votre message ici..."
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"
             ></textarea>
           </div>
           <button
@@ -643,7 +658,7 @@ export const actions: Actions = {
   </main>
 
   <!-- Footer -->
-  <footer class="border-t border-slate-900 bg-slate-950 py-8 text-center text-xs text-slate-600">
+  <footer class="border-t border-slate-200 dark:border-slate-900 bg-white dark:bg-slate-950 py-8 text-center text-xs text-slate-500">
     <div class="max-w-6xl mx-auto px-4 space-y-2">
       <p>© {new Date().getFullYear()} ${site.brandName.replace(/"/g, '\\"')}. Tous droits réservés.</p>
       <p class="text-slate-500">Hébergé et géré via Ether Platform · ${site.domain}</p>
