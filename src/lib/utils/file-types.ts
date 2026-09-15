@@ -11,7 +11,14 @@ export const IMAGE_EXTENSIONS = new Set([
   "bmp",
   "svg",
 ]);
-export const MEDIA_EXTENSIONS = new Set(["mp4", "webm", "ogg", "mp3", "wav", "m4a"]);
+export const MEDIA_EXTENSIONS = new Set([
+  "mp4",
+  "webm",
+  "ogg",
+  "mp3",
+  "wav",
+  "m4a",
+]);
 export const OTHER_BINARY_EXTENSIONS = new Set([
   "woff",
   "woff2",

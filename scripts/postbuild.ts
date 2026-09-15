@@ -154,5 +154,7 @@ serve(serverOptions);
 `;
 
   writeFileSync(buildIndex, content);
-  console.log("✔ Successfully wrapped build/index.js with tenant reverse proxy");
+  console.log(
+    "✔ Successfully wrapped build/index.js with tenant reverse proxy",
+  );
 }

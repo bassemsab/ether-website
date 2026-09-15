@@ -279,8 +279,6 @@ try {
   safeAddColumn("tenants", "plan TEXT DEFAULT 'free'");
   safeAddColumn("tenants", "extra_prompts INTEGER DEFAULT 0");
   safeAddColumn("studio_chat_messages", "image_url TEXT");
-
-
 } catch (error) {
   console.error(`❌ Failed to initialize bun:sqlite at ${DB_PATH}:`, error);
 }
@@ -397,11 +395,19 @@ export async function getTenantByDomain(
   try {
     const cleanDomain = domain.toLowerCase().trim();
     const strippedWww = cleanDomain.replace(/^www\./, "");
-    const withWww = cleanDomain.startsWith("www.") ? cleanDomain : `www.${cleanDomain}`;
+    const withWww = cleanDomain.startsWith("www.")
+      ? cleanDomain
+      : `www.${cleanDomain}`;
     const stmt = db.prepare(
       `SELECT * FROM tenants WHERE LOWER(domain) = ? OR LOWER(subdomain) = ? OR LOWER(custom_domain) = ? OR LOWER(custom_domain) = ? OR LOWER(custom_domain) = ?`,
     );
-    const result = stmt.get(cleanDomain, cleanDomain, cleanDomain, strippedWww, withWww);
+    const result = stmt.get(
+      cleanDomain,
+      cleanDomain,
+      cleanDomain,
+      strippedWww,
+      withWww,
+    );
     return result as TenantRecord | null;
   } catch (error) {
     console.error("Failed to get tenant:", error);
@@ -527,7 +533,9 @@ export async function createDefaultTenantForUser(
   let candidateSlug = rawPrefix;
   let counter = 1;
   while (true) {
-    const existing = db.prepare(`SELECT id FROM tenants WHERE slug = ?`).get(candidateSlug);
+    const existing = db
+      .prepare(`SELECT id FROM tenants WHERE slug = ?`)
+      .get(candidateSlug);
     if (!existing) break;
     counter++;
     candidateSlug = `${rawPrefix}-${counter}`;
@@ -587,10 +595,13 @@ export async function getUserPersonalTenant(
   }
 }
 
-export async function ensureUserPersonalWorkspace(
-  user: { id: number; email?: string | null },
-): Promise<TenantRecord> {
-  const email = (user.email || `user-${user.id}@ether.paris`).trim().toLowerCase();
+export async function ensureUserPersonalWorkspace(user: {
+  id: number;
+  email?: string | null;
+}): Promise<TenantRecord> {
+  const email = (user.email || `user-${user.id}@ether.paris`)
+    .trim()
+    .toLowerCase();
   const existing = await getUserPersonalTenant(user.id, email);
   if (existing && existing.slug) {
     return existing;
@@ -598,7 +609,10 @@ export async function ensureUserPersonalWorkspace(
 
   // Return an in-memory/ephemeral workspace WITHOUT saving to the tenants database table
   const fallbackSlug =
-    email.split("@")[0].replace(/[^a-z0-9]/g, "-").slice(0, 20) || `user-${user.id}`;
+    email
+      .split("@")[0]
+      .replace(/[^a-z0-9]/g, "-")
+      .slice(0, 20) || `user-${user.id}`;
   return {
     id: user.id,
     user_id: user.id,
@@ -971,7 +985,9 @@ export function getTenantOwnedDomains(tenantId: number): OwnedDomainItem[] {
   if (!db) return [];
 
   try {
-    const tenant = db.prepare(`SELECT user_id FROM tenants WHERE id = ?`).get(tenantId) as { user_id: number } | undefined;
+    const tenant = db
+      .prepare(`SELECT user_id FROM tenants WHERE id = ?`)
+      .get(tenantId) as { user_id: number } | undefined;
     const userId = tenant?.user_id;
 
     let rows: OwnedDomainItem[] = [];
@@ -1002,27 +1018,43 @@ export function getTenantOwnedDomains(tenantId: number): OwnedDomainItem[] {
   }
 }
 
-export function isDomainOwnedByTenant(tenantId: number, domain: string): boolean {
+export function isDomainOwnedByTenant(
+  tenantId: number,
+  domain: string,
+): boolean {
   if (!db) return false;
   try {
-    const clean = domain.toLowerCase().trim().replace(/^www\./, "");
-    const tenant = db.prepare(`SELECT user_id FROM tenants WHERE id = ?`).get(tenantId) as { user_id: number } | undefined;
+    const clean = domain
+      .toLowerCase()
+      .trim()
+      .replace(/^www\./, "");
+    const tenant = db
+      .prepare(`SELECT user_id FROM tenants WHERE id = ?`)
+      .get(tenantId) as { user_id: number } | undefined;
     const userId = tenant?.user_id;
 
     if (userId) {
-      const row = db.prepare(`
+      const row = db
+        .prepare(
+          `
         SELECT do.id
         FROM domain_orders do
         JOIN tenants t ON do.tenant_id = t.id
         WHERE (do.tenant_id = ? OR t.user_id = ?) AND LOWER(do.domain) = ? AND do.status = 'active'
-      `).get(tenantId, userId, clean);
+      `,
+        )
+        .get(tenantId, userId, clean);
       return Boolean(row);
     } else {
-      const row = db.prepare(`
+      const row = db
+        .prepare(
+          `
         SELECT id
         FROM domain_orders
         WHERE tenant_id = ? AND LOWER(domain) = ? AND status = 'active'
-      `).get(tenantId, clean);
+      `,
+        )
+        .get(tenantId, clean);
       return Boolean(row);
     }
   } catch {
@@ -1041,15 +1073,24 @@ export function getDomainOwnershipConflict(
 ): { conflict: boolean; message?: string } {
   if (!db) return { conflict: false };
   try {
-    const clean = domain.toLowerCase().trim().replace(/^www\./, "");
+    const clean = domain
+      .toLowerCase()
+      .trim()
+      .replace(/^www\./, "");
 
     // 1. Check if another tenant (with a different user_id) already purchased this domain in domain_orders
-    const orderRow = db.prepare(`
+    const orderRow = db
+      .prepare(
+        `
       SELECT do.id, do.tenant_id, t.user_id, t.slug
       FROM domain_orders do
       JOIN tenants t ON do.tenant_id = t.id
       WHERE LOWER(do.domain) = ? AND do.status = 'active'
-    `).get(clean) as { id: number; tenant_id: number; user_id: number; slug: string } | undefined;
+    `,
+      )
+      .get(clean) as
+      | { id: number; tenant_id: number; user_id: number; slug: string }
+      | undefined;
 
     if (orderRow) {
       const isSameUser = userId && orderRow.user_id === userId;
@@ -1063,11 +1104,17 @@ export function getDomainOwnershipConflict(
     }
 
     // 2. Check if another tenant (different user) has already linked this domain as custom_domain
-    const linkedTenant = db.prepare(`
+    const linkedTenant = db
+      .prepare(
+        `
       SELECT id, user_id, slug
       FROM tenants
       WHERE LOWER(custom_domain) = ? AND id != ?
-    `).get(clean, tenantId) as { id: number; user_id: number; slug: string } | undefined;
+    `,
+      )
+      .get(clean, tenantId) as
+      | { id: number; user_id: number; slug: string }
+      | undefined;
 
     if (linkedTenant) {
       const isSameUser = userId && linkedTenant.user_id === userId;
@@ -1181,10 +1228,12 @@ export function recordProcessedStripeSession(
 ): void {
   if (!db) return;
   try {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT OR IGNORE INTO processed_stripe_events (session_id, event_type, tenant_slug, prompts)
       VALUES (?, ?, ?, ?)
-    `).run(sessionId, eventType, tenantSlug, prompts);
+    `,
+    ).run(sessionId, eventType, tenantSlug, prompts);
   } catch (err: any) {
     console.error("Failed to record processed stripe session:", err.message);
   }
@@ -1235,7 +1284,10 @@ export function incrementTenantPromptCount(tenantSlug: string): number {
   }
 }
 
-export function addTenantExtraPrompts(tenantSlug: string, count: number): number {
+export function addTenantExtraPrompts(
+  tenantSlug: string,
+  count: number,
+): number {
   if (!db) return 0;
   try {
     const stmt = db.prepare(`
@@ -1334,7 +1386,9 @@ export function getStudioChatHistory(
   }
 }
 
-export function getStudioConversations(tenantSlug: string): StudioConversationSummary[] {
+export function getStudioConversations(
+  tenantSlug: string,
+): StudioConversationSummary[] {
   if (!db) return [];
   try {
     const rows = db
@@ -1380,13 +1434,20 @@ export function getStudioConversations(tenantSlug: string): StudioConversationSu
   }
 }
 
-export function deleteStudioConversation(tenantSlug: string, conversationId: string): boolean {
+export function deleteStudioConversation(
+  tenantSlug: string,
+  conversationId: string,
+): boolean {
   if (!db) return false;
   try {
     if (conversationId === "default") {
-      db.prepare(`DELETE FROM studio_chat_messages WHERE tenant_slug = ? AND conversation_id IS NULL`).run(tenantSlug);
+      db.prepare(
+        `DELETE FROM studio_chat_messages WHERE tenant_slug = ? AND conversation_id IS NULL`,
+      ).run(tenantSlug);
     } else {
-      db.prepare(`DELETE FROM studio_chat_messages WHERE tenant_slug = ? AND conversation_id = ?`).run(tenantSlug, conversationId);
+      db.prepare(
+        `DELETE FROM studio_chat_messages WHERE tenant_slug = ? AND conversation_id = ?`,
+      ).run(tenantSlug, conversationId);
     }
     return true;
   } catch (err) {

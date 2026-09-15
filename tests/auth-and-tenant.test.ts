@@ -163,45 +163,88 @@ describe("Tenant and Database Integration", () => {
     expect(workspace2.user_id).toBe(user2!.id);
 
     // Verify workspace switching via cookie
-    const switchCookies = { get: (name: string) => name === "ether_active_workspace" ? workspace1.slug : undefined };
+    const switchCookies = {
+      get: (name: string) =>
+        name === "ether_active_workspace" ? workspace1.slug : undefined,
+    };
     const switched = await resolveUserWorkspace(user1, switchCookies, null);
     expect(switched.slug).toBe(workspace1.slug);
 
     // Cross-user cookie test: user2 must NOT get user1's workspace via cookie
-    const crossCookies = { get: (name: string) => name === "ether_active_workspace" ? workspace1.slug : undefined };
+    const crossCookies = {
+      get: (name: string) =>
+        name === "ether_active_workspace" ? workspace1.slug : undefined,
+    };
     const crossResolved = await resolveUserWorkspace(user2, crossCookies, null);
     expect(crossResolved.slug).toBe(workspace2.slug);
     expect(crossResolved.slug).not.toBe(workspace1.slug);
 
     // Dashboard getTenantsByUserId isolation & deletion test
     // 1. Users start with zero created websites on dashboard (no phantom auto-provisioning)
-    const initialTenants1 = await getTenantsByUserId(user1!.id, "bassem.bme@gmail.com");
-    const initialTenants2 = await getTenantsByUserId(user2!.id, "bassem1alsa@gmail.com");
+    const initialTenants1 = await getTenantsByUserId(
+      user1!.id,
+      "bassem.bme@gmail.com",
+    );
+    const initialTenants2 = await getTenantsByUserId(
+      user2!.id,
+      "bassem1alsa@gmail.com",
+    );
     expect(initialTenants1.length).toBe(0);
     expect(initialTenants2.length).toBe(0);
 
     // 2. When a site is created by user1, it is visible only to user1
     const testSiteSlug = `user1-site-${Date.now()}`;
-    await createTenantWebsite(user1!.id, testSiteSlug, "User 1 Site", "bassem.bme@gmail.com");
-    const tenants1 = await getTenantsByUserId(user1!.id, "bassem.bme@gmail.com");
-    const tenants2 = await getTenantsByUserId(user2!.id, "bassem1alsa@gmail.com");
+    await createTenantWebsite(
+      user1!.id,
+      testSiteSlug,
+      "User 1 Site",
+      "bassem.bme@gmail.com",
+    );
+    const tenants1 = await getTenantsByUserId(
+      user1!.id,
+      "bassem.bme@gmail.com",
+    );
+    const tenants2 = await getTenantsByUserId(
+      user2!.id,
+      "bassem1alsa@gmail.com",
+    );
     expect(tenants1.some((t) => t.slug === testSiteSlug)).toBe(true);
     expect(tenants2.some((t) => t.slug === testSiteSlug)).toBe(false);
 
     // 3. Deletion test: deleteTenantBySlug cleans it from the system
     await deleteTenantBySlug(testSiteSlug);
-    const afterDelete = await getTenantsByUserId(user1!.id, "bassem.bme@gmail.com");
+    const afterDelete = await getTenantsByUserId(
+      user1!.id,
+      "bassem.bme@gmail.com",
+    );
     expect(afterDelete.some((t) => t.slug === testSiteSlug)).toBe(false);
 
     // 4. Domain Ownership Isolation test between bassem.bme and bassem1alsa
     const bmeSiteSlug = `bme-test-${Date.now()}`;
     const alsaSiteSlug = `alsa-test-${Date.now()}`;
-    const bmeSite = await createTenantWebsite(user1!.id, bmeSiteSlug, "BME Site", "bassem.bme@gmail.com");
-    const alsaSite = await createTenantWebsite(user2!.id, alsaSiteSlug, "Alsa Site", "bassem1alsa@gmail.com");
+    const bmeSite = await createTenantWebsite(
+      user1!.id,
+      bmeSiteSlug,
+      "BME Site",
+      "bassem.bme@gmail.com",
+    );
+    const alsaSite = await createTenantWebsite(
+      user2!.id,
+      alsaSiteSlug,
+      "Alsa Site",
+      "bassem1alsa@gmail.com",
+    );
 
     // bassem.bme acquires a domain order
     const sessionId = `test-session-${Date.now()}`;
-    const domainOrder = await recordDomainOrder(bmeSite!.id, "miaw-isolated.ovh", "ovh", sessionId, 1499, "eur");
+    const domainOrder = await recordDomainOrder(
+      bmeSite!.id,
+      "miaw-isolated.ovh",
+      "ovh",
+      sessionId,
+      1499,
+      "eur",
+    );
     expect(domainOrder).toBeDefined();
     await updateDomainOrderStatus(sessionId, "active");
 
@@ -213,10 +256,16 @@ describe("Tenant and Database Integration", () => {
     // Verify bassem1alsa's site NEVER sees or owns bassem.bme's domain
     const alsaOwned = getTenantOwnedDomains(alsaSite!.id);
     expect(alsaOwned.some((d) => d.domain === "miaw-isolated.ovh")).toBe(false);
-    expect(isDomainOwnedByTenant(alsaSite!.id, "miaw-isolated.ovh")).toBe(false);
+    expect(isDomainOwnedByTenant(alsaSite!.id, "miaw-isolated.ovh")).toBe(
+      false,
+    );
 
     // Verify conflict check prevents bassem1alsa from hijacking bassem.bme's domain
-    const conflictCheck = getDomainOwnershipConflict("miaw-isolated.ovh", alsaSite!.id, user2!.id);
+    const conflictCheck = getDomainOwnershipConflict(
+      "miaw-isolated.ovh",
+      alsaSite!.id,
+      user2!.id,
+    );
     expect(conflictCheck.conflict).toBe(true);
 
     // Clean up test sites
@@ -243,7 +292,9 @@ describe("Aggregated Domain Search & Live Pricing", () => {
     const frPricing = await resolveLiveDomainPriceCents("fr");
     expect(frPricing.rawCostCents).toBeGreaterThan(0);
     expect(frPricing.priceCents).toBeGreaterThan(frPricing.rawCostCents);
-    expect(frPricing.priceCents).toBe(calculateMarkedUpPriceCents(frPricing.rawCostCents));
+    expect(frPricing.priceCents).toBe(
+      calculateMarkedUpPriceCents(frPricing.rawCostCents),
+    );
   });
 
   it("should return normalized domain results for common TLDs with live marked-up prices", async () => {

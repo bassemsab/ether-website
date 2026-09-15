@@ -87,15 +87,23 @@ export function detectFileLang(filename: string): SupportedEditorLang {
 function getImageMime(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   switch (ext) {
-    case "png": return "image/png";
+    case "png":
+      return "image/png";
     case "jpg":
-    case "jpeg": return "image/jpeg";
-    case "gif": return "image/gif";
-    case "webp": return "image/webp";
-    case "svg": return "image/svg+xml";
-    case "ico": return "image/x-icon";
-    case "bmp": return "image/bmp";
-    default: return "application/octet-stream";
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "svg":
+      return "image/svg+xml";
+    case "ico":
+      return "image/x-icon";
+    case "bmp":
+      return "image/bmp";
+    default:
+      return "application/octet-stream";
   }
 }
 

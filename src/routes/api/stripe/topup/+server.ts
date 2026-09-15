@@ -25,7 +25,10 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
     const tenant = await getTenantBySlug(projectSlug);
     if (!tenant) {
-      return json({ success: false, error: "Site introuvable" }, { status: 404 });
+      return json(
+        { success: false, error: "Site introuvable" },
+        { status: 404 },
+      );
     }
 
     const adminEmails = [

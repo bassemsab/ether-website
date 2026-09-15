@@ -16,12 +16,18 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     const body = await request.json();
     const slug = (body.slug || "").trim().toLowerCase();
     if (!slug) {
-      return json({ success: false, error: "Identifiant du site (slug) requis." }, { status: 400 });
+      return json(
+        { success: false, error: "Identifiant du site (slug) requis." },
+        { status: 400 },
+      );
     }
 
     const tenant = await getTenantBySlug(slug);
     if (!tenant) {
-      return json({ success: false, error: "Site introuvable." }, { status: 404 });
+      return json(
+        { success: false, error: "Site introuvable." },
+        { status: 404 },
+      );
     }
 
     const userEmail = (locals.user.email || "").trim().toLowerCase();
@@ -34,7 +40,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
     if (!isOwner && !isAdmin) {
       return json(
-        { success: false, error: "Vous n'avez pas l'autorisation de supprimer ce site." },
+        {
+          success: false,
+          error: "Vous n'avez pas l'autorisation de supprimer ce site.",
+        },
         { status: 403 },
       );
     }
@@ -43,12 +52,18 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     if (tenant.git_repo_url) {
       try {
         const u = new URL(tenant.git_repo_url);
-        const parts = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "").split("/");
+        const parts = u.pathname
+          .replace(/^\/+/, "")
+          .replace(/\.git$/, "")
+          .split("/");
         if (parts.length >= 2) {
           await deleteGiteaRepo(parts[0], parts[1]);
         }
       } catch (gitErr: any) {
-        console.warn(`[Delete Tenant] Gitea cleanup note for ${slug}:`, gitErr.message);
+        console.warn(
+          `[Delete Tenant] Gitea cleanup note for ${slug}:`,
+          gitErr.message,
+        );
       }
     }
 
@@ -64,7 +79,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         signal: AbortSignal.timeout(5000),
       });
     } catch (runnerErr: any) {
-      console.warn(`[Delete Tenant] Runner cleanup note for ${slug}:`, runnerErr.message);
+      console.warn(
+        `[Delete Tenant] Runner cleanup note for ${slug}:`,
+        runnerErr.message,
+      );
     }
 
     // 3. Delete k8s namespace and all pods/pvc within it
@@ -72,7 +90,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       try {
         await deleteTenantK8s(tenant.k8s_namespace);
       } catch (k8sErr: any) {
-        console.warn(`[Delete Tenant] K8s cleanup note for ${tenant.k8s_namespace}:`, k8sErr.message);
+        console.warn(
+          `[Delete Tenant] K8s cleanup note for ${tenant.k8s_namespace}:`,
+          k8sErr.message,
+        );
       }
     }
 
@@ -91,6 +112,9 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     });
   } catch (err: any) {
     console.error("[Delete Tenant Error]:", err);
-    return json({ success: false, error: err.message || "Erreur interne" }, { status: 500 });
+    return json(
+      { success: false, error: err.message || "Erreur interne" },
+      { status: 500 },
+    );
   }
 };

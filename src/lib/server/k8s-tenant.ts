@@ -382,10 +382,13 @@ export async function updateTenantCustomDomainIngress(
  */
 export async function deleteTenantK8s(namespace: string): Promise<boolean> {
   try {
-    const proc = Bun.spawn(["kubectl", "delete", "namespace", namespace, "--ignore-not-found=true"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    const proc = Bun.spawn(
+      ["kubectl", "delete", "namespace", namespace, "--ignore-not-found=true"],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
     const exitCode = await proc.exited;
     return exitCode === 0;
   } catch (err: any) {

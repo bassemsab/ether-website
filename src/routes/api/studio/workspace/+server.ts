@@ -3,7 +3,12 @@ import type { RequestHandler } from "./$types";
 import { getTenantBySlug } from "$lib/server/db";
 import { getSessionCookieDomain } from "$lib/server/auth";
 
-export const POST: RequestHandler = async ({ request, locals, cookies, url }) => {
+export const POST: RequestHandler = async ({
+  request,
+  locals,
+  cookies,
+  url,
+}) => {
   if (!locals.user) {
     return json(
       { success: false, error: "Non autorisé. Veuillez vous connecter." },
@@ -21,7 +26,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies, url }) =>
 
     const tenant = await getTenantBySlug(slug);
     if (!tenant) {
-      return json({ success: false, error: "Site introuvable" }, { status: 404 });
+      return json(
+        { success: false, error: "Site introuvable" },
+        { status: 404 },
+      );
     }
 
     const userEmail = (locals.user.email || "").trim().toLowerCase();

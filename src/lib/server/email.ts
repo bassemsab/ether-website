@@ -232,12 +232,16 @@ export async function sendContactEmail(payload: ContactPayload) {
                     <td class="label-text" style="padding: 6px 0; color: #64748b; font-size: 12px;">Adresse e-mail</td>
                     <td style="padding: 6px 0; text-align: right;"><a href="mailto:${payload.email}" style="color: #2563eb; text-decoration: underline; font-weight: 600;">${payload.email}</a></td>
                   </tr>
-                  ${payload.company ? `
+                  ${
+                    payload.company
+                      ? `
                   <tr>
                     <td class="label-text" style="padding: 6px 0; color: #64748b; font-size: 12px;">Organisation</td>
                     <td class="val-text" style="padding: 6px 0; text-align: right; font-weight: 600; color: #111827;">${payload.company}</td>
                   </tr>
-                  ` : ""}
+                  `
+                      : ""
+                  }
                   <tr style="border-top: 1px solid #e2e8f0;">
                     <td colspan="2" class="val-text" style="padding: 12px 0 6px 0; font-weight: 700; font-size: 12px; color: #111827;">
                       Message :
@@ -541,11 +545,15 @@ export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
       ...options,
       from,
     });
-    console.log(`[sendSystemEmail] Sent email to ${options.to} via SMTP: "${options.subject}"`);
+    console.log(
+      `[sendSystemEmail] Sent email to ${options.to} via SMTP: "${options.subject}"`,
+    );
     return { success: true, provider: "smtp" };
   } catch (smtpErr: any) {
     if (isLocal && smtpErr?.code === "ECONNREFUSED") {
-      console.log(`[sendSystemEmail] Local SMTP (${process.env.SMTP_HOST || "127.0.0.1"}:${process.env.SMTP_PORT || "2587"}) not reachable.`);
+      console.log(
+        `[sendSystemEmail] Local SMTP (${process.env.SMTP_HOST || "127.0.0.1"}:${process.env.SMTP_PORT || "2587"}) not reachable.`,
+      );
     } else {
       console.warn(
         "[sendSystemEmail] SMTP send failed, falling back to Resend:",
@@ -570,11 +578,15 @@ export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
         html: options.html,
       });
       if (!error) {
-        console.log(`[sendSystemEmail] Sent email to ${options.to} via Resend: "${options.subject}"`);
+        console.log(
+          `[sendSystemEmail] Sent email to ${options.to} via Resend: "${options.subject}"`,
+        );
         return { success: true, provider: "resend", data };
       }
       if (isLocal) {
-        console.log(`[sendSystemEmail] Resend API key inactive (${error.message || error.name}).`);
+        console.log(
+          `[sendSystemEmail] Resend API key inactive (${error.message || error.name}).`,
+        );
       } else {
         console.warn("[sendSystemEmail] Resend error:", error);
       }
@@ -599,7 +611,9 @@ export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
     return { success: true, provider: "mock" };
   }
 
-  throw new Error(`Failed to deliver email to ${options.to} via SMTP and Resend`);
+  throw new Error(
+    `Failed to deliver email to ${options.to} via SMTP and Resend`,
+  );
 }
 
 export interface PromptTopupEmailParams {
@@ -615,7 +629,9 @@ export interface PromptTopupEmailParams {
 /**
  * Sends a confirmation email to the user when they purchase a prompt top-up pack.
  */
-export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailParams) {
+export async function sendPromptTopupConfirmationEmail(
+  params: PromptTopupEmailParams,
+) {
   const isEn = params.locale === "en";
   const rawFrom =
     process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
@@ -636,7 +652,9 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
   const valValidity = isEn ? "No expiration" : "Sans expiration";
   const labelSite = isEn ? "Associated site" : "Site associé";
   const labelTotal = isEn ? "Total paid" : "Total réglé";
-  const valTotal = isEn ? `${params.priceFormatted} incl. VAT` : `${params.priceFormatted} TTC`;
+  const valTotal = isEn
+    ? `${params.priceFormatted} incl. VAT`
+    : `${params.priceFormatted} TTC`;
   const ctaButton = isEn ? "Open Studio &rarr;" : "Ouvrir le Studio &rarr;";
   const note = isEn
     ? "Your prompts are immediately available to generate, design, and edit your websites in the ether studio."
@@ -647,7 +665,7 @@ export async function sendPromptTopupConfirmationEmail(params: PromptTopupEmailP
 
   const html = `
     <!DOCTYPE html>
-    <html lang="${isEn ? 'en' : 'fr'}">
+    <html lang="${isEn ? "en" : "fr"}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -930,7 +948,9 @@ export interface DomainPurchaseEmailParams {
 /**
  * Sends a confirmation email to the user when they purchase a custom domain via Stripe checkout.
  */
-export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchaseEmailParams) {
+export async function sendDomainPurchaseConfirmationEmail(
+  params: DomainPurchaseEmailParams,
+) {
   const isEn = params.locale === "en";
   const rawFrom =
     process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
@@ -945,10 +965,14 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
     ? `Your custom domain <strong>${params.domain}</strong> has been registered and connected to your ether site.`
     : `Votre nom de domaine <strong>${params.domain}</strong> a été réservé et relié à votre site ether.`;
   const labelDomain = isEn ? "Domain" : "Domaine";
-  const labelProtection = isEn ? "DNS & SSL Protection" : "Protection DNS & SSL";
+  const labelProtection = isEn
+    ? "DNS & SSL Protection"
+    : "Protection DNS & SSL";
   const labelForward = isEn ? "Email forwarding" : "Redirection e-mail";
   const labelSubscription = isEn ? "Annual subscription" : "Abonnement annuel";
-  const ctaButton = isEn ? "View my live site &rarr;" : "Voir mon site en ligne &rarr;";
+  const ctaButton = isEn
+    ? "View my live site &rarr;"
+    : "Voir mon site en ligne &rarr;";
   const forwardNote = isEn
     ? `All emails sent to contact@${params.domain} are automatically forwarded to your personal inbox in real time.`
     : `Tous les e-mails envoyés à contact@${params.domain} sont automatiquement transmis vers votre boîte personnelle en temps réel.`;
@@ -958,7 +982,7 @@ export async function sendDomainPurchaseConfirmationEmail(params: DomainPurchase
 
   const html = `
     <!DOCTYPE html>
-    <html lang="${isEn ? 'en' : 'fr'}">
+    <html lang="${isEn ? "en" : "fr"}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1254,7 +1278,9 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
   const labelStatus = isEn ? "Status" : "Statut";
   const valStatus = isEn ? "Verified & Active" : "Vérifié & Actif";
   const labelForward = isEn ? "Email forwarding" : "Redirection e-mail";
-  const ctaButton = isEn ? "View my live site &rarr;" : "Voir mon site en ligne &rarr;";
+  const ctaButton = isEn
+    ? "View my live site &rarr;"
+    : "Voir mon site en ligne &rarr;";
   const forwardNote = isEn
     ? `All emails sent to contact@${params.domain} are automatically forwarded to your inbox in real time.`
     : `Tous les e-mails envoyés à contact@${params.domain} sont automatiquement transmis vers votre boîte personnelle en temps réel.`;
@@ -1264,7 +1290,7 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
 
   const html = `
     <!DOCTYPE html>
-    <html lang="${isEn ? 'en' : 'fr'}">
+    <html lang="${isEn ? "en" : "fr"}">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -35,7 +35,8 @@ export async function callOvhApi(
     return {
       ok: false,
       status: 500,
-      error: "Identifiants OVH non configurés (OVH_APPLICATION_KEY / SECRET / CONSUMER_KEY)",
+      error:
+        "Identifiants OVH non configurés (OVH_APPLICATION_KEY / SECRET / CONSUMER_KEY)",
     };
   }
 
@@ -46,7 +47,8 @@ export async function callOvhApi(
   try {
     // 1. Fetch server time for time synchronization
     const timeRes = await fetch(`${DEFAULT_ENDPOINT}/auth/time`);
-    const timestamp = parseInt(await timeRes.text(), 10) || Math.floor(Date.now() / 1000);
+    const timestamp =
+      parseInt(await timeRes.text(), 10) || Math.floor(Date.now() / 1000);
 
     // 2. Generate OVH signature: "$1$" + SHA1_HEX(AS + "+" + CK + "+" + METHOD + "+" + QUERY_URL + "+" + BODY + "+" + TSTAMP)
     const toSign = `${creds.as}+${creds.ck}+${method.toUpperCase()}+${url}+${bodyStr}+${timestamp}`;
@@ -75,7 +77,9 @@ export async function callOvhApi(
     }
 
     if (!res.ok) {
-      const errMsg = data?.message || (typeof data === "string" ? data : `Erreur OVH HTTP ${res.status}`);
+      const errMsg =
+        data?.message ||
+        (typeof data === "string" ? data : `Erreur OVH HTTP ${res.status}`);
       return { ok: false, status: res.status, error: errMsg, data };
     }
 
@@ -97,7 +101,10 @@ export async function checkOvhDomain(domain: string): Promise<{
   nameservers?: string[];
   info?: any;
 }> {
-  const cleanDomain = domain.toLowerCase().trim().replace(/^www\./, "");
+  const cleanDomain = domain
+    .toLowerCase()
+    .trim()
+    .replace(/^www\./, "");
   const res = await callOvhApi("GET", `/domain/${cleanDomain}`);
 
   if (!res.ok) {
@@ -106,7 +113,9 @@ export async function checkOvhDomain(domain: string): Promise<{
 
   const info = res.data;
   const nsList = Array.isArray(info.nameServers)
-    ? info.nameServers.map((ns: any) => (typeof ns === "string" ? ns : ns.host)).filter(Boolean)
+    ? info.nameServers
+        .map((ns: any) => (typeof ns === "string" ? ns : ns.host))
+        .filter(Boolean)
     : [];
 
   return {
@@ -126,27 +135,48 @@ export async function updateOvhNameservers(
   domain: string,
   nameservers: string[],
 ): Promise<{ success: boolean; message: string; taskId?: number }> {
-  const cleanDomain = domain.toLowerCase().trim().replace(/^www\./, "");
+  const cleanDomain = domain
+    .toLowerCase()
+    .trim()
+    .replace(/^www\./, "");
 
   if (!nameservers || nameservers.length === 0) {
-    return { success: false, message: "Aucun serveur DNS fourni pour la délégation" };
+    return {
+      success: false,
+      message: "Aucun serveur DNS fourni pour la délégation",
+    };
   }
 
-  console.log(`[OVH] Delegating nameservers for ${cleanDomain} to:`, nameservers);
+  console.log(
+    `[OVH] Delegating nameservers for ${cleanDomain} to:`,
+    nameservers,
+  );
 
   const payload = {
     nameServers: nameservers.map((ns) => ({ host: ns })),
   };
 
-  const res = await callOvhApi("POST", `/domain/${cleanDomain}/nameServers/update`, payload);
+  const res = await callOvhApi(
+    "POST",
+    `/domain/${cleanDomain}/nameServers/update`,
+    payload,
+  );
 
   if (!res.ok) {
-    console.error(`[OVH] Failed to update nameservers for ${cleanDomain}:`, res.error);
-    return { success: false, message: res.error || "Échec de mise à jour des DNS OVH" };
+    console.error(
+      `[OVH] Failed to update nameservers for ${cleanDomain}:`,
+      res.error,
+    );
+    return {
+      success: false,
+      message: res.error || "Échec de mise à jour des DNS OVH",
+    };
   }
 
   const taskId = res.data?.id;
-  console.log(`[OVH] Delegation task created for ${cleanDomain}: Task ID ${taskId}`);
+  console.log(
+    `[OVH] Delegation task created for ${cleanDomain}: Task ID ${taskId}`,
+  );
 
   return {
     success: true,
@@ -164,14 +194,19 @@ export interface OvhTldPrice {
   activePriceCents: number;
 }
 
-const tldPricingCache = new Map<string, { timestamp: number; price: OvhTldPrice }>();
+const tldPricingCache = new Map<
+  string,
+  { timestamp: number; price: OvhTldPrice }
+>();
 const PRICING_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
 
 /**
  * Fetches live TLD pricing directly from the OVH REST catalog API.
  * Uses an in-memory cache to guarantee sub-millisecond lookups on repeated queries.
  */
-export async function getOvhTldPricing(tld: string): Promise<OvhTldPrice | null> {
+export async function getOvhTldPricing(
+  tld: string,
+): Promise<OvhTldPrice | null> {
   const cleanTld = tld.toLowerCase().replace(/^\./, "").trim();
   if (!cleanTld) return null;
 
@@ -216,7 +251,10 @@ export async function getOvhTldPricing(tld: string): Promise<OvhTldPrice | null>
     tldPricingCache.set(cleanTld, { timestamp: Date.now(), price });
     return price;
   } catch (err: any) {
-    console.warn(`[OVH] Failed to fetch live pricing for TLD .${cleanTld}:`, err?.message);
+    console.warn(
+      `[OVH] Failed to fetch live pricing for TLD .${cleanTld}:`,
+      err?.message,
+    );
     return null;
   }
 }
@@ -224,4 +262,3 @@ export async function getOvhTldPricing(tld: string): Promise<OvhTldPrice | null>
 export function clearOvhPricingCache(): void {
   tldPricingCache.clear();
 }
-

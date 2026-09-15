@@ -54,7 +54,13 @@ export interface CreateTopupCheckoutParams {
 
 export const TOPUP_PACKS: Record<
   TopupPackId,
-  { id: TopupPackId; name: string; prompts: number; priceCents: number; description: string }
+  {
+    id: TopupPackId;
+    name: string;
+    prompts: number;
+    priceCents: number;
+    description: string;
+  }
 > = {
   starter: {
     id: "starter",
@@ -128,7 +134,9 @@ export async function createPromptTopupCheckoutSession(
         packName: pack.name,
         prompts: pack.prompts,
         priceFormatted: `${(pack.priceCents / 100).toFixed(2).replace(".", ",")} €`,
-      }).catch((e) => console.warn("[Stripe Mock] Confirmation email error:", e.message));
+      }).catch((e) =>
+        console.warn("[Stripe Mock] Confirmation email error:", e.message),
+      );
     }
 
     return {
@@ -333,7 +341,6 @@ export async function processPromptTopupCheckoutSession(
   }
 }
 
-
 /**
  * Centrally fulfills a domain purchase:
  * 1. Activates domain order in SQLite
@@ -360,7 +367,12 @@ export async function fulfillDomainPurchase({
   customerEmail?: string | null;
   priceCents?: number;
   locale?: string;
-}): Promise<{ success: boolean; domain: string; dnsResult?: any; error?: string }> {
+}): Promise<{
+  success: boolean;
+  domain: string;
+  dnsResult?: any;
+  error?: string;
+}> {
   console.log(
     `[fulfillDomainPurchase] Fulfilling domain for ${domain} (tenant ${tenantId}, provider ${provider})`,
   );
@@ -375,7 +387,11 @@ export async function fulfillDomainPurchase({
   try {
     // 1. Update order status in DB if sessionId provided
     if (sessionId) {
-      await updateDomainOrderStatus(sessionId, "active", subscriptionId || undefined);
+      await updateDomainOrderStatus(
+        sessionId,
+        "active",
+        subscriptionId || undefined,
+      );
     }
 
     // 2. Fetch tenant
@@ -404,7 +420,11 @@ export async function fulfillDomainPurchase({
 
     // 5. Automate domain provisioning, DNS, Inbound Email routing, and Outbound Maddy SMTP
     const targetEmail = tenant.email || customerEmail || "contact@ether.paris";
-    const dnsResult = await provisionBookedDomain(cleanDomain, provider, targetEmail);
+    const dnsResult = await provisionBookedDomain(
+      cleanDomain,
+      provider,
+      targetEmail,
+    );
 
     // Save generated SMTP credentials in tenant database record
     if (dnsResult.details?.smtp) {
@@ -430,7 +450,10 @@ export async function fulfillDomainPurchase({
               : "inclus",
         });
       } catch (emailErr: any) {
-        console.warn("[fulfillDomainPurchase] Could not send confirmation email:", emailErr.message);
+        console.warn(
+          "[fulfillDomainPurchase] Could not send confirmation email:",
+          emailErr.message,
+        );
       }
     }
 
@@ -463,7 +486,8 @@ export async function processDomainCheckoutSession(
 
     const tenantIdStr = session.metadata?.tenant_id;
     const domain = session.metadata?.domain;
-    const provider = (session.metadata?.provider as "ovh" | "cloudflare") || "cloudflare";
+    const provider =
+      (session.metadata?.provider as "ovh" | "cloudflare") || "cloudflare";
     const priceCents = parseInt(session.metadata?.price_cents || "0", 10);
     const subscriptionId =
       typeof session.subscription === "string"
@@ -528,7 +552,10 @@ export async function handleStripeWebhookEvent(
     const session = event.data.object as Stripe.Checkout.Session;
 
     // A. Handle Prompt Topup purchase
-    if (session.mode === "payment" && session.metadata?.type === "prompt_topup") {
+    if (
+      session.mode === "payment" &&
+      session.metadata?.type === "prompt_topup"
+    ) {
       const topupResult = await processPromptTopupCheckoutSession(session);
       return {
         received: true,
@@ -542,7 +569,8 @@ export async function handleStripeWebhookEvent(
     if (session.mode === "subscription" && session.metadata?.domain) {
       const tenantIdStr = session.metadata.tenant_id;
       const domain = session.metadata.domain;
-      const provider = (session.metadata.provider as "ovh" | "cloudflare") || "cloudflare";
+      const provider =
+        (session.metadata.provider as "ovh" | "cloudflare") || "cloudflare";
       const subscriptionId =
         typeof session.subscription === "string"
           ? session.subscription

@@ -29,6 +29,7 @@
   let newSiteBrand = $state("");
   let newSiteSlug = $state("");
   let createLoading = $state(false);
+  let createStatusText = $state("Génération et déploiement...");
   let createError = $state<string | null>(null);
 
   // Domain search form
@@ -57,6 +58,7 @@
 
     createLoading = true;
     createError = null;
+    createStatusText = "Initialisation de l'infrastructure...";
 
     try {
       const res = await fetch("/api/tenant/create", {
@@ -70,7 +72,33 @@
         throw new Error(json.error || "Impossible de créer le site");
       }
 
-      actionMessage = `Site ${newSiteSlug}.ether.paris initialisé avec succès !`;
+      const createdSlug = newSiteSlug;
+      createStatusText = "Compilation et mise en ligne du site...";
+
+      // Poll readiness endpoint until site responds HTTP 200 (max 45s)
+      let isReady = false;
+      const maxAttempts = 30; // 30 * 1.5s = 45s
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        try {
+          const checkRes = await fetch(`/api/tenant/ready?slug=${encodeURIComponent(createdSlug)}`);
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if (checkData.ready) {
+              isReady = true;
+              break;
+            }
+            if (checkData.message) {
+              createStatusText = checkData.message;
+            }
+          }
+        } catch {}
+      }
+
+      createStatusText = isReady ? "Site en ligne ! Finalisation..." : "Finalisation...";
+      await new Promise((r) => setTimeout(r, 600));
+
+      actionMessage = `Site ${createdSlug}.ether.paris initialisé et en ligne avec succès !`;
       isCreateModalOpen = false;
       newSiteBrand = "";
       newSiteSlug = "";
@@ -466,7 +494,13 @@
       <div class="retro-card w-full max-w-lg p-6 md:p-8 space-y-6 bg-card">
         <div class="flex items-center justify-between">
           <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Créer un nouveau site</h2>
-          <button onclick={() => isCreateModalOpen = false} class="text-muted-foreground hover:text-foreground">✕</button>
+          <button
+            disabled={createLoading}
+            onclick={() => isCreateModalOpen = false}
+            class="text-muted-foreground hover:text-foreground disabled:opacity-30"
+          >
+            ✕
+          </button>
         </div>
 
         {#if createError}
@@ -487,7 +521,8 @@
               value={newSiteBrand}
               oninput={(e) => autoSlug((e.target as HTMLInputElement).value)}
               required
-              class="w-full rounded-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm transition-all font-neue"
+              disabled={createLoading}
+              class="w-full rounded-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm transition-all font-neue disabled:opacity-60"
             />
           </div>
 
@@ -502,7 +537,8 @@
                 bind:value={newSiteSlug}
                 placeholder="mon-cafe"
                 required
-                class="w-full rounded-l-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-mono transition-all"
+                disabled={createLoading}
+                class="w-full rounded-l-2xl border border-black/10 bg-surface/80 px-4 py-3 text-foreground placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-sm font-mono transition-all disabled:opacity-60"
               />
               <span class="px-4 py-3 bg-surface border border-l-0 border-black/10 rounded-r-2xl text-muted-foreground text-sm font-mono">
                 .ether.paris
@@ -514,8 +550,9 @@
           <div class="pt-4 flex items-center justify-end gap-3">
             <button
               type="button"
+              disabled={createLoading}
               onclick={() => isCreateModalOpen = false}
-              class="px-4 py-2 text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground cursor-pointer"
+              class="px-4 py-2 text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
             >
               Annuler
             </button>
@@ -526,7 +563,7 @@
             >
               {#if createLoading}
                 <span class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                <span>Déploiement...</span>
+                <span>{createStatusText}</span>
               {:else}
                 <span>Générer et déployer</span>
               {/if}

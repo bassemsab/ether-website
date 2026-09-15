@@ -16,7 +16,8 @@ export interface SmtpCredentials {
  * Generates a strong random SMTP password.
  */
 export function generateSmtpPassword(length = 16): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
+  const chars =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
   const bytes = crypto.randomBytes(length);
   let password = "";
   for (let i = 0; i < length; i++) {
@@ -32,7 +33,10 @@ export async function getOrCreateDkimRecord(
   domain: string,
   selector = "default",
 ): Promise<{ selector: string; txtRecord: string; publicKey: string } | null> {
-  const cleanDomain = domain.toLowerCase().trim().replace(/^www\./, "");
+  const cleanDomain = domain
+    .toLowerCase()
+    .trim()
+    .replace(/^www\./, "");
   const dnsFileName = `/data/dkim_keys/${cleanDomain}_${selector}.dns`;
   const keyFileName = `/data/dkim_keys/${cleanDomain}_${selector}.key`;
 
@@ -78,7 +82,9 @@ export async function getOrCreateDkimRecord(
       proc.stdin?.end();
     });
 
-    console.log(`[Maddy] Generated and stored DKIM key for ${cleanDomain} (selector ${selector})`);
+    console.log(
+      `[Maddy] Generated and stored DKIM key for ${cleanDomain} (selector ${selector})`,
+    );
 
     return {
       selector,
@@ -86,7 +92,10 @@ export async function getOrCreateDkimRecord(
       publicKey: pubKeyBase64,
     };
   } catch (err: any) {
-    console.warn(`[Maddy] Could not generate/retrieve DKIM key for ${cleanDomain}:`, err.message);
+    console.warn(
+      `[Maddy] Could not generate/retrieve DKIM key for ${cleanDomain}:`,
+      err.message,
+    );
     return null;
   }
 }
@@ -98,8 +107,15 @@ export async function provisionMaddyCredentials(
   domain: string,
   alias = "contact",
   providedPassword?: string,
-): Promise<{ success: boolean; credentials?: SmtpCredentials; error?: string }> {
-  const cleanDomain = domain.toLowerCase().trim().replace(/^www\./, "");
+): Promise<{
+  success: boolean;
+  credentials?: SmtpCredentials;
+  error?: string;
+}> {
+  const cleanDomain = domain
+    .toLowerCase()
+    .trim()
+    .replace(/^www\./, "");
   const username = `${alias}@${cleanDomain}`;
   const password = providedPassword || generateSmtpPassword();
 
@@ -111,8 +127,13 @@ export async function provisionMaddyCredentials(
       console.log(`[Maddy] Created SMTP account: ${username}`);
     } catch (createErr: any) {
       // If user already exists, update password
-      if (createErr.stderr?.includes("already exist") || createErr.stdout?.includes("already exist")) {
-        console.log(`[Maddy] User ${username} already exists, updating password...`);
+      if (
+        createErr.stderr?.includes("already exist") ||
+        createErr.stdout?.includes("already exist")
+      ) {
+        console.log(
+          `[Maddy] User ${username} already exists, updating password...`,
+        );
         const updateCmd = `kubectl -n mail-server exec deployment/maddy -- maddy creds password -p "${password.replace(/"/g, '\\"')}" "${username}"`;
         await execAsync(updateCmd);
       } else {
@@ -131,7 +152,10 @@ export async function provisionMaddyCredentials(
       },
     };
   } catch (err: any) {
-    console.error(`[Maddy] Failed to provision credentials for ${username}:`, err);
+    console.error(
+      `[Maddy] Failed to provision credentials for ${username}:`,
+      err,
+    );
     return {
       success: false,
       error: err.message,

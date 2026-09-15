@@ -21,7 +21,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const tenantIdStr = url.searchParams.get("tenantId");
   const slug = url.searchParams.get("slug");
 
-  let tenant = tenantIdStr ? await getTenantById(parseInt(tenantIdStr, 10)) : null;
+  let tenant = tenantIdStr
+    ? await getTenantById(parseInt(tenantIdStr, 10))
+    : null;
   if (!tenant && slug) {
     tenant = await getTenantBySlug(slug);
   }
@@ -142,29 +144,51 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       .replace(/^www\./, "");
 
     // 1. Validate domain syntax
-    const domainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+    const domainRegex =
+      /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
     if (!domainRegex.test(cleanDomain)) {
       return json(
-        { success: false, error: "Format de domaine invalide (ex: monsite.com ou boutique.fr)" },
+        {
+          success: false,
+          error: "Format de domaine invalide (ex: monsite.com ou boutique.fr)",
+        },
         { status: 400 },
       );
     }
 
     // Disallow linking Ether reserved platform domains
-    const reservedDomains = ["ether.paris", "studio.ether.paris", "api.ether.paris", "mail.ether.paris"];
-    if (reservedDomains.includes(cleanDomain) || cleanDomain.endsWith(".ether.paris")) {
+    const reservedDomains = [
+      "ether.paris",
+      "studio.ether.paris",
+      "api.ether.paris",
+      "mail.ether.paris",
+    ];
+    if (
+      reservedDomains.includes(cleanDomain) ||
+      cleanDomain.endsWith(".ether.paris")
+    ) {
       return json(
-        { success: false, error: "Ce domaine est réservé par l'infrastructure Ether" },
+        {
+          success: false,
+          error: "Ce domaine est réservé par l'infrastructure Ether",
+        },
         { status: 400 },
       );
     }
 
     // 2. Domain Ownership & Conflict Verification
     // Reject if domain is already registered to or linked by another account
-    const conflict = getDomainOwnershipConflict(cleanDomain, tenant.id, tenant.user_id);
+    const conflict = getDomainOwnershipConflict(
+      cleanDomain,
+      tenant.id,
+      tenant.user_id,
+    );
     if (conflict.conflict) {
       return json(
-        { success: false, error: conflict.message || "Ce domaine appartient à un autre compte." },
+        {
+          success: false,
+          error: conflict.message || "Ce domaine appartient à un autre compte.",
+        },
         { status: 400 },
       );
     }
@@ -245,10 +269,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // 6. Send clean "Domain Linked" notification email (NO purchase, NO invoice)
     const recipientEmail = tenant.email || locals.user.email;
     if (recipientEmail) {
-      const userLocale =
-        request.headers.get("accept-language")?.toLowerCase().startsWith("en")
-          ? "en"
-          : "fr";
+      const userLocale = request.headers
+        .get("accept-language")
+        ?.toLowerCase()
+        .startsWith("en")
+        ? "en"
+        : "fr";
       try {
         await sendDomainLinkedEmail({
           email: recipientEmail,
@@ -258,7 +284,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
           locale: userLocale,
         });
       } catch (emailErr: any) {
-        console.warn("[custom-domain] Could not send domain linked email:", emailErr?.message);
+        console.warn(
+          "[custom-domain] Could not send domain linked email:",
+          emailErr?.message,
+        );
       }
     }
 

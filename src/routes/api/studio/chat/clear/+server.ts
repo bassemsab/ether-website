@@ -1,6 +1,11 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { clearStudioChatHistory, deleteStudioConversation, getTenantBySlug, resolveUserWorkspace } from "$lib/server/db";
+import {
+  clearStudioChatHistory,
+  deleteStudioConversation,
+  getTenantBySlug,
+  resolveUserWorkspace,
+} from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   if (!locals.user) return false;
@@ -30,9 +35,15 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   try {
     const body = await request.json();
     const requestedSlug = body.projectSlug;
-    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const tenant = await resolveUserWorkspace(
+      locals.user,
+      cookies,
+      requestedSlug,
+    );
     const projectSlug = tenant.slug || "workspace";
-    const conversationId = body.conversationId ? String(body.conversationId).trim() : null;
+    const conversationId = body.conversationId
+      ? String(body.conversationId).trim()
+      : null;
 
     if (conversationId) {
       deleteStudioConversation(projectSlug, conversationId);

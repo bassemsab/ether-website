@@ -52,7 +52,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       );
       if (gitRes.ok) {
         const gitData = await gitRes.json();
-        console.log(`[publish] git commit-and-push for ${tenantSlug}:`, gitData);
+        console.log(
+          `[publish] git commit-and-push for ${tenantSlug}:`,
+          gitData,
+        );
       }
     } catch (gitErr: any) {
       console.warn(

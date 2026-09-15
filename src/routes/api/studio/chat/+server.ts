@@ -37,7 +37,11 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   }
 
   const requestedSlug = url.searchParams.get("project");
-  const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+  const tenant = await resolveUserWorkspace(
+    locals.user,
+    cookies,
+    requestedSlug,
+  );
   const projectSlug = tenant.slug || "workspace";
 
   const conversationsOnly = url.searchParams.get("conversations") === "true";
@@ -66,10 +70,16 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     const prompt = (body.prompt || "").trim();
     const image = body.image; // Optional image attachment { name, type, base64, dataUrl }
     const requestedSlug = body.projectSlug;
-    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const tenant = await resolveUserWorkspace(
+      locals.user,
+      cookies,
+      requestedSlug,
+    );
     const projectSlug = tenant.slug || "workspace";
     const conversationId =
-      (body.conversationId && typeof body.conversationId === "string" && body.conversationId.trim())
+      body.conversationId &&
+      typeof body.conversationId === "string" &&
+      body.conversationId.trim()
         ? body.conversationId.trim()
         : `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const preferredProfile = body.profile === "auto" ? undefined : body.profile;
@@ -102,7 +112,11 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
                 ),
               );
             };
-            sendEvent("error", { message: errorMsg, quotaExceeded: true, quota });
+            sendEvent("error", {
+              message: errorMsg,
+              quotaExceeded: true,
+              quota,
+            });
             controller.close();
           },
         });

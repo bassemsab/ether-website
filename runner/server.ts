@@ -23,14 +23,41 @@ import {
 } from "./auth-helper";
 
 const SQLITE_EXTENSIONS = new Set(["db", "sqlite", "sqlite3"]);
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "svg"]);
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "ico",
+  "bmp",
+  "svg",
+]);
 const MEDIA_EXTENSIONS = new Set(["mp4", "webm", "ogg", "mp3", "wav", "m4a"]);
 const OTHER_BINARY_EXTENSIONS = new Set([
-  "woff", "woff2", "ttf", "eot", "otf",
-  "wasm", "pdf", "zip", "tar", "gz", "rar", "7z", "iso", "bin", "exe", "so", "dylib", "dll"
+  "woff",
+  "woff2",
+  "ttf",
+  "eot",
+  "otf",
+  "wasm",
+  "pdf",
+  "zip",
+  "tar",
+  "gz",
+  "rar",
+  "7z",
+  "iso",
+  "bin",
+  "exe",
+  "so",
+  "dylib",
+  "dll",
 ]);
 
-function getFileCategory(filename: string): "code" | "sqlite" | "image" | "media" | "binary" {
+function getFileCategory(
+  filename: string,
+): "code" | "sqlite" | "image" | "media" | "binary" {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   if (SQLITE_EXTENSIONS.has(ext)) return "sqlite";
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
@@ -48,15 +75,23 @@ function isBinaryFile(filename: string): boolean {
 function getImageMime(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   switch (ext) {
-    case "png": return "image/png";
+    case "png":
+      return "image/png";
     case "jpg":
-    case "jpeg": return "image/jpeg";
-    case "gif": return "image/gif";
-    case "webp": return "image/webp";
-    case "svg": return "image/svg+xml";
-    case "ico": return "image/x-icon";
-    case "bmp": return "image/bmp";
-    default: return "application/octet-stream";
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "svg":
+      return "image/svg+xml";
+    case "ico":
+      return "image/x-icon";
+    case "bmp":
+      return "image/bmp";
+    default:
+      return "application/octet-stream";
   }
 }
 
@@ -203,7 +238,10 @@ mkdirSync(join(DATA_DIR, "tenants"), { recursive: true });
  * Sanitizes a tenant slug to a safe, valid Linux username (max 24 chars).
  */
 export function getTenantUsername(tenantSlug: string): string {
-  const sanitized = tenantSlug.toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 20);
+  const sanitized = tenantSlug
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .slice(0, 20);
   return `tenant_${sanitized}`;
 }
 
@@ -211,7 +249,11 @@ export function getTenantUsername(tenantSlug: string): string {
  * Checks whether runner is executing as root on Linux.
  */
 export function isLinuxRoot(): boolean {
-  return process.platform === "linux" && typeof process.getuid === "function" && process.getuid() === 0;
+  return (
+    process.platform === "linux" &&
+    typeof process.getuid === "function" &&
+    process.getuid() === 0
+  );
 }
 
 /**
@@ -304,14 +346,49 @@ export function ensureTenantTmuxSession(tenantSlug: string): {
   try {
     const isRoot = isLinuxRoot();
     const checkCmd = isRoot
-      ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "has-session", "-t", sessionName]
+      ? [
+          "runuser",
+          "-u",
+          username,
+          "--",
+          "tmux",
+          "-S",
+          socketPath,
+          "has-session",
+          "-t",
+          sessionName,
+        ]
       : ["tmux", "-S", socketPath, "has-session", "-t", sessionName];
 
     const checkProc = Bun.spawnSync(checkCmd);
     if (checkProc.exitCode !== 0) {
       const startCmd = isRoot
-        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "new-session", "-d", "-s", sessionName, "-c", codeDir]
-        : ["tmux", "-S", socketPath, "new-session", "-d", "-s", sessionName, "-c", codeDir];
+        ? [
+            "runuser",
+            "-u",
+            username,
+            "--",
+            "tmux",
+            "-S",
+            socketPath,
+            "new-session",
+            "-d",
+            "-s",
+            sessionName,
+            "-c",
+            codeDir,
+          ]
+        : [
+            "tmux",
+            "-S",
+            socketPath,
+            "new-session",
+            "-d",
+            "-s",
+            sessionName,
+            "-c",
+            codeDir,
+          ];
 
       Bun.spawnSync(startCmd);
     }
@@ -423,7 +500,9 @@ async function resolveTenantGitCredentials(
       try {
         const db = new Database(dbPath, { readonly: true });
         const row = db
-          .query("SELECT git_repo_url, git_access_token FROM tenants WHERE slug = ?")
+          .query(
+            "SELECT git_repo_url, git_access_token FROM tenants WHERE slug = ?",
+          )
           .get(tenantSlug) as any;
         db.close();
         if (row?.git_repo_url) {
@@ -486,7 +565,11 @@ async function ensureTenantCodebase(
   mkdirSync(codeDir, { recursive: true });
 
   // Resolve git credentials if missing
-  const creds = await resolveTenantGitCredentials(tenantSlug, gitRepoUrl, gitToken);
+  const creds = await resolveTenantGitCredentials(
+    tenantSlug,
+    gitRepoUrl,
+    gitToken,
+  );
   gitRepoUrl = creds.gitRepoUrl;
   gitToken = creds.gitToken;
 
@@ -497,7 +580,10 @@ async function ensureTenantCodebase(
       let authedUrl = gitRepoUrl;
       try {
         const u = new URL(gitRepoUrl);
-        if (process.env.NODE_ENV === "production" && u.hostname === "git.ether.paris") {
+        if (
+          process.env.NODE_ENV === "production" &&
+          u.hostname === "git.ether.paris"
+        ) {
           authedUrl = `http://${gitToken}@gitea-http.git.svc.cluster.local:3000${u.pathname}`;
         } else {
           authedUrl = `${u.protocol}//${gitToken}@${u.host}${u.pathname}`;
@@ -509,26 +595,39 @@ async function ensureTenantCodebase(
       });
       if (cloneProc.exitCode === 0) {
         cloned = true;
-        Bun.spawnSync(["git", "config", "user.name", "Ether Studio"], { cwd: codeDir });
-        Bun.spawnSync(["git", "config", "user.email", "studio@ether.paris"], { cwd: codeDir });
+        Bun.spawnSync(["git", "config", "user.name", "Ether Studio"], {
+          cwd: codeDir,
+        });
+        Bun.spawnSync(["git", "config", "user.email", "studio@ether.paris"], {
+          cwd: codeDir,
+        });
       }
     }
 
     if (!cloned) {
       Bun.spawnSync(["git", "init"], { cwd: codeDir });
-      Bun.spawnSync(["git", "config", "user.name", "Ether Studio"], { cwd: codeDir });
-      Bun.spawnSync(["git", "config", "user.email", "studio@ether.paris"], { cwd: codeDir });
+      Bun.spawnSync(["git", "config", "user.name", "Ether Studio"], {
+        cwd: codeDir,
+      });
+      Bun.spawnSync(["git", "config", "user.email", "studio@ether.paris"], {
+        cwd: codeDir,
+      });
       if (gitRepoUrl && gitToken) {
         let authedUrl = gitRepoUrl;
         try {
           const u = new URL(gitRepoUrl);
-          if (process.env.NODE_ENV === "production" && u.hostname === "git.ether.paris") {
+          if (
+            process.env.NODE_ENV === "production" &&
+            u.hostname === "git.ether.paris"
+          ) {
             authedUrl = `http://${gitToken}@gitea-http.git.svc.cluster.local:3000${u.pathname}`;
           } else {
             authedUrl = `${u.protocol}//${gitToken}@${u.host}${u.pathname}`;
           }
         } catch {}
-        Bun.spawnSync(["git", "remote", "add", "origin", authedUrl], { cwd: codeDir });
+        Bun.spawnSync(["git", "remote", "add", "origin", authedUrl], {
+          cwd: codeDir,
+        });
       }
     }
   }
@@ -631,7 +730,7 @@ async function ensureTenantCodebase(
   if (!existsSync(dbTs)) {
     writeFileSync(
       dbTs,
-      `import { Database } from "bun:sqlite";\nimport { dirname } from "path";\nimport { mkdirSync } from "fs";\n\nconst DB_PATH = process.env.DB_PATH || "/data/app.db";\ntry {\n  mkdirSync(dirname(DB_PATH), { recursive: true });\n} catch {}\n\nexport const db = new Database(DB_PATH, { create: true });\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS page_views (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    path TEXT NOT NULL,\n    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS contact_submissions (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    email TEXT NOT NULL,\n    message TEXT NOT NULL,\n    created_at DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n`,
+      `import { Database } from "bun:sqlite";\nimport { dirname, join } from "path";\nimport { mkdirSync } from "fs";\n\nconst DB_PATH = process.env.DB_PATH || join(process.cwd(), "app.db");\ntry {\n  mkdirSync(dirname(DB_PATH), { recursive: true });\n} catch {}\n\nexport const db = new Database(DB_PATH, { create: true });\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS page_views (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    path TEXT NOT NULL,\n    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS contact_submissions (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    email TEXT NOT NULL,\n    message TEXT NOT NULL,\n    created_at DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n`,
     );
   }
 
@@ -705,24 +804,41 @@ async function getOrLaunchTenantDevServer(
   const isRoot = isLinuxRoot();
   const port = nextAvailablePort++;
 
+  const dbPath = join(DATA_DIR, "tenants", slug, "app.db");
+
   // Spawn vite dev server under unprivileged tenant user
   const spawnCmd = isRoot
-    ? ["runuser", "-u", tenantUser, "--", "bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)]
+    ? [
+        "runuser",
+        "-u",
+        tenantUser,
+        "--",
+        "env",
+        `PORT=${port}`,
+        "HOST=0.0.0.0",
+        `DB_PATH=${dbPath}`,
+        "bun",
+        "x",
+        "vite",
+        "dev",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        String(port),
+      ]
     : ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)];
 
-  const proc = Bun.spawn(
-    spawnCmd,
-    {
-      cwd: codeDir,
-      env: {
-        ...process.env,
-        PORT: String(port),
-        DB_PATH: join(DATA_DIR, "tenants", slug, "app.db"),
-      },
-      stdout: "inherit",
-      stderr: "inherit",
+  const proc = Bun.spawn(spawnCmd, {
+    cwd: codeDir,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      HOST: "0.0.0.0",
+      DB_PATH: dbPath,
     },
-  );
+    stdout: "inherit",
+    stderr: "inherit",
+  });
 
   const instance: DevServerInstance = {
     proc,
@@ -762,14 +878,30 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
   const tenantUser = ensureTenantSystemUser(slug);
   const isRoot = isLinuxRoot();
   const port = nextAvailableProdPort++;
+  const dbPath = join(DATA_DIR, "tenants", slug, "app.db");
 
   const buildIndex = join(codeDir, "build", "index.js");
   if (!existsSync(buildIndex)) {
     const buildCmd = isRoot
-      ? ["runuser", "-u", tenantUser, "--", "bun", "run", "build"]
+      ? [
+          "runuser",
+          "-u",
+          tenantUser,
+          "--",
+          "env",
+          `DB_PATH=${dbPath}`,
+          "bun",
+          "run",
+          "build",
+        ]
       : ["bun", "run", "build"];
     const buildProc = Bun.spawn(buildCmd, {
       cwd: codeDir,
+      env: {
+        ...process.env,
+        DB_PATH: dbPath,
+        NODE_ENV: "production",
+      },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -779,7 +911,18 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
   const proc = existsSync(buildIndex)
     ? Bun.spawn(
         isRoot
-          ? ["runuser", "-u", tenantUser, "--", "bun", "./build/index.js"]
+          ? [
+              "runuser",
+              "-u",
+              tenantUser,
+              "--",
+              "env",
+              `PORT=${port}`,
+              "HOST=0.0.0.0",
+              `DB_PATH=${dbPath}`,
+              "bun",
+              "./build/index.js",
+            ]
           : ["bun", "./build/index.js"],
         {
           cwd: codeDir,
@@ -787,7 +930,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
             ...process.env,
             PORT: String(port),
             HOST: "0.0.0.0",
-            DB_PATH: join(DATA_DIR, "tenants", slug, "app.db"),
+            DB_PATH: dbPath,
           },
           stdout: "inherit",
           stderr: "inherit",
@@ -800,6 +943,10 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
               "-u",
               tenantUser,
               "--",
+              "env",
+              `PORT=${port}`,
+              "HOST=0.0.0.0",
+              `DB_PATH=${dbPath}`,
               "bun",
               "x",
               "vite",
@@ -824,6 +971,8 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
           env: {
             ...process.env,
             PORT: String(port),
+            HOST: "0.0.0.0",
+            DB_PATH: dbPath,
           },
           stdout: "inherit",
           stderr: "inherit",
@@ -871,7 +1020,13 @@ const server = Bun.serve({
 
     // Tenant Dev Server Routing:
     // 1. Check Host header (e.g. preview-tester.ether.paris or tester.preview.ether.paris from Cloudflare Tunnel)
-    const rawHost = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").toLowerCase().split(":")[0];
+    const rawHost = (
+      req.headers.get("x-forwarded-host") ||
+      req.headers.get("host") ||
+      ""
+    )
+      .toLowerCase()
+      .split(":")[0];
     let hostTenantSlug: string | null = null;
     if (rawHost.startsWith("preview-") && rawHost.endsWith(".ether.paris")) {
       const candidate = rawHost.slice(8).replace(".ether.paris", "");
@@ -886,12 +1041,20 @@ const server = Bun.serve({
 
     if (hostTenantSlug || devMatch) {
       const tenantSlug = devMatch ? devMatch[1] : hostTenantSlug!;
-      const subPath = (devMatch ? (devMatch[2] || "/") : path) + url.search;
+      const subPath = (devMatch ? devMatch[2] || "/" : path) + url.search;
 
       // Serve user uploads from persistent directory outside git (/data/tenants/{tenant}/uploads/)
       if (subPath.startsWith("/uploads/")) {
-        const uploadFileName = subPath.replace(/^\/uploads\//, "").split("?")[0];
-        const uploadFilePath = join(DATA_DIR, "tenants", tenantSlug, "uploads", uploadFileName);
+        const uploadFileName = subPath
+          .replace(/^\/uploads\//, "")
+          .split("?")[0];
+        const uploadFilePath = join(
+          DATA_DIR,
+          "tenants",
+          tenantSlug,
+          "uploads",
+          uploadFileName,
+        );
         if (existsSync(uploadFilePath)) {
           const fileBuffer = readFileSync(uploadFilePath);
           const mime = getImageMime(uploadFileName);
@@ -908,14 +1071,19 @@ const server = Bun.serve({
       try {
         const gitRepoUrl = req.headers.get("x-git-repo-url") || undefined;
         const gitToken = req.headers.get("x-git-token") || undefined;
-        const devPort = await getOrLaunchTenantDevServer(tenantSlug, gitRepoUrl, gitToken);
+        const devPort = await getOrLaunchTenantDevServer(
+          tenantSlug,
+          gitRepoUrl,
+          gitToken,
+        );
 
         // Check for WebSocket Upgrade request (Vite HMR)
         if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
-          const protocol = req.headers.get("sec-websocket-protocol") || "vite-hmr";
+          const protocol =
+            req.headers.get("sec-websocket-protocol") || "vite-hmr";
           const upgraded = srv.upgrade(req, {
             data: { tenantSlug, devPort, subPath, protocol },
-            headers: { "Sec-WebSocket-Protocol": protocol }
+            headers: { "Sec-WebSocket-Protocol": protocol },
           });
           if (upgraded) return undefined;
         }
@@ -943,7 +1111,10 @@ const server = Bun.serve({
         resHeaders.delete("Content-Security-Policy");
         resHeaders.delete("content-encoding");
         resHeaders.delete("content-length");
-        resHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        resHeaders.set(
+          "Cache-Control",
+          "no-store, no-cache, must-revalidate, max-age=0",
+        );
         resHeaders.set("Pragma", "no-cache");
 
         return new Response(proxyRes.body, {
@@ -993,7 +1164,10 @@ const server = Bun.serve({
         const contentType = resHeaders.get("content-type") || "";
         if (contentType.includes("text/html")) {
           resHeaders.set("Clear-Site-Data", '"cache"');
-          resHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+          resHeaders.set(
+            "Cache-Control",
+            "no-cache, no-store, must-revalidate",
+          );
         }
 
         return new Response(proxyRes.body, {
@@ -1015,7 +1189,11 @@ const server = Bun.serve({
       const tenantSlug = filesMatch[1];
       const gitRepoUrl = req.headers.get("x-git-repo-url") || undefined;
       const gitToken = req.headers.get("x-git-token") || undefined;
-      const codeDir = await ensureTenantCodebase(tenantSlug, gitRepoUrl, gitToken);
+      const codeDir = await ensureTenantCodebase(
+        tenantSlug,
+        gitRepoUrl,
+        gitToken,
+      );
 
       if (req.method === "GET") {
         const files: Record<string, any> = {};
@@ -1285,7 +1463,9 @@ const server = Bun.serve({
             );
           }
 
-          const isReadOnly = /^\s*(SELECT|PRAGMA|EXPLAIN|WITH)\b/i.test(sqlQuery);
+          const isReadOnly = /^\s*(SELECT|PRAGMA|EXPLAIN|WITH)\b/i.test(
+            sqlQuery,
+          );
           const db = new Database(fullDbPath, { readonly: isReadOnly });
           try {
             const startTime = performance.now();
@@ -1353,7 +1533,9 @@ const server = Bun.serve({
     }
 
     // Git Commit and Push Endpoint
-    const gitPushMatch = path.match(/^\/git\/commit-and-push\/([a-zA-Z0-9_-]+)$/);
+    const gitPushMatch = path.match(
+      /^\/git\/commit-and-push\/([a-zA-Z0-9_-]+)$/,
+    );
     if (gitPushMatch && req.method === "POST") {
       const tenantSlug = gitPushMatch[1];
       const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
@@ -1426,16 +1608,28 @@ const server = Bun.serve({
       const codeDir = await ensureTenantCodebase(tenantSlug);
       const tenantUser = ensureTenantSystemUser(tenantSlug);
       const isRoot = isLinuxRoot();
+      const dbPath = join(DATA_DIR, "tenants", tenantSlug, "app.db");
 
       try {
         const buildCmd = isRoot
-          ? ["runuser", "-u", tenantUser, "--", "bun", "run", "build"]
+          ? [
+              "runuser",
+              "-u",
+              tenantUser,
+              "--",
+              "env",
+              `DB_PATH=${dbPath}`,
+              "bun",
+              "run",
+              "build",
+            ]
           : ["bun", "run", "build"];
 
         const buildProc = Bun.spawn(buildCmd, {
           cwd: codeDir,
           env: {
             ...process.env,
+            DB_PATH: dbPath,
             NODE_ENV: "production",
           },
           stdout: "pipe",
@@ -1480,7 +1674,10 @@ const server = Bun.serve({
     if (tmuxStatusMatch && req.method === "GET") {
       const tenantSlug = tmuxStatusMatch[1];
       const info = ensureTenantTmuxSession(tenantSlug);
-      return Response.json({ success: true, tenant: tenantSlug, ...info }, { headers: corsHeaders });
+      return Response.json(
+        { success: true, tenant: tenantSlug, ...info },
+        { headers: corsHeaders },
+      );
     }
 
     const tmuxCaptureMatch = path.match(/^\/tmux\/capture\/([a-zA-Z0-9_-]+)$/);
@@ -1492,12 +1689,27 @@ const server = Bun.serve({
 
       const isRoot = isLinuxRoot();
       const captureCmd = isRoot
-        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"]
+        ? [
+            "runuser",
+            "-u",
+            username,
+            "--",
+            "tmux",
+            "-S",
+            socketPath,
+            "capture-pane",
+            "-p",
+            "-t",
+            "studio",
+          ]
         : ["tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"];
 
       const proc = Bun.spawnSync(captureCmd);
       const output = proc.stdout ? proc.stdout.toString() : "";
-      return Response.json({ success: true, tenant: tenantSlug, output }, { headers: corsHeaders });
+      return Response.json(
+        { success: true, tenant: tenantSlug, output },
+        { headers: corsHeaders },
+      );
     }
 
     const tmuxExecMatch = path.match(/^\/tmux\/exec\/([a-zA-Z0-9_-]+)$/);
@@ -1511,36 +1723,81 @@ const server = Bun.serve({
       const command = (body.command || "").trim();
 
       if (!command) {
-        return Response.json({ success: false, error: "Command required" }, { status: 400, headers: corsHeaders });
+        return Response.json(
+          { success: false, error: "Command required" },
+          { status: 400, headers: corsHeaders },
+        );
       }
 
       const isRoot = isLinuxRoot();
       const sendCmd = isRoot
-        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "send-keys", "-t", "studio", command, "C-m"]
-        : ["tmux", "-S", socketPath, "send-keys", "-t", "studio", command, "C-m"];
+        ? [
+            "runuser",
+            "-u",
+            username,
+            "--",
+            "tmux",
+            "-S",
+            socketPath,
+            "send-keys",
+            "-t",
+            "studio",
+            command,
+            "C-m",
+          ]
+        : [
+            "tmux",
+            "-S",
+            socketPath,
+            "send-keys",
+            "-t",
+            "studio",
+            command,
+            "C-m",
+          ];
 
       const sendProc = Bun.spawnSync(sendCmd);
       await new Promise((r) => setTimeout(r, 400));
 
       const captureCmd = isRoot
-        ? ["runuser", "-u", username, "--", "tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"]
+        ? [
+            "runuser",
+            "-u",
+            username,
+            "--",
+            "tmux",
+            "-S",
+            socketPath,
+            "capture-pane",
+            "-p",
+            "-t",
+            "studio",
+          ]
         : ["tmux", "-S", socketPath, "capture-pane", "-p", "-t", "studio"];
 
       const capProc = Bun.spawnSync(captureCmd);
       const output = capProc.stdout ? capProc.stdout.toString() : "";
 
-      return Response.json({
-        success: sendProc.exitCode === 0,
-        tenant: tenantSlug,
-        output,
-      }, { headers: corsHeaders });
+      return Response.json(
+        {
+          success: sendProc.exitCode === 0,
+          tenant: tenantSlug,
+          output,
+        },
+        { headers: corsHeaders },
+      );
     }
 
     // Tenant Resource Deletion & Cleanup Endpoint
     const tenantDeleteMatch = path.match(/^\/tenant\/([a-zA-Z0-9_-]+)$/);
-    if (tenantDeleteMatch && (req.method === "DELETE" || req.method === "POST")) {
+    if (
+      tenantDeleteMatch &&
+      (req.method === "DELETE" || req.method === "POST")
+    ) {
       const tenantSlug = tenantDeleteMatch[1];
-      console.log(`[Cleanup] Terminating and cleaning resources for tenant: ${tenantSlug}`);
+      console.log(
+        `[Cleanup] Terminating and cleaning resources for tenant: ${tenantSlug}`,
+      );
 
       // 1. Kill and remove active Vite dev server
       const devInst = tenantDevServers.get(tenantSlug);
@@ -1563,7 +1820,16 @@ const server = Bun.serve({
       // 3. Kill tmux session if running
       try {
         const tenantUser = `tenant_${tenantSlug.toLowerCase().replace(/[^a-z0-9_-]/g, "")}`;
-        Bun.spawnSync(["runuser", "-u", tenantUser, "--", "tmux", "-S", `/data/tenants/${tenantSlug}/tmux.sock`, "kill-server"]);
+        Bun.spawnSync([
+          "runuser",
+          "-u",
+          tenantUser,
+          "--",
+          "tmux",
+          "-S",
+          `/data/tenants/${tenantSlug}/tmux.sock`,
+          "kill-server",
+        ]);
       } catch {}
 
       // 4. Remove /data/tenants/<slug> directory
@@ -1576,10 +1842,13 @@ const server = Bun.serve({
         }
       }
 
-      return Response.json({
-        success: true,
-        message: `Tenant ${tenantSlug} resources cleaned up on runner`,
-      }, { headers: corsHeaders });
+      return Response.json(
+        {
+          success: true,
+          message: `Tenant ${tenantSlug} resources cleaned up on runner`,
+        },
+        { headers: corsHeaders },
+      );
     }
 
     if (path === "/health" && req.method === "GET") {
@@ -1755,7 +2024,12 @@ const server = Bun.serve({
             mkdirSync(uploadsDir, { recursive: true });
             if (isLinuxRoot()) {
               const tenantUser = ensureTenantSystemUser(project);
-              Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, uploadsDir]);
+              Bun.spawnSync([
+                "chown",
+                "-R",
+                `${tenantUser}:${tenantUser}`,
+                uploadsDir,
+              ]);
             }
 
             let ext = "png";
@@ -1882,8 +2156,17 @@ const server = Bun.serve({
                     } catch {}
 
                     if (isLinuxRoot()) {
-                      Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, join(DATA_DIR, "tenants", project)]);
-                      Bun.spawnSync(["chmod", "700", join(DATA_DIR, "tenants", project)]);
+                      Bun.spawnSync([
+                        "chown",
+                        "-R",
+                        `${tenantUser}:${tenantUser}`,
+                        join(DATA_DIR, "tenants", project),
+                      ]);
+                      Bun.spawnSync([
+                        "chmod",
+                        "700",
+                        join(DATA_DIR, "tenants", project),
+                      ]);
                     }
 
                     const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
@@ -2077,7 +2360,7 @@ const server = Bun.serve({
                         capturedConvId ||
                         conversationId ||
                         `conv_${Date.now()}`,
-                      exitCode: success ? 0 : (proc.exitCode || 1),
+                      exitCode: success ? 0 : proc.exitCode || 1,
                       savedImageUrl: savedImageUrl || undefined,
                     });
                   }
@@ -2134,8 +2417,17 @@ const server = Bun.serve({
               } catch {}
 
               if (isLinuxRoot()) {
-                Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, join(DATA_DIR, "tenants", project)]);
-                Bun.spawnSync(["chmod", "700", join(DATA_DIR, "tenants", project)]);
+                Bun.spawnSync([
+                  "chown",
+                  "-R",
+                  `${tenantUser}:${tenantUser}`,
+                  join(DATA_DIR, "tenants", project),
+                ]);
+                Bun.spawnSync([
+                  "chmod",
+                  "700",
+                  join(DATA_DIR, "tenants", project),
+                ]);
               }
 
               const agyBin = Bun.which("agy") || "/usr/local/bin/agy";
@@ -2217,7 +2509,7 @@ const server = Bun.serve({
                 response: stdout || stderr,
                 profileUsed: activeProfile,
                 conversationId: conversationId || `conv_${Date.now()}`,
-                exitCode: success ? 0 : (proc.exitCode || 1),
+                exitCode: success ? 0 : proc.exitCode || 1,
                 savedImageUrl: savedImageUrl || undefined,
               };
             }
@@ -2265,10 +2557,16 @@ const server = Bun.serve({
         };
 
         targetWs.onerror = (err: any) => {
-          console.warn(`[Vite WS Proxy] Backend error for ${ws.data?.tenantSlug}:`, err.message);
+          console.warn(
+            `[Vite WS Proxy] Backend error for ${ws.data?.tenantSlug}:`,
+            err.message,
+          );
         };
       } catch (err: any) {
-        console.error(`[Vite WS Proxy] Failed to connect to Vite on port ${devPort}:`, err.message);
+        console.error(
+          `[Vite WS Proxy] Failed to connect to Vite on port ${devPort}:`,
+          err.message,
+        );
         try {
           ws.close(1011, "Backend dev server unreachable");
         } catch {}

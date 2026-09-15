@@ -33,7 +33,11 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   try {
     const body = await request.json().catch(() => ({}));
     const requestedSlug = body.projectSlug;
-    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const tenant = await resolveUserWorkspace(
+      locals.user,
+      cookies,
+      requestedSlug,
+    );
     const projectSlug = tenant.slug || "workspace";
 
     const runnerUrl =
@@ -65,7 +69,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
       if (!existsSync(fullDbPath)) {
         return json(
-          { success: false, error: `Base de données introuvable : ${dbRelPath}` },
+          {
+            success: false,
+            error: `Base de données introuvable : ${dbRelPath}`,
+          },
           { status: 404 },
         );
       }
@@ -119,7 +126,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       if (action === "query") {
         const sqlQuery = (body.sql || "").trim();
         if (!sqlQuery) {
-          return json({ success: false, error: "Requête SQL requise" }, { status: 400 });
+          return json(
+            { success: false, error: "Requête SQL requise" },
+            { status: 400 },
+          );
         }
 
         const isReadOnly = /^\s*(SELECT|PRAGMA|EXPLAIN|WITH)\b/i.test(sqlQuery);
@@ -128,13 +138,18 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
           const startTime = performance.now();
           if (isReadOnly) {
             let finalQuery = sqlQuery;
-            if (/^\s*SELECT\b/i.test(finalQuery) && !/\bLIMIT\b/i.test(finalQuery)) {
+            if (
+              /^\s*SELECT\b/i.test(finalQuery) &&
+              !/\bLIMIT\b/i.test(finalQuery)
+            ) {
               finalQuery += " LIMIT 100";
             }
             const stmt = db.query(finalQuery);
             const rows = stmt.all() as Record<string, any>[];
-            const columns = rows.length > 0 ? Object.keys(rows[0]) : stmt.columnNames || [];
-            const executionTimeMs = Math.round((performance.now() - startTime) * 100) / 100;
+            const columns =
+              rows.length > 0 ? Object.keys(rows[0]) : stmt.columnNames || [];
+            const executionTimeMs =
+              Math.round((performance.now() - startTime) * 100) / 100;
             return json({
               success: true,
               columns,
@@ -146,7 +161,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
           } else {
             const stmt = db.query(sqlQuery);
             const result = stmt.run();
-            const executionTimeMs = Math.round((performance.now() - startTime) * 100) / 100;
+            const executionTimeMs =
+              Math.round((performance.now() - startTime) * 100) / 100;
             return json({
               success: true,
               columns: [],
@@ -162,7 +178,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         }
       }
 
-      return json({ success: false, error: `Action inconnue : ${action}` }, { status: 400 });
+      return json(
+        { success: false, error: `Action inconnue : ${action}` },
+        { status: 400 },
+      );
     } catch (dbErr: any) {
       return json({ success: false, error: dbErr.message }, { status: 500 });
     }

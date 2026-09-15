@@ -1,6 +1,10 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { isBinaryFile, listTenantFiles, saveTenantFile } from "$lib/server/tenant-files";
+import {
+  isBinaryFile,
+  listTenantFiles,
+  saveTenantFile,
+} from "$lib/server/tenant-files";
 import { getTenantBySlug, resolveUserWorkspace } from "$lib/server/db";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
@@ -29,7 +33,11 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
   }
 
   const requestedSlug = url.searchParams.get("project");
-  const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+  const tenant = await resolveUserWorkspace(
+    locals.user,
+    cookies,
+    requestedSlug,
+  );
   const projectSlug = tenant.slug || "workspace";
 
   const runnerUrl =
@@ -77,7 +85,11 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
   try {
     const body = await request.json();
     const requestedSlug = body.projectSlug;
-    const tenant = await resolveUserWorkspace(locals.user, cookies, requestedSlug);
+    const tenant = await resolveUserWorkspace(
+      locals.user,
+      cookies,
+      requestedSlug,
+    );
     const projectSlug = tenant.slug || "workspace";
     const filePath = (body.path || "").trim();
     const content = typeof body.content === "string" ? body.content : "";
@@ -91,7 +103,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
     if (isBinaryFile(filePath)) {
       return json(
-        { success: false, error: "Impossible d'écraser un fichier binaire avec du texte brut." },
+        {
+          success: false,
+          error: "Impossible d'écraser un fichier binaire avec du texte brut.",
+        },
         { status: 400 },
       );
     }

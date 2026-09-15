@@ -86,9 +86,7 @@ const serverOptions: any = {
   },
   async fetch(req: Request, srv: any) {
     const rawHost =
-      req.headers.get("x-forwarded-host") ||
-      req.headers.get("host") ||
-      "";
+      req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
     const host = rawHost.split(":")[0].toLowerCase();
     const url = new URL(req.url);
 
@@ -99,7 +97,10 @@ const serverOptions: any = {
         const proxied = await proxyToRunner(envSlug, req, rawHost, false);
         if (proxied) return proxied;
       } catch (err: any) {
-        console.warn(`[Proxy to runner failed for tenant ${envSlug}]:`, err.message);
+        console.warn(
+          `[Proxy to runner failed for tenant ${envSlug}]:`,
+          err.message,
+        );
       }
     }
 
@@ -143,5 +144,7 @@ if (websocket) {
   serverOptions.websocket = websocket;
 }
 
-console.info(`Listening on ${hostname + ":" + port}` + (websocket ? " (Websocket)" : ""));
+console.info(
+  `Listening on ${hostname + ":" + port}` + (websocket ? " (Websocket)" : ""),
+);
 serve(serverOptions);

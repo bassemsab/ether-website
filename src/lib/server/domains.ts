@@ -11,7 +11,10 @@ import {
   updateOvhNameservers,
   getOvhTldPricing,
 } from "$lib/server/ovh";
-import { provisionMaddyCredentials, getOrCreateDkimRecord } from "$lib/server/maddy";
+import {
+  provisionMaddyCredentials,
+  getOrCreateDkimRecord,
+} from "$lib/server/maddy";
 
 export interface DomainSearchResult {
   domain: string;
@@ -47,7 +50,9 @@ export function calculateMarkedUpPriceCents(
   const configured =
     customMarkupPercent !== undefined
       ? customMarkupPercent
-      : Number(env.DOMAIN_MARKUP_PERCENT || process.env.DOMAIN_MARKUP_PERCENT || 10);
+      : Number(
+          env.DOMAIN_MARKUP_PERCENT || process.env.DOMAIN_MARKUP_PERCENT || 10,
+        );
   const markupPercent = isNaN(configured) ? 10 : configured;
   const factor = 1 + markupPercent / 100;
   return Math.ceil(basePriceCents * factor);
@@ -58,7 +63,11 @@ export function calculateMarkedUpPriceCents(
  */
 export async function resolveLiveDomainPriceCents(
   tldOrDomain: string,
-): Promise<{ priceCents: number; rawCostCents: number; provider: "ovh" | "cloudflare" }> {
+): Promise<{
+  priceCents: number;
+  rawCostCents: number;
+  provider: "ovh" | "cloudflare";
+}> {
   let cleanTld = tldOrDomain.toLowerCase().trim();
   if (cleanTld.includes(".")) {
     const parts = cleanTld.split(".");
@@ -72,7 +81,9 @@ export async function resolveLiveDomainPriceCents(
   try {
     const livePricing = await getOvhTldPricing(cleanTld);
     if (livePricing && livePricing.activePriceCents > 0) {
-      const markedUp = calculateMarkedUpPriceCents(livePricing.activePriceCents);
+      const markedUp = calculateMarkedUpPriceCents(
+        livePricing.activePriceCents,
+      );
       return {
         priceCents: markedUp,
         rawCostCents: livePricing.activePriceCents,
@@ -80,7 +91,10 @@ export async function resolveLiveDomainPriceCents(
       };
     }
   } catch (err: any) {
-    console.warn(`[resolveLiveDomainPriceCents] Live price fallback for .${cleanTld}:`, err?.message);
+    console.warn(
+      `[resolveLiveDomainPriceCents] Live price fallback for .${cleanTld}:`,
+      err?.message,
+    );
   }
 
   return {
@@ -108,7 +122,8 @@ export async function searchDomains(
   }
 
   // Check if user entered an exact domain with extension (e.g. example.com or mydomain.com)
-  const hasExtension = rawClean.includes(".") && rawClean.split(".").length >= 2;
+  const hasExtension =
+    rawClean.includes(".") && rawClean.split(".").length >= 2;
   let baseName = rawClean;
   let explicitTld = "";
 
@@ -125,7 +140,10 @@ export async function searchDomains(
   }
 
   const tldList = hasExtension
-    ? [explicitTld, ...COMMON_TLDS.map((t) => t.tld).filter((t) => t !== explicitTld)]
+    ? [
+        explicitTld,
+        ...COMMON_TLDS.map((t) => t.tld).filter((t) => t !== explicitTld),
+      ]
     : COMMON_TLDS.map((t) => t.tld);
 
   const domainPromises = tldList.map(async (tld) => {
@@ -262,7 +280,9 @@ export async function provisionBookedDomain(
     }
 
     if (!zoneId) {
-      throw new Error(`Zone Cloudflare introuvable ou impossible à créer pour ${cleanDomain}`);
+      throw new Error(
+        `Zone Cloudflare introuvable ou impossible à créer pour ${cleanDomain}`,
+      );
     }
 
     // 2. Automated OVH Nameserver Delegation
@@ -271,12 +291,23 @@ export async function provisionBookedDomain(
       try {
         const ovhCheck = await checkOvhDomain(cleanDomain);
         if (ovhCheck.exists) {
-          console.log(`[provisionBookedDomain] Domain ${cleanDomain} found on OVH account. Updating nameservers to Cloudflare...`);
-          const updateRes = await updateOvhNameservers(cleanDomain, nameservers);
-          ovhDelegation = { delegated: updateRes.success, message: updateRes.message };
+          console.log(
+            `[provisionBookedDomain] Domain ${cleanDomain} found on OVH account. Updating nameservers to Cloudflare...`,
+          );
+          const updateRes = await updateOvhNameservers(
+            cleanDomain,
+            nameservers,
+          );
+          ovhDelegation = {
+            delegated: updateRes.success,
+            message: updateRes.message,
+          };
         }
       } catch (ovhErr: any) {
-        console.warn(`[provisionBookedDomain] Note on OVH check for ${cleanDomain}:`, ovhErr.message);
+        console.warn(
+          `[provisionBookedDomain] Note on OVH check for ${cleanDomain}:`,
+          ovhErr.message,
+        );
       }
     }
 
@@ -300,7 +331,8 @@ export async function provisionBookedDomain(
         (r) =>
           r.type === rec.type &&
           r.name.toLowerCase() === rec.name.toLowerCase() &&
-          (rec.type !== "MX" || r.content.toLowerCase() === rec.content.toLowerCase()),
+          (rec.type !== "MX" ||
+            r.content.toLowerCase() === rec.content.toLowerCase()),
       );
 
       const payload: any = {
@@ -336,13 +368,41 @@ export async function provisionBookedDomain(
     }
 
     // Provision root A and www A records
-    await upsertDnsRecord({ type: "A", name: cleanDomain, content: serverIp, proxied: true });
-    await upsertDnsRecord({ type: "A", name: `www.${cleanDomain}`, content: serverIp, proxied: true });
+    await upsertDnsRecord({
+      type: "A",
+      name: cleanDomain,
+      content: serverIp,
+      proxied: true,
+    });
+    await upsertDnsRecord({
+      type: "A",
+      name: `www.${cleanDomain}`,
+      content: serverIp,
+      proxied: true,
+    });
 
     // 4. Cloudflare Email Routing MX & TXT records
-    await upsertDnsRecord({ type: "MX", name: cleanDomain, content: "route1.mx.cloudflare.net", priority: 48, proxied: false });
-    await upsertDnsRecord({ type: "MX", name: cleanDomain, content: "route2.mx.cloudflare.net", priority: 74, proxied: false });
-    await upsertDnsRecord({ type: "MX", name: cleanDomain, content: "route3.mx.cloudflare.net", priority: 89, proxied: false });
+    await upsertDnsRecord({
+      type: "MX",
+      name: cleanDomain,
+      content: "route1.mx.cloudflare.net",
+      priority: 48,
+      proxied: false,
+    });
+    await upsertDnsRecord({
+      type: "MX",
+      name: cleanDomain,
+      content: "route2.mx.cloudflare.net",
+      priority: 74,
+      proxied: false,
+    });
+    await upsertDnsRecord({
+      type: "MX",
+      name: cleanDomain,
+      content: "route3.mx.cloudflare.net",
+      priority: 89,
+      proxied: false,
+    });
 
     // Combined SPF: authorizes Cloudflare Email Routing + Maddy server IP (135.181.95.61)
     await upsertDnsRecord({
@@ -412,14 +472,19 @@ export async function provisionBookedDomain(
           const rulesData = await rulesRes.json();
           const existingRules = rulesData.result || [];
           const existingRule = existingRules.find((r: any) =>
-            r.matchers?.some((m: any) => m.field === "to" && m.value === `contact@${cleanDomain}`),
+            r.matchers?.some(
+              (m: any) =>
+                m.field === "to" && m.value === `contact@${cleanDomain}`,
+            ),
           );
 
           const rulePayload = {
             name: `Forward contact@ to ${forwardToEmail}`,
             enabled: true,
             priority: 0,
-            matchers: [{ type: "literal", field: "to", value: `contact@${cleanDomain}` }],
+            matchers: [
+              { type: "literal", field: "to", value: `contact@${cleanDomain}` },
+            ],
             actions: [{ type: "forward", value: [forwardToEmail] }],
           };
 
@@ -445,7 +510,10 @@ export async function provisionBookedDomain(
           emailRoutingStatus.ruleCreated = true;
         }
       } catch (emailErr: any) {
-        console.warn(`[provisionBookedDomain] Note on email routing for ${cleanDomain}:`, emailErr.message);
+        console.warn(
+          `[provisionBookedDomain] Note on email routing for ${cleanDomain}:`,
+          emailErr.message,
+        );
       }
     }
 
@@ -457,7 +525,10 @@ export async function provisionBookedDomain(
         smtpCredentials = maddyRes.credentials;
       }
     } catch (maddyErr: any) {
-      console.warn(`[provisionBookedDomain] Note on Maddy provisioning for ${cleanDomain}:`, maddyErr.message);
+      console.warn(
+        `[provisionBookedDomain] Note on Maddy provisioning for ${cleanDomain}:`,
+        maddyErr.message,
+      );
     }
 
     return {

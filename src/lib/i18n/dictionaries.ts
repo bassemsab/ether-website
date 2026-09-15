@@ -263,8 +263,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       },
       manifesto: {
         eyebrow: "Manifeste",
-        title:
-          "Concevoir des outils et des mémoires digitales singulières.",
+        title: "Concevoir des outils et des mémoires digitales singulières.",
         description:
           "Ether allie rigueur technique et sensibilité artistique pour bâtir des interfaces vivantes, tactiles et performantes.",
         paragraphs: [
@@ -341,8 +340,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "PWA mobile-first & offline ready",
               "440+ domaines grammaticaux (A0 à C1)",
             ],
-            image:
-              "https://img.ether.paris/ami/assets/logo.png?width=1000",
+            image: "https://img.ether.paris/ami/assets/logo.png?width=1000",
             url: "https://ami.ether.paris",
           },
           {
@@ -355,8 +353,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "Direction artistique & textures naturelles",
               "Expérience d'achat fluide et légère",
             ],
-            image:
-              "https://rosee-minerale.fr/logo.png",
+            image: "https://rosee-minerale.fr/logo.png",
             url: "https://rosee-minerale.fr",
           },
           {
@@ -635,8 +632,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "Mobile-first PWA & offline ready",
               "440+ grammar domains (A0 to C1)",
             ],
-            image:
-              "https://img.ether.paris/ami/assets/logo.png?width=1000",
+            image: "https://img.ether.paris/ami/assets/logo.png?width=1000",
             url: "https://ami.ether.paris",
           },
           {
@@ -649,8 +645,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "Artisanal aesthetic & natural textures",
               "Lightweight, responsive shopping experience",
             ],
-            image:
-              "https://rosee-minerale.fr/logo.png",
+            image: "https://rosee-minerale.fr/logo.png",
             url: "https://rosee-minerale.fr",
           },
           {
@@ -747,8 +742,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       exploreLabel: "Explore",
       socialLabel: "Social",
       rights: "© {year} {name}. All rights reserved.",
-      studiosLine:
-        "Ether · Based in Paris — Deployed worldwide.",
+      studiosLine: "Ether · Based in Paris — Deployed worldwide.",
     },
     languageSwitcher: {
       label: "Language",
@@ -797,8 +791,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
     },
     hero: {
       eyebrow: "في كل مكان",
-      heading:
-        "هندسة برمجية متقنة، تصميم واجهات، وتجارب رقمية مخصصة.",
+      heading: "هندسة برمجية متقنة، تصميم واجهات، وتجارب رقمية مخصصة.",
       description:
         "من تصميم الواجهات الفريدة إلى نشر البنى التحتية الفورية وعملاء الذكاء الاصطناعي، يطوّر إيثر منتجات رقمية عالية الأداء والدقة.",
       primaryCta: { label: "ابدأ مشروعك", href: "#contact" },
@@ -928,8 +921,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "تطبيق ويب تقدمي (PWA) يعمل بدون اتصال",
               "أكثر من 440 محوراً لغوياً (A0 إلى C1)",
             ],
-            image:
-              "https://img.ether.paris/ami/assets/logo.png?width=1000",
+            image: "https://img.ether.paris/ami/assets/logo.png?width=1000",
             url: "https://ami.ether.paris",
           },
           {
@@ -942,8 +934,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
               "هوية فنية بملمس وألوان طبيعية",
               "تجربة تسوق خفيفة وسريعة التجاوب",
             ],
-            image:
-              "https://rosee-minerale.fr/logo.png",
+            image: "https://rosee-minerale.fr/logo.png",
             url: "https://rosee-minerale.fr",
           },
           {
@@ -1000,8 +991,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
           {
             city: "عالمي / عن بُعد",
             timezone: "أي منطقة زمنية",
-            focus:
-              "تعاون سلس عن بعد، نشر مستمر وجاهزية للعمل مع مختلف الدول.",
+            focus: "تعاون سلس عن بعد، نشر مستمر وجاهزية للعمل مع مختلف الدول.",
           },
         ],
         onsiteLabel: "حضوري وعن بُعد",
@@ -1040,8 +1030,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       exploreLabel: "استكشاف",
       socialLabel: "منصات",
       rights: "© {year} {name}. جميع الحقوق محفوظة.",
-      studiosLine:
-        "إيثر · مقرنا باريس — مشاريع منشورة حول العالم.",
+      studiosLine: "إيثر · مقرنا باريس — مشاريع منشورة حول العالم.",
     },
     languageSwitcher: {
       label: "اللغة",

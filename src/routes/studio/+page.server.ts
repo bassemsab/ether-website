@@ -16,7 +16,12 @@ import { getRunnerProfiles } from "$lib/server/agent-bridge";
 import { listTenantFiles } from "$lib/server/tenant-files";
 import { getSessionCookieDomain } from "$lib/server/auth";
 
-export const load: PageServerLoad = async ({ url, locals, cookies, request }) => {
+export const load: PageServerLoad = async ({
+  url,
+  locals,
+  cookies,
+  request,
+}) => {
   if (!locals.user) {
     const returnUrl = url.pathname + url.search;
     throw redirect(302, `/login?redirect=${encodeURIComponent(returnUrl)}`);
@@ -24,7 +29,11 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
 
   const explicitProject = url.searchParams.get("project");
   if (explicitProject) {
-    const tenant = await resolveUserWorkspace(locals.user, cookies, explicitProject);
+    const tenant = await resolveUserWorkspace(
+      locals.user,
+      cookies,
+      explicitProject,
+    );
     const host =
       request.headers.get("x-forwarded-host") ||
       request.headers.get("host") ||
@@ -42,7 +51,9 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
 
     const cleanParams = new URLSearchParams(url.searchParams);
     cleanParams.delete("project");
-    const cleanSearch = cleanParams.toString() ? `?${cleanParams.toString()}` : "";
+    const cleanSearch = cleanParams.toString()
+      ? `?${cleanParams.toString()}`
+      : "";
     throw redirect(302, `/studio${cleanSearch}`);
   }
 
@@ -59,7 +70,10 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
     cookies.get("ether_admin_auth") === "true" ||
     userEmail.endsWith("@ether.paris");
 
-  const ownedTenants = await getUserOwnedTenants(locals.user.id, locals.user.email);
+  const ownedTenants = await getUserOwnedTenants(
+    locals.user.id,
+    locals.user.email,
+  );
 
   // Resolve user workspace from session / active workspace cookie / personal tenant (Zero URL params)
   const tenant = await resolveUserWorkspace(locals.user, cookies, null);
@@ -72,7 +86,10 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
     try {
       await processPromptTopupCheckoutSession(topupSessionId);
     } catch (err: any) {
-      console.warn(`[Studio Load] Could not verify topup session ${topupSessionId}:`, err.message);
+      console.warn(
+        `[Studio Load] Could not verify topup session ${topupSessionId}:`,
+        err.message,
+      );
     }
   }
 
@@ -81,7 +98,10 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
     try {
       await processDomainCheckoutSession(topupSessionId);
     } catch (err: any) {
-      console.warn(`[Studio Load] Could not verify domain session ${topupSessionId}:`, err.message);
+      console.warn(
+        `[Studio Load] Could not verify domain session ${topupSessionId}:`,
+        err.message,
+      );
     }
   }
 
@@ -132,9 +152,17 @@ export const load: PageServerLoad = async ({ url, locals, cookies, request }) =>
 
   // Chat history and conversations list from SQLite
   const conversations = getStudioConversations(projectSlug);
-  const activeConvId = url.searchParams.get("conversation") || (conversations.length > 0 ? conversations[0].conversationId : null);
-  const chatHistory = activeConvId ? getStudioChatHistory(projectSlug, 50, activeConvId) : getStudioChatHistory(projectSlug, 50);
-  const lastConversationId = activeConvId || (chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].conversationId || null : null);
+  const activeConvId =
+    url.searchParams.get("conversation") ||
+    (conversations.length > 0 ? conversations[0].conversationId : null);
+  const chatHistory = activeConvId
+    ? getStudioChatHistory(projectSlug, 50, activeConvId)
+    : getStudioChatHistory(projectSlug, 50);
+  const lastConversationId =
+    activeConvId ||
+    (chatHistory.length > 0
+      ? chatHistory[chatHistory.length - 1].conversationId || null
+      : null);
 
   const displayTenants = [...ownedTenants];
   if (!displayTenants.some((t) => t.slug === tenant.slug)) {

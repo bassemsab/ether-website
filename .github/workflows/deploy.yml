@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
     inputs:
       force_runner:
-        description: 'Force rebuild and restart agent-runner'
+        description: "Force rebuild and restart agent-runner"
         type: boolean
         default: false
       force_website:
-        description: 'Force rebuild and redeploy ether-website'
+        description: "Force rebuild and redeploy ether-website"
         type: boolean
         default: true
 

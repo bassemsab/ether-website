@@ -4,7 +4,10 @@ import type { RequestHandler } from "./$types";
 export const GET: RequestHandler = async ({ url }) => {
   const domain = url.searchParams.get("domain");
   if (!domain || domain.trim().length < 3) {
-    return json({ success: false, error: "Nom de domaine manquant ou invalide" }, { status: 400 });
+    return json(
+      { success: false, error: "Nom de domaine manquant ou invalide" },
+      { status: 400 },
+    );
   }
 
   const cleanDomain = domain
@@ -24,7 +27,9 @@ export const GET: RequestHandler = async ({ url }) => {
     );
     const dnsData = await dnsRes.json();
     const answers = dnsData.Answer || [];
-    const ips: string[] = answers.filter((a: any) => a.type === 1).map((a: any) => a.data);
+    const ips: string[] = answers
+      .filter((a: any) => a.type === 1)
+      .map((a: any) => a.data);
 
     // 2. Check if expected IP is present
     const directMatch = ips.includes(expectedIp);

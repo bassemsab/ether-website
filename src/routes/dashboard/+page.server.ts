@@ -16,7 +16,10 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
     try {
       await processDomainCheckoutSession(domainSessionId);
     } catch (err: any) {
-      console.warn(`[Dashboard Load] Could not verify domain session ${domainSessionId}:`, err.message);
+      console.warn(
+        `[Dashboard Load] Could not verify domain session ${domainSessionId}:`,
+        err.message,
+      );
     }
   }
 

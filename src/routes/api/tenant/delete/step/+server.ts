@@ -21,19 +21,28 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     const step = (body.step || "").trim().toLowerCase();
 
     if (!slug) {
-      return json({ success: false, error: "Identifiant du site (slug) requis." }, { status: 400 });
+      return json(
+        { success: false, error: "Identifiant du site (slug) requis." },
+        { status: 400 },
+      );
     }
 
     if (!["git", "runner", "k8s", "db"].includes(step)) {
       return json(
-        { success: false, error: "Étape invalide. Choix: 'git', 'runner', 'k8s', 'db'." },
+        {
+          success: false,
+          error: "Étape invalide. Choix: 'git', 'runner', 'k8s', 'db'.",
+        },
         { status: 400 },
       );
     }
 
     const tenant = await getTenantBySlug(slug);
     if (!tenant && step !== "db") {
-      return json({ success: false, error: `Site '${slug}' introuvable dans la base.` }, { status: 404 });
+      return json(
+        { success: false, error: `Site '${slug}' introuvable dans la base.` },
+        { status: 404 },
+      );
     }
 
     const userEmail = (locals.user.email || "").trim().toLowerCase();
@@ -47,7 +56,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
       if (!isOwner && !isAdmin) {
         return json(
-          { success: false, error: "Vous n'avez pas l'autorisation de supprimer ce site." },
+          {
+            success: false,
+            error: "Vous n'avez pas l'autorisation de supprimer ce site.",
+          },
           { status: 403 },
         );
       }
@@ -70,14 +82,23 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         if (tenant?.git_repo_url) {
           try {
             const u = new URL(tenant.git_repo_url);
-            const parts = u.pathname.replace(/^\/+/, "").replace(/\.git$/, "").split("/");
+            const parts = u.pathname
+              .replace(/^\/+/, "")
+              .replace(/\.git$/, "")
+              .split("/");
             if (parts.length >= 2) {
               await deleteGiteaRepo(parts[0], parts[1]);
             }
           } catch (gitErr: any) {
-            console.warn(`[Delete Step Git] Gitea note for ${slug}:`, gitErr.message);
+            console.warn(
+              `[Delete Step Git] Gitea note for ${slug}:`,
+              gitErr.message,
+            );
             // If repository was already deleted (404), do not fail the step
-            if (!gitErr.message?.includes("404") && !gitErr.message?.includes("not found")) {
+            if (
+              !gitErr.message?.includes("404") &&
+              !gitErr.message?.includes("not found")
+            ) {
               throw gitErr;
             }
           }
@@ -99,7 +120,9 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
         if (!res.ok && res.status !== 404) {
           const text = await res.text().catch(() => "");
-          throw new Error(`Erreur Runner (status ${res.status}): ${text || res.statusText}`);
+          throw new Error(
+            `Erreur Runner (status ${res.status}): ${text || res.statusText}`,
+          );
         }
         break;
       }
@@ -109,9 +132,15 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
         try {
           await deleteTenantK8s(namespace);
         } catch (k8sErr: any) {
-          console.warn(`[Delete Step K8s] Namespace note for ${namespace}:`, k8sErr.message);
+          console.warn(
+            `[Delete Step K8s] Namespace note for ${namespace}:`,
+            k8sErr.message,
+          );
           // If namespace does not exist, consider it already cleaned
-          if (!k8sErr.message?.includes("NotFound") && !k8sErr.message?.includes("not found")) {
+          if (
+            !k8sErr.message?.includes("NotFound") &&
+            !k8sErr.message?.includes("not found")
+          ) {
             throw k8sErr;
           }
         }
@@ -154,7 +183,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     });
   } catch (err: any) {
     const durationMs = Math.round(performance.now() - startTime);
-    const errorMsg = err.message || "Erreur interne lors de l'exécution de l'étape";
+    const errorMsg =
+      err.message || "Erreur interne lors de l'exécution de l'étape";
 
     console.error("[Delete Step Error]:", err);
 

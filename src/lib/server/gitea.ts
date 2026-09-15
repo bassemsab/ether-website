@@ -6,8 +6,7 @@ const GITEA_API_URL =
     ? "http://gitea-http.git.svc.cluster.local:3000/api/v1"
     : "https://git.ether.paris/api/v1");
 const GITEA_ADMIN_TOKEN =
-  env.GITEA_ADMIN_TOKEN ||
-  "6ef87fd9ad70970b5ab87bfe0c5dad0abdea75fe";
+  env.GITEA_ADMIN_TOKEN || "6ef87fd9ad70970b5ab87bfe0c5dad0abdea75fe";
 
 interface GiteaUser {
   id: number;
@@ -400,10 +399,10 @@ CMD ["bun", "./build/index.js"]
 `;
 
   const dbHelper = `import { Database } from "bun:sqlite";
-import { dirname } from "path";
+import { dirname, join } from "path";
 import { mkdirSync } from "fs";
 
-const DB_PATH = process.env.DB_PATH || "/data/app.db";
+const DB_PATH = process.env.DB_PATH || join(process.cwd(), "app.db");
 try {
   mkdirSync(dirname(DB_PATH), { recursive: true });
 } catch {}

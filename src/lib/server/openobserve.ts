@@ -39,7 +39,9 @@ export interface DeletionAuditEvent {
  * Sends a structured audit event to OpenObserve asynchronously.
  * Non-blocking: errors are logged to console.warn to ensure platform stability.
  */
-export async function logDeletionAudit(event: DeletionAuditEvent): Promise<void> {
+export async function logDeletionAudit(
+  event: DeletionAuditEvent,
+): Promise<void> {
   const payload = [
     {
       ...event,

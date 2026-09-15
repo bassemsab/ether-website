@@ -254,7 +254,10 @@ export const handle: Handle = async ({ event, resolve }) => {
         const contentType = responseHeaders.get("content-type") || "";
         if (contentType.includes("text/html")) {
           responseHeaders.set("Clear-Site-Data", '"cache"');
-          responseHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+          responseHeaders.set(
+            "Cache-Control",
+            "no-cache, no-store, must-revalidate",
+          );
         }
         return new Response(prodRes.body, {
           status: prodRes.status,

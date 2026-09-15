@@ -37,7 +37,11 @@ describe("Tenant Fair-Use Prompt Quotas", () => {
   });
 
   it("should use extra_prompts when daily limit is exhausted", async () => {
-    const { addTenantExtraPrompts, createTenantWebsite, getOrCreateUserByEmail } = await import("./db");
+    const {
+      addTenantExtraPrompts,
+      createTenantWebsite,
+      getOrCreateUserByEmail,
+    } = await import("./db");
     const testSlug = `tenant-extra-${Date.now()}`;
     const user = await getOrCreateUserByEmail(`${testSlug}@test.com`);
     await createTenantWebsite(

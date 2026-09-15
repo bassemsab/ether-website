@@ -123,6 +123,27 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       namespace: `tenant-${slug}`,
     });
 
+    // 6. Pre-warm runner production server asynchronously
+    const runnerUrl =
+      process.env.RUNNER_API_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "http://agent-runner.ether.svc.cluster.local:8080"
+        : "http://localhost:8085");
+
+    fetch(`${runnerUrl}/prod/${slug}/`, {
+      method: "GET",
+      headers: {
+        "x-forwarded-host": `${slug}.ether.paris`,
+        "accept-encoding": "identity",
+      },
+      signal: AbortSignal.timeout(60000),
+    }).catch((e: any) => {
+      console.warn(
+        `[api/tenant/create] Pre-warm runner ping for ${slug}:`,
+        e.message,
+      );
+    });
+
     return json({
       success: true,
       message: `Site ${slug}.ether.paris créé avec succès !`,

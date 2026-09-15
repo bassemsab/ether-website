@@ -50,7 +50,10 @@ describe("Tenant Files System", () => {
   });
 
   it("should classify files correctly and prevent binary overwrite", () => {
-    const { getFileCategory, isBinaryFile } = require("../src/lib/utils/file-types");
+    const {
+      getFileCategory,
+      isBinaryFile,
+    } = require("../src/lib/utils/file-types");
 
     expect(getFileCategory("data.db")).toBe("sqlite");
     expect(getFileCategory("store.sqlite3")).toBe("sqlite");
