@@ -2125,7 +2125,7 @@
 
 <div class="h-screen flex flex-col bg-background text-foreground overflow-hidden grain-overlay">
   <!-- Studio Top Navigation -->
-  <header class="h-14 border-b border-black/10 dark:border-white/10 bg-surface/90 dark:bg-background/90 backdrop-blur px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 gap-4">
+  <header class="h-14 border-b border-black/10 dark:border-white/10 bg-surface/90 dark:bg-background/90 backdrop-blur px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 gap-4 relative">
     <div class="flex items-center gap-3 sm:gap-4 min-w-0">
       <a href="/dashboard" class="transition-opacity hover:opacity-80 flex items-center gap-2 shrink-0">
         <BrandMark class="h-8 w-8" />
@@ -2188,7 +2188,7 @@
           {/if}
         </div>
 
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1 shrink-0">
           <button
             onclick={() => {
               isDomainModalOpen = true;
@@ -2199,9 +2199,9 @@
             title="Gérer le domaine personnalisé"
           >
             {#if currentCustomDomain}
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
             {/if}
-            <span>{currentCustomDomain || `${projectSlug}.ether.paris`}</span>
+            <span class="truncate max-w-[180px] sm:max-w-[240px]">{currentCustomDomain || `${projectSlug}.ether.paris`}</span>
           </button>
           <a
             href={liveUrl}
@@ -2218,8 +2218,8 @@
       </div>
     </div>
 
-    <!-- Center: Panel Docking Controls -->
-    <div class="flex items-center gap-2">
+    <!-- Center: Panel Docking Controls (centered in header without shifting left or right) -->
+    <div class="hidden md:flex items-center gap-2 absolute left-1/2 -translate-x-1/2 pointer-events-auto">
       <div class="flex items-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-[#16161c] p-1 text-xs font-mono shadow-retro-sm dark:shadow-none">
         <button
           onclick={() => togglePanel("chat")}
@@ -2280,11 +2280,11 @@
       <button
         onclick={handlePublish}
         disabled={publishLoading}
-        class="focus-ring px-4 py-1.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 hover:-translate-y-0.5"
+        class="focus-ring min-w-[110px] h-[30px] px-3.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 hover:-translate-y-0.5 shrink-0"
       >
         {#if publishLoading}
-          <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Publication...</span>
+          <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
+          <span class="text-[11px]">En cours...</span>
         {:else}
           <span>Publier</span>
         {/if}
@@ -2389,7 +2389,7 @@
                 <svg class="w-3.5 h-3.5 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span class="font-medium hidden sm:inline truncate max-w-[65px]">Historique</span>
+                <span class="font-medium hidden sm:inline whitespace-nowrap">Historique</span>
                 {#if conversations.length > 0}
                   <span class="text-[10px] px-1.5 py-0.2 bg-black/5 dark:bg-white/10 rounded-full text-muted-foreground font-mono shrink-0">
                     {conversations.length}
