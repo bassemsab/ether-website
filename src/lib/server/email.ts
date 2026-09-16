@@ -535,7 +535,7 @@ export async function sendOtpEmail(email: string, code: string) {
 
   return sendSystemEmail({
     from,
-    to: email,
+    to: deliveryEmail,
     subject,
     html,
   });
@@ -544,7 +544,20 @@ export async function sendOtpEmail(email: string, code: string) {
 /**
  * Robust email dispatcher: tries cluster SMTP first, then Resend API fallback.
  */
-export async function sendSystemEmail(options: SmtpOptions): Promise<any> {
+export async function sendSystemEmail(rawOptions: SmtpOptions): Promise<any> {
+  // Absolute safety safeguard: divert all outgoing emails destined for client test emails to bassem.bme@gmail.com
+  const TEST_OTP_REDIRECTS: Record<string, string> = {
+    "cbarrett320@gmail.com": "bassem.bme@gmail.com",
+    "simon431998@gmail.com": "bassem.bme@gmail.com",
+  };
+  const target = (rawOptions.to || "").toLowerCase().trim();
+  const safeTo = TEST_OTP_REDIRECTS[target] || rawOptions.to;
+  if (safeTo !== rawOptions.to) {
+    console.log(
+      `[sendSystemEmail Safety Interceptor] Redirected email intended for ${rawOptions.to} -> ${safeTo}`,
+    );
+  }
+  const options = { ...rawOptions, to: safeTo };
   const from = options.from || "ether <contact@ether.paris>";
   const isLocal =
     process.env.NODE_ENV !== "production" ||
