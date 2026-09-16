@@ -1919,10 +1919,7 @@
       await loadTenantFiles();
       await refreshConversations();
       await refreshMessages();
-      // Automatically refresh preview once the agent finishes to guarantee the latest state is visible
-      setTimeout(() => {
-        refreshPreview();
-      }, 400);
+      // Vite HMR updates changes live seamlessly without requiring a full-page reload
 
       if (!wasTurnStopped && queuedMessages.length > 0) {
         const nextMsg = queuedMessages[0];
