@@ -2126,8 +2126,8 @@
 
 <div class="h-screen flex flex-col bg-background text-foreground overflow-hidden grain-overlay">
   <!-- Studio Top Navigation -->
-  <header class="h-14 border-b border-black/10 dark:border-white/10 bg-surface/90 dark:bg-background/90 backdrop-blur px-4 sm:px-6 flex items-center justify-between shrink-0 z-30 gap-4 relative">
-    <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+  <header class="h-14 border-b border-black/10 dark:border-white/10 bg-surface/90 dark:bg-background/90 backdrop-blur px-3 sm:px-6 flex items-center justify-between shrink-0 z-30 gap-2 sm:gap-4 relative">
+    <div class="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
       <a href="/dashboard" class="transition-opacity hover:opacity-80 flex items-center gap-2 shrink-0">
         <BrandMark class="h-8 w-8" />
       </a>
@@ -2219,8 +2219,8 @@
       </div>
     </div>
 
-    <!-- Center: Panel Docking Controls (centered in header without shifting left or right) -->
-    <div class="hidden md:flex items-center gap-2 absolute left-1/2 -translate-x-1/2 pointer-events-auto">
+    <!-- Center: Panel Docking Controls (centered without overlapping surrounding elements) -->
+    <div class="hidden md:flex items-center justify-center shrink-0 px-2">
       <div class="flex items-center gap-1.5 rounded-full border border-black/10 dark:border-white/10 bg-surface/90 dark:bg-[#16161c] p-1 text-xs font-mono shadow-retro-sm dark:shadow-none">
         <button
           onclick={() => togglePanel("chat")}
@@ -2257,22 +2257,21 @@
     </div>
 
     <!-- Actions -->
-    <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-      <!-- Domain Modal Trigger -->
+    <div class="flex items-center justify-end gap-2 sm:gap-2.5 shrink-0 flex-1 min-w-0">
+      <!-- Domain Modal Trigger (wide screens) -->
       <button
         onclick={() => {
           isDomainModalOpen = true;
           domainLinkStatus = null;
           domainLinkError = null;
         }}
-        class="focus-ring px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-foreground dark:text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all inline-flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5"
+        class="focus-ring px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-foreground dark:text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all hidden 2xl:inline-flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5 shrink-0"
         title="Gérer le domaine personnalisé"
       >
         <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
         </svg>
-        <span class="hidden sm:inline">{currentCustomDomain ? 'Domaine' : 'Lier un Domaine'}</span>
-        <span class="sm:hidden">Domaine</span>
+        <span>{currentCustomDomain ? 'Domaine' : 'Lier un Domaine'}</span>
         {#if currentCustomDomain}
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
         {/if}
@@ -2281,31 +2280,32 @@
       <button
         onclick={handlePublish}
         disabled={publishLoading}
-        class="focus-ring min-w-[110px] h-[30px] px-3.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 hover:-translate-y-0.5 shrink-0"
+        class="focus-ring w-[100px] h-[30px] rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.12em] shadow-retro-sm transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-75 hover:-translate-y-0.5 shrink-0"
+        title="Publier les modifications en ligne"
       >
         {#if publishLoading}
           <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
-          <span class="text-[11px]">En cours...</span>
+          <span>Publier</span>
         {:else}
           <span>Publier</span>
         {/if}
       </button>
 
-      <div class="flex items-center">
+      <div class="flex items-center shrink-0">
         <ThemeToggle />
       </div>
 
       {#if user}
-        <div class="hidden md:flex items-center gap-2 text-xs font-mono text-muted-foreground border-l border-black/10 dark:border-white/10 pl-3">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Connecté"></span>
-          <span class="truncate max-w-[120px] lg:max-w-[160px]">{user.email || user.github_username}</span>
+        <div class="hidden lg:flex items-center gap-2 text-xs font-mono text-muted-foreground border-l border-black/10 dark:border-white/10 pl-2.5 shrink-0">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title={user.email || user.github_username}></span>
+          <span class="hidden xl:inline truncate max-w-[120px] 2xl:max-w-[160px]">{user.email || user.github_username}</span>
         </div>
       {/if}
 
       <button
         type="button"
         onclick={handleLogout}
-        class="focus-ring text-[11px] uppercase tracking-[0.15em] px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer"
+        class="focus-ring text-[11px] uppercase tracking-[0.15em] px-2.5 sm:px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer shrink-0 hidden sm:inline-flex"
         title="Se déconnecter"
       >
         Déconnexion
@@ -2313,7 +2313,7 @@
 
       <a
         href="/dashboard"
-        class="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+        class="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0"
         title="Retour au tableau de bord"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
