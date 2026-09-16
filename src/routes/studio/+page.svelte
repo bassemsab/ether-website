@@ -2351,50 +2351,52 @@
         class="border-r border-black/10 dark:border-white/10 bg-surface/40 dark:bg-background flex flex-col h-full overflow-hidden shrink-0 w-full lg:w-auto"
         style="width: {chatWidth}px;"
       >
-        <div class="p-3 border-b border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-center justify-between text-xs font-mono">
-          <span class="font-semibold text-foreground dark:text-white uppercase tracking-widest flex items-center gap-2">
-            <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="p-3 border-b border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-center justify-between gap-1.5 text-xs font-mono min-w-0">
+          <div class="flex items-center gap-1.5 min-w-0 shrink">
+            <svg class="w-3.5 h-3.5 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
-            Assistant Studio
-          </span>
-          <div class="flex items-center gap-1.5">
+            <span class="font-semibold text-foreground dark:text-white uppercase tracking-wider truncate text-[11px] sm:text-xs">
+              Assistant <span class="hidden 2xl:inline">Studio</span>
+            </span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0 min-w-0">
             <!-- New Conversation Button -->
             <button
               type="button"
               onclick={handleStartNewChat}
-              class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 py-1 text-muted-foreground hover:text-foreground dark:hover:text-white cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm dark:shadow-none"
+              class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-1.5 sm:px-2 py-1 text-muted-foreground hover:text-foreground dark:hover:text-white cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm dark:shadow-none shrink-0"
               title="Nouvelle conversation"
             >
-              <svg class="w-3 h-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3 h-3 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
-              <span class="hidden xl:inline">Nouveau</span>
+              <span class="hidden 2xl:inline">Nouveau</span>
             </button>
 
             <!-- Conversations History Dropdown Menu -->
-            <div bind:this={historyMenuContainer} class="relative">
+            <div bind:this={historyMenuContainer} class="relative shrink-0">
               <button
                 type="button"
                 onclick={(e) => {
                   e.stopPropagation();
                   historyMenuOpen = !historyMenuOpen;
                 }}
-                class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2.5 py-1 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center gap-1.5 shadow-retro-sm dark:shadow-none"
+                class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 py-1 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm dark:shadow-none"
                 title="Historique des conversations"
                 aria-expanded={historyMenuOpen}
               >
-                <svg class="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span class="font-medium">Historique</span>
+                <span class="font-medium hidden sm:inline truncate max-w-[65px]">Historique</span>
                 {#if conversations.length > 0}
-                  <span class="text-[10px] px-1.5 py-0.2 bg-black/5 dark:bg-white/10 rounded-full text-muted-foreground font-mono">
+                  <span class="text-[10px] px-1.5 py-0.2 bg-black/5 dark:bg-white/10 rounded-full text-muted-foreground font-mono shrink-0">
                     {conversations.length}
                   </span>
                 {/if}
                 <svg
-                  class="w-3 h-3 text-muted-foreground transition-transform duration-200 {historyMenuOpen ? 'rotate-180' : ''}"
+                  class="w-3 h-3 text-muted-foreground transition-transform duration-200 shrink-0 {historyMenuOpen ? 'rotate-180' : ''}"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -2464,10 +2466,10 @@
 
             <button
               onclick={() => showChat = false}
-              class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              class="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0"
               title="Masquer le chat IA"
             >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
@@ -2800,7 +2802,7 @@
               handleSendPrompt();
             }
           }}
-          class="p-3 border-t border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-end gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
+          class="p-3 border-t border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-center gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
         >
           <!-- Hidden file input -->
           <input
@@ -2816,7 +2818,7 @@
             type="button"
             onclick={() => fileInputRef?.click()}
             disabled={promptQuota.remaining <= 0}
-            class="h-[38px] w-[38px] flex items-center justify-center rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer disabled:opacity-40 shrink-0 self-end"
+            class="h-[38px] w-[38px] flex items-center justify-center rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer disabled:opacity-40 shrink-0 self-center"
             title="Joindre une image (PNG, JPG, WebP, SVG, max 5Mo)"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2833,27 +2835,27 @@
             rows="1"
             placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (isThinking ? "L'agent travaille... Écrivez un message pour la file (Entrée pour valider)..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint — Cliquez sur Recharger"))}
             disabled={promptQuota.remaining <= 0}
-            class="flex-1 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] px-3.5 py-2 text-xs text-foreground dark:text-white placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-[border-color,box-shadow] disabled:opacity-50 resize-none min-h-[38px] max-h-[160px] leading-relaxed select-text"
+            class="flex-1 min-w-0 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] px-3.5 py-2 text-xs text-foreground dark:text-white placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-[border-color,box-shadow] disabled:opacity-50 resize-none min-h-[38px] max-h-[160px] leading-relaxed select-text"
           ></textarea>
 
           {#if isThinking}
-            <div class="flex items-center gap-1.5 shrink-0 self-end">
+            <div class="flex items-center gap-1.5 shrink-0 self-center">
               <button
                 type="button"
                 onclick={handleStopTurn}
-                class="focus-ring h-[38px] px-3.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                class="focus-ring h-[38px] px-3 sm:px-3.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center text-center gap-1.5 shadow-sm active:scale-95 shrink-0"
                 title="Arrêter immédiatement la génération en cours"
               >
-                <span class="w-2.5 h-2.5 rounded-[2px] bg-white animate-pulse"></span>
+                <span class="w-2.5 h-2.5 rounded-[2px] bg-white animate-pulse shrink-0"></span>
                 <span>Arrêter</span>
               </button>
               {#if promptInput.trim() || attachedImage}
                 <button
                   type="submit"
-                  class="focus-ring h-[38px] px-3 rounded-lg bg-brand hover:bg-brand/90 text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm active:scale-95 shrink-0"
+                  class="focus-ring h-[38px] px-2.5 sm:px-3 rounded-lg bg-brand hover:bg-brand/90 text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center text-center gap-1 shadow-sm active:scale-95 shrink-0"
                   title="Mettre ce message dans la file d'attente"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                   </svg>
                   <span>File</span>
@@ -2864,7 +2866,7 @@
             <button
               type="submit"
               disabled={(!promptInput.trim() && !attachedImage) || promptQuota.remaining <= 0}
-              class="focus-ring h-[38px] px-4 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0 self-end flex items-center justify-center"
+              class="focus-ring h-[38px] px-3.5 sm:px-4 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0 self-center flex items-center justify-center text-center"
             >
               Envoyer
             </button>
@@ -3048,10 +3050,10 @@
           {/if}
           <button
             onclick={() => showEditor = false}
-            class="p-1 rounded hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            class="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0"
             title="Masquer l'éditeur de code"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
