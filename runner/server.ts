@@ -619,6 +619,7 @@ export default defineConfig({
     return true;
   }
 
+  try {
     const content = readFileSync(targetConfig, "utf-8");
     // Preserve custom frameworks and configs (e.g. TanStack Start, React, custom SvelteKit plugins)
     if (
