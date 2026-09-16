@@ -2365,10 +2365,10 @@
             <button
               type="button"
               onclick={handleStartNewChat}
-              class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-1.5 sm:px-2 py-1 text-muted-foreground hover:text-foreground dark:hover:text-white cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm dark:shadow-none shrink-0"
+              class="h-7 text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 text-muted-foreground hover:text-foreground dark:hover:text-white cursor-pointer outline-none transition-all flex items-center justify-center gap-1 shadow-retro-sm dark:shadow-none shrink-0"
               title="Nouvelle conversation"
             >
-              <svg class="w-3 h-3 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
               <span class="hidden 2xl:inline">Nouveau</span>
@@ -2382,7 +2382,7 @@
                   e.stopPropagation();
                   historyMenuOpen = !historyMenuOpen;
                 }}
-                class="text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 py-1 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center gap-1 shadow-retro-sm dark:shadow-none"
+                class="h-7 text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center justify-center gap-1.5 shadow-retro-sm dark:shadow-none"
                 title="Historique des conversations"
                 aria-expanded={historyMenuOpen}
               >
@@ -2466,7 +2466,7 @@
 
             <button
               onclick={() => showChat = false}
-              class="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0"
+              class="h-7 w-7 flex items-center justify-center rounded-md bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 shadow-retro-sm dark:shadow-none"
               title="Masquer le chat IA"
             >
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2874,21 +2874,26 @@
         </form>
 
         <!-- Quota Status Bar -->
-        <div class="px-3 py-1.5 border-t border-black/5 dark:border-white/10 bg-surface/30 dark:bg-background flex items-center justify-between text-[10px] font-mono text-muted-foreground">
-          <div class="flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full {promptQuota.remaining > 0 ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
-            <span>Prompts ({promptQuota.plan}) :</span>
-            <span class="font-semibold {promptQuota.remaining > 0 ? 'text-foreground dark:text-neutral-200' : 'text-amber-600'}">
-              {promptQuota.remaining} restant{promptQuota.remaining > 1 ? 's' : ''}
+        <div class="px-3 py-1.5 border-t border-black/5 dark:border-white/10 bg-surface/30 dark:bg-background flex items-center justify-between gap-2 text-[10px] font-mono text-muted-foreground min-w-0 whitespace-nowrap">
+          <div
+            class="flex items-center gap-1.5 min-w-0 truncate"
+            title="Plan {promptQuota.plan} : {promptQuota.remaining} restants{#if promptQuota.extraPrompts && promptQuota.extraPrompts > 0} ({promptQuota.extraPrompts} extra){/if}"
+          >
+            <span class="w-1.5 h-1.5 rounded-full shrink-0 {promptQuota.remaining > 0 ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+            <span class="text-muted-foreground shrink-0">Prompts&nbsp;:</span>
+            <span class="font-semibold truncate {promptQuota.remaining > 0 ? 'text-foreground dark:text-neutral-200' : 'text-amber-600'}">
+              {promptQuota.remaining}
               {#if promptQuota.extraPrompts && promptQuota.extraPrompts > 0}
-                <span class="text-brand dark:text-indigo-400 font-normal">({promptQuota.extraPrompts} extra)</span>
+                <span class="text-brand dark:text-indigo-400 font-normal"> (+{promptQuota.extraPrompts})</span>
+              {:else}
+                <span class="text-muted-foreground font-normal text-[9.5px]"> restant{promptQuota.remaining > 1 ? 's' : ''}</span>
               {/if}
             </span>
           </div>
           <button
             type="button"
             onclick={() => showTopupModal = true}
-            class="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand/10 hover:bg-brand/20 text-brand font-medium transition-colors border border-brand/20"
+            class="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand/10 hover:bg-brand/20 text-brand font-medium transition-colors border border-brand/20 shrink-0"
           >
             ⚡ Recharger
           </button>
