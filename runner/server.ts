@@ -790,9 +790,22 @@ async function ensureTenantCodebase(
     Bun.spawnSync(["chown", "-R", `${tenantUser}:${tenantUser}`, codeDir]);
   }
 
-  // Ensure dependencies installed if node_modules is missing
-  const nodeModulesDir = join(codeDir, "node_modules");
-  if (!existsSync(nodeModulesDir)) {
+  // Ensure .gitignore is present and committed
+  const gitIgnore = join(codeDir, ".gitignore");
+  if (!existsSync(gitIgnore)) {
+    writeFileSync(
+      gitIgnore,
+      `node_modules/\n.svelte-kit/\nbuild/\napp.db*\n*.sqlite*\n.env*\n`,
+    );
+    try {
+      runTenantGit(tenantSlug, ["add", ".gitignore"]);
+      runTenantGit(tenantSlug, ["commit", "-m", "Add .gitignore"]);
+    } catch {}
+  }
+
+  // Ensure dependencies installed if node_modules is missing or incomplete
+  const nodeModulesKit = join(codeDir, "node_modules", "@sveltejs", "kit");
+  if (!existsSync(nodeModulesKit)) {
     const installCmd = isLinuxRoot()
       ? ["runuser", "-u", tenantUser, "--", "bun", "install"]
       : ["bun", "install"];
@@ -859,9 +872,15 @@ async function getOrLaunchTenantDevServer(
   gitToken?: string,
 ): Promise<number> {
   const existing = tenantDevServers.get(slug);
-  if (existing && !existing.proc.killed) {
+  if (existing && existing.proc.exitCode === null && !existing.proc.killed) {
     existing.lastActive = Date.now();
     return existing.port;
+  }
+  if (existing) {
+    try {
+      existing.proc.kill();
+    } catch {}
+    tenantDevServers.delete(slug);
   }
 
   const codeDir = await ensureTenantCodebase(slug, gitRepoUrl, gitToken);
@@ -1772,7 +1791,20 @@ const server = Bun.serve({
           );
         }
 
-        runTenantGit(tenantSlug, ["clean", "-fd"]);
+        runTenantGit(tenantSlug, [
+          "clean",
+          "-fd",
+          "-e",
+          "node_modules",
+          "-e",
+          ".svelte-kit",
+          "-e",
+          "app.db",
+          "-e",
+          ".env*",
+          "-e",
+          ".gitignore",
+        ]);
 
         if (isLinuxRoot()) {
           const tenantUser = ensureTenantSystemUser(tenantSlug);
@@ -1782,6 +1814,28 @@ const server = Bun.serve({
             `${tenantUser}:${tenantUser}`,
             codeDir,
           ]);
+        }
+
+        // Ensure critical dependencies are still intact after revert
+        const nodeModulesKit = join(codeDir, "node_modules", "@sveltejs", "kit");
+        if (!existsSync(nodeModulesKit)) {
+          console.log(
+            `[Runner] Re-installing dependencies for ${tenantSlug} after revert...`,
+          );
+          const tenantUser = ensureTenantSystemUser(tenantSlug);
+          const installCmd = isLinuxRoot()
+            ? ["runuser", "-u", tenantUser, "--", "bun", "install"]
+            : ["bun", "install"];
+          Bun.spawnSync(installCmd, { cwd: codeDir });
+        }
+
+        // Restart Vite dev server so it immediately loads the reverted codebase cleanly
+        const existingDev = tenantDevServers.get(tenantSlug);
+        if (existingDev) {
+          try {
+            existingDev.proc.kill();
+          } catch {}
+          tenantDevServers.delete(tenantSlug);
         }
 
         // Get new HEAD

@@ -317,12 +317,27 @@
 
   async function refreshMessages() {
     try {
-      const q = conversationId ? `&conversationId=${encodeURIComponent(conversationId)}` : "";
+      const q = conversationId
+        ? `&conversationId=${encodeURIComponent(conversationId)}`
+        : "";
       const res = await fetch(`/api/studio/chat?project=${projectSlug}${q}`);
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.history && json.history.length > 0) {
-          messages = json.history;
+        if (json.success && json.history) {
+          if (json.history.length > 0) {
+            messages = json.history;
+          } else {
+            messages = [
+              {
+                role: "assistant",
+                content: `Bonjour ! Je suis votre assistant Ether Studio pour **${projectSlug}**.\n\nDites-moi simplement ce que vous souhaitez ajouter ou modifier sur votre site et je m'en occupe !`,
+                time: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ];
+          }
         }
       }
     } catch (err) {
@@ -332,7 +347,11 @@
 
   async function handleRevert(msg: ChatMessage) {
     if (revertLoading) return;
-    if (!confirm("Voulez-vous vraiment annuler cette modification et restaurer le code précédent ?")) {
+    if (
+      !confirm(
+        "Voulez-vous vraiment annuler cette modification et restaurer le code précédent ?",
+      )
+    ) {
       return;
     }
 
@@ -353,17 +372,48 @@
 
       const json = await res.json();
       if (res.ok && json.success) {
+        // Optimistically remove the reverted turn from the messages array immediately
+        const msgIdx = messages.findIndex((m) => m.id === msg.id);
+        if (msgIdx !== -1) {
+          const startIdx =
+            msgIdx > 0 && messages[msgIdx - 1].role === "user"
+              ? msgIdx - 1
+              : msgIdx;
+          messages = messages.slice(0, startIdx);
+          if (messages.length === 0) {
+            messages = [
+              {
+                role: "assistant",
+                content: `Bonjour ! Je suis votre assistant Ether Studio pour **${projectSlug}**.\n\nDites-moi simplement ce que vous souhaitez ajouter ou modifier sur votre site et je m'en occupe !`,
+                time: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ];
+          }
+        }
+
         await refreshMessages();
+        await refreshConversations();
         await loadTenantFiles();
         if (activeFile && files[activeFile]) {
           await selectFile(activeFile);
         }
-        revertSuccessToast = "Modifications annulées avec succès ! Le code a été restauré.";
+
+        // Force preview iframe reload to show restored state
+        setTimeout(() => {
+          refreshPreview();
+        }, 600);
+
+        revertSuccessToast =
+          "Modifications annulées avec succès ! Le code a été restauré.";
         setTimeout(() => {
           revertSuccessToast = null;
         }, 4500);
       } else {
-        revertErrorToast = json.error || "Erreur lors de l'annulation des modifications.";
+        revertErrorToast =
+          json.error || "Erreur lors de l'annulation des modifications.";
         setTimeout(() => {
           revertErrorToast = null;
         }, 6000);
