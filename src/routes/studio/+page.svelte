@@ -405,8 +405,10 @@
           await selectFile(activeFile);
         }
 
-        // Force preview iframe reload with cache buster (dev server is already warmed up and ready)
-        refreshPreview();
+        // Debounce preview iframe reload so git reset and Vite file watchers settle before iframe requests the page
+        setTimeout(() => {
+          refreshPreview();
+        }, 400);
 
         revertSuccessToast =
           "Modifications annulées avec succès ! Le code a été restauré.";
@@ -1917,8 +1919,10 @@
       await loadTenantFiles();
       await refreshConversations();
       await refreshMessages();
-      // Notice: we do NOT call refreshPreview() here because Vite HMR has already
-      // updated the changes live without a disruptive full-page iframe reload.
+      // Automatically refresh preview once the agent finishes to guarantee the latest state is visible
+      setTimeout(() => {
+        refreshPreview();
+      }, 400);
 
       if (!wasTurnStopped && queuedMessages.length > 0) {
         const nextMsg = queuedMessages[0];
@@ -3057,7 +3061,7 @@
                   <span>Sauvegardé</span>
                 {:else}
                   <span>Sauvegarder</span>
-                  <kbd class="text-[9px] bg-black/5 px-1 py-0.2 rounded text-muted-foreground font-mono">⌘S</kbd>
+                  <kbd class="text-[9px] bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-muted-foreground font-mono inline-flex items-center gap-0.5"><span class="font-sans">⌘</span><span>S</span></kbd>
                 {/if}
               </button>
             {:else if activeFileCategory === 'sqlite'}
@@ -3411,7 +3415,10 @@
               class="px-3 py-1.5 rounded-[8px] border border-black/10 dark:border-white/10 bg-surface hover:bg-surface/80 text-xs font-mono flex items-center gap-2 text-foreground dark:text-white transition-all cursor-pointer shadow-xs"
             >
               <span>Recherche de fichier</span>
-              <kbd class="px-1.5 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 text-[10px]">⌘P</kbd>
+              <kbd class="px-1.5 py-0.5 rounded-[4px] bg-black/5 dark:bg-white/10 text-[10px] font-mono inline-flex items-center gap-1">
+                <span class="font-sans">⌘</span>
+                <span>P</span>
+              </kbd>
             </button>
           </div>
         {/if}
@@ -3550,6 +3557,7 @@
             src={previewUrl}
             title="Aperçu du code en cours de {projectSlug}"
             class="w-full flex-1 border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
+            onerror={() => setTimeout(refreshPreview, 1000)}
           ></iframe>
         </div>
       </div>

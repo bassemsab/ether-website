@@ -49,17 +49,37 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
   forwardHeaders.set("x-forwarded-host", rawHost);
   forwardHeaders.set("accept-encoding", "identity");
 
-  var res = await fetch(targetUrl, {
-    method: req.method,
-    headers: forwardHeaders,
-    body:
-      req.method !== "GET" && req.method !== "HEAD"
-        ? await req.blob()
-        : undefined,
-    signal: AbortSignal.timeout(15000),
-  });
+  var reqBody =
+    req.method !== "GET" && req.method !== "HEAD"
+      ? await req.blob()
+      : undefined;
 
-  if (res.ok || (res.status >= 300 && res.status < 500)) {
+  var res = null;
+  var maxAttempts = isPreview ? 3 : 1;
+
+  for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      res = await fetch(targetUrl, {
+        method: req.method,
+        headers: forwardHeaders,
+        body: reqBody,
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (res.ok || (res.status >= 300 && res.status < 500)) {
+        break;
+      }
+    } catch (err) {
+      if (attempt === maxAttempts) {
+        console.warn("[Proxy attempt " + attempt + " failed for " + slug + "]:", err.message);
+      }
+    }
+    if (attempt < maxAttempts) {
+      await new Promise(function(r) { setTimeout(r, 250); });
+    }
+  }
+
+  if (res && (res.ok || (res.status >= 300 && res.status < 500))) {
     var resHeaders = new Headers(res.headers);
     resHeaders.delete("content-encoding");
     resHeaders.delete("content-length");
@@ -71,7 +91,6 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
     if (contentType.includes("text/html")) {
       resHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
       if (isPreview) {
-        var html = await res.text();
         var guardScript = \`<script>
 (function(){
   try{
@@ -82,7 +101,7 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
     if(now-last<4000){
       count++;
       sessionStorage.setItem(c,String(count));
-      if(count>=2){
+      if(count>=3){
         console.warn('[Ether] Rapid reload loop suppressed');
         var noop=function(){};
         try{window.location.reload=noop;}catch(_){}
@@ -93,7 +112,7 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
     sessionStorage.setItem(k,String(now));
   }catch(_){}
 })();
-</script>\`;
+<\\/script>\`;
         var modifiedHtml = html.includes("<head>")
           ? html.replace("<head>", "<head>" + guardScript)
           : (guardScript + html);
@@ -110,6 +129,71 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
       headers: resHeaders,
     });
   }
+
+  // If isPreview and dev server is compiling/restarting, serve a friendly auto-refreshing 200 page
+  // (NEVER return 502/null to an iframe preview or Chrome will permanently replace it with 'refused to connect')
+  if (isPreview && (req.headers.get("accept")?.includes("text/html") || url.pathname === "/")) {
+    var retryHtml = \`<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="1">
+  <title>Mise à jour de l'aperçu...</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #FBF9F5;
+      color: #1E1B39;
+      margin: 0;
+    }
+    .card {
+      text-align: center;
+      padding: 24px 32px;
+      background: #fff;
+      border: 1.5px solid #1E1B39;
+      border-radius: 16px;
+      box-shadow: 3px 3px 0 #1E1B39;
+    }
+    .spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(30,27,57,0.15);
+      border-radius: 50%;
+      border-top-color: #1E1B39;
+      animation: spin 1s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h3 style="margin:0 0 6px 0;font-size:15px;font-weight:600;">⚡ Mise à jour de l'aperçu...</h3>
+    <p style="font-size:12px;color:#666;margin:0;">Le serveur applique les modifications. Reconnexion automatique...</p>
+  </div>
+  <script>
+    setTimeout(function() {
+      try { window.location.reload(); } catch(e) {}
+    }, 1000);
+  <\\/script>
+</body>
+</html>\`;
+    return new Response(retryHtml, {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+        pragma: "no-cache",
+      },
+    });
+  }
+
   return null;
 }
 
