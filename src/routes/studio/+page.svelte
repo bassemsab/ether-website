@@ -2877,7 +2877,7 @@
         <div class="px-3 py-1.5 border-t border-black/5 dark:border-white/10 bg-surface/30 dark:bg-background flex items-center justify-between gap-2 text-[10px] font-mono text-muted-foreground min-w-0 whitespace-nowrap">
           <div
             class="flex items-center gap-1.5 min-w-0 truncate"
-            title="Plan {promptQuota.plan} : {promptQuota.remaining} restants{#if promptQuota.extraPrompts && promptQuota.extraPrompts > 0} ({promptQuota.extraPrompts} extra){/if}"
+            title="Plan {promptQuota.plan} : {promptQuota.remaining} restants{promptQuota.extraPrompts && promptQuota.extraPrompts > 0 ? ` (${promptQuota.extraPrompts} extra)` : ''}"
           >
             <span class="w-1.5 h-1.5 rounded-full shrink-0 {promptQuota.remaining > 0 ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
             <span class="text-muted-foreground shrink-0">Prompts&nbsp;:</span>
