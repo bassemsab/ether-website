@@ -825,6 +825,34 @@ interface DevServerInstance {
 const tenantDevServers = new Map<string, DevServerInstance>();
 let nextAvailablePort = 5200;
 
+// Active Tenant Turn Management (for instant Stop/Abort)
+interface ActiveTenantTurn {
+  proc: any;
+  tenantSlug: string;
+  startedAt: number;
+}
+const activeTenantTurns = new Map<string, ActiveTenantTurn>();
+
+function killTenantTurn(tenantSlug: string): boolean {
+  let stopped = false;
+  const active = activeTenantTurns.get(tenantSlug);
+  if (active) {
+    try {
+      active.proc.kill(9);
+      stopped = true;
+    } catch {}
+    activeTenantTurns.delete(tenantSlug);
+  }
+  if (isLinuxRoot()) {
+    try {
+      const tenantUser = ensureTenantSystemUser(tenantSlug);
+      Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", "agy"]);
+      stopped = true;
+    } catch {}
+  }
+  return stopped;
+}
+
 async function getOrLaunchTenantDevServer(
   slug: string,
   gitRepoUrl?: string,
@@ -1781,6 +1809,23 @@ const server = Bun.serve({
       }
     }
 
+    // Tenant Agent Turn Stop/Abort Endpoint
+    const stopMatch = path.match(/^\/stop\/([a-zA-Z0-9_-]+)$/);
+    if (stopMatch && req.method === "POST") {
+      const tenantSlug = stopMatch[1];
+      const stopped = killTenantTurn(tenantSlug);
+      return Response.json(
+        {
+          success: true,
+          stopped,
+          message: stopped
+            ? `Turn arrêté avec succès pour ${tenantSlug}`
+            : `Aucun turn en cours pour ${tenantSlug}`,
+        },
+        { headers: corsHeaders },
+      );
+    }
+
     // Tenant Production Build Endpoint (Triggered when user clicks "Publier")
     const buildMatch = path.match(/^\/build\/([a-zA-Z0-9_-]+)$/);
     if (buildMatch && req.method === "POST") {
@@ -2395,6 +2440,11 @@ const server = Bun.serve({
                       stdout: "pipe",
                       stderr: "pipe",
                     });
+                    activeTenantTurns.set(project, {
+                      proc,
+                      tenantSlug: project,
+                      startedAt: Date.now(),
+                    });
 
                     // Send keepalive comment every 3s so browser / reverse proxy never drops connection
                     const keepaliveInterval = setInterval(() => {
@@ -2489,6 +2539,7 @@ const server = Bun.serve({
                       }
                     } finally {
                       clearInterval(keepaliveInterval);
+                      activeTenantTurns.delete(project);
                     }
 
                     const stderrText = await new Response(proc.stderr).text();
@@ -2607,6 +2658,13 @@ const server = Bun.serve({
                 controller.close();
               }
             },
+            cancel(reason) {
+              console.log(
+                `[Runner] SSE stream cancelled by client for [${project}], reason:`,
+                reason,
+              );
+              killTenantTurn(project);
+            },
           });
 
           return new Response(stream, {
@@ -2710,10 +2768,25 @@ const server = Bun.serve({
                 stdout: "pipe",
                 stderr: "pipe",
               });
+              activeTenantTurns.set(project, {
+                proc,
+                tenantSlug: project,
+                startedAt: Date.now(),
+              });
 
-              const stdout = await new Response(proc.stdout).text();
-              const stderr = await new Response(proc.stderr).text();
-              await proc.exited;
+              let stdout = "";
+              let stderr = "";
+              try {
+                const [outText, errText] = await Promise.all([
+                  new Response(proc.stdout).text(),
+                  new Response(proc.stderr).text(),
+                ]);
+                stdout = outText;
+                stderr = errText;
+                await proc.exited;
+              } finally {
+                activeTenantTurns.delete(project);
+              }
 
               const combinedOutput = `${stdout} ${stderr}`;
               const quotaHit = isQuotaError(combinedOutput);

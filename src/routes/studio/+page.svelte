@@ -411,10 +411,120 @@
     }
   }
 
+  interface QueuedMessage {
+    id: string;
+    text: string;
+    image?: AttachedImageState | null;
+    createdAt: Date;
+  }
+
+  let queuedMessages = $state<QueuedMessage[]>([]);
+  let currentAbortController = $state<AbortController | null>(null);
+  let wasTurnStopped = $state(false);
+
+  function enqueueCurrentPrompt() {
+    const text = promptInput.trim();
+    const currentAttachedImage = attachedImage;
+    if (!text && !currentAttachedImage) return;
+
+    queuedMessages = [
+      ...queuedMessages,
+      {
+        id: `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        text,
+        image: currentAttachedImage,
+        createdAt: new Date(),
+      },
+    ];
+
+    promptInput = "";
+    attachedImage = null;
+    if (fileInputRef) fileInputRef.value = "";
+    if (promptTextareaRef) {
+      promptTextareaRef.style.height = "38px";
+      promptTextareaRef.style.overflowY = "hidden";
+    }
+  }
+
+  function recallAndEditQueuedMessage(id: string) {
+    const index = queuedMessages.findIndex((m) => m.id === id);
+    if (index === -1) return;
+    const item = queuedMessages[index];
+
+    queuedMessages = queuedMessages.filter((m) => m.id !== id);
+
+    if (promptInput.trim()) {
+      promptInput = `${item.text}\n${promptInput}`;
+    } else {
+      promptInput = item.text;
+    }
+    if (item.image && !attachedImage) {
+      attachedImage = item.image;
+    }
+
+    if (promptTextareaRef) {
+      queueMicrotask(() => {
+        adjustPromptTextareaHeight();
+        promptTextareaRef?.focus();
+      });
+    }
+  }
+
+  function removeQueuedMessage(id: string) {
+    queuedMessages = queuedMessages.filter((m) => m.id !== id);
+  }
+
+  function startNextQueuedMessage() {
+    if (isThinking || queuedMessages.length === 0) return;
+    const nextMsg = queuedMessages[0];
+    queuedMessages = queuedMessages.slice(1);
+    if (nextMsg) {
+      handleSendPrompt(undefined, nextMsg.text, nextMsg.image);
+    }
+  }
+
+  async function handleStopTurn() {
+    wasTurnStopped = true;
+    if (currentAbortController) {
+      try {
+        currentAbortController.abort();
+      } catch {}
+      currentAbortController = null;
+    }
+    isThinking = false;
+
+    try {
+      await fetch("/api/studio/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectSlug }),
+      });
+    } catch (err) {
+      console.error("[studio] Stop error:", err);
+    }
+
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === "assistant") {
+      if (!lastMsg.content.includes("arrêtée")) {
+        lastMsg.content =
+          (lastMsg.content ? lastMsg.content.trim() + "\n\n" : "") +
+          "*(⏹ Génération interrompue par l'utilisateur)*";
+      }
+    }
+    revertStatusMessage = "Génération arrêtée.";
+    setTimeout(() => {
+      revertStatusMessage = null;
+    }, 4000);
+  }
+
   function handlePromptKeydown(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      handleSendPrompt();
+      if (isThinking) {
+        enqueueCurrentPrompt();
+      } else {
+        handleSendPrompt();
+      }
     }
   }
 
@@ -884,9 +994,19 @@
   const isCurrentFileBinary = $derived(isBinaryFile(activeFile));
   let openTabs = $state<string[]>([]);
   let collapsedFolders = $state<Record<string, boolean>>({});
-  let showExplorer = $state(true);
+  let showExplorer = $state(false);
+  let explorerStateLoaded = false;
   let fileSearchQuery = $state("");
   let saveToast = $state<string | null>(null);
+
+  $effect(() => {
+    const current = showExplorer;
+    if (typeof window !== "undefined" && explorerStateLoaded) {
+      try {
+        localStorage.setItem("ether_studio_show_explorer", String(current));
+      } catch {}
+    }
+  });
 
   const fileTree = $derived(buildFileTree(files, fileSearchQuery));
 
@@ -1361,6 +1481,14 @@
   onMount(() => {
     theme.init();
     if (typeof window !== "undefined") {
+      try {
+        const savedExplorer = localStorage.getItem("ether_studio_show_explorer");
+        if (savedExplorer !== null) {
+          showExplorer = savedExplorer === "true";
+        }
+      } catch {}
+      explorerStateLoaded = true;
+
       if (data.sessionToken) {
         try {
           localStorage.setItem("ether_session_token", data.sessionToken);
@@ -1472,10 +1600,18 @@
     }
   }
 
-  async function handleSendPrompt(e?: Event) {
+  async function handleSendPrompt(
+    e?: Event,
+    overrideText?: string,
+    overrideImage?: AttachedImageState | null,
+  ) {
     if (e) e.preventDefault();
-    const text = promptInput.trim();
-    const currentAttachedImage = attachedImage;
+    const isFromQueue =
+      overrideText !== undefined || overrideImage !== undefined;
+    const text = (isFromQueue ? overrideText || "" : promptInput).trim();
+    const currentAttachedImage = isFromQueue
+      ? overrideImage || null
+      : attachedImage;
     if ((!text && !currentAttachedImage) || isThinking) return;
 
     if (promptQuota.remaining <= 0) {
@@ -1502,12 +1638,14 @@
       promptQuota.allowed = false;
     }
 
-    promptInput = "";
-    attachedImage = null;
-    if (fileInputRef) fileInputRef.value = "";
-    if (promptTextareaRef) {
-      promptTextareaRef.style.height = "38px";
-      promptTextareaRef.style.overflowY = "hidden";
+    if (!isFromQueue) {
+      promptInput = "";
+      attachedImage = null;
+      if (fileInputRef) fileInputRef.value = "";
+      if (promptTextareaRef) {
+        promptTextareaRef.style.height = "38px";
+        promptTextareaRef.style.overflowY = "hidden";
+      }
     }
 
     messages.push({
@@ -1528,6 +1666,8 @@
     });
 
     isThinking = true;
+    wasTurnStopped = false;
+    currentAbortController = new AbortController();
     scrollToBottom();
 
     if (!conversationId) {
@@ -1555,6 +1695,7 @@
           conversationId,
           stream: true,
         }),
+        signal: currentAbortController.signal,
       });
 
       const contentType = res.headers.get("content-type") || "";
@@ -1689,7 +1830,16 @@
         }
       }
     } catch (err: any) {
-      if (assistantMsgIndex !== undefined && messages[assistantMsgIndex]) {
+      if (err.name === "AbortError" || wasTurnStopped) {
+        if (assistantMsgIndex !== undefined && messages[assistantMsgIndex]) {
+          if (!messages[assistantMsgIndex].content.includes("arrêtée")) {
+            messages[assistantMsgIndex].content =
+              (messages[assistantMsgIndex].content
+                ? messages[assistantMsgIndex].content.trim() + "\n\n"
+                : "") + "*(⏹ Génération interrompue par l'utilisateur)*";
+          }
+        }
+      } else if (assistantMsgIndex !== undefined && messages[assistantMsgIndex]) {
         messages[assistantMsgIndex].content += `\n⚠️ Erreur de connexion avec l'agent : ${err.message}`;
       } else {
         messages.push({
@@ -1701,9 +1851,20 @@
       }
     } finally {
       isThinking = false;
+      currentAbortController = null;
       await loadTenantFiles();
       await refreshConversations();
       await refreshMessages();
+
+      if (!wasTurnStopped && queuedMessages.length > 0) {
+        const nextMsg = queuedMessages[0];
+        queuedMessages = queuedMessages.slice(1);
+        if (nextMsg) {
+          setTimeout(() => {
+            handleSendPrompt(undefined, nextMsg.text, nextMsg.image);
+          }, 350);
+        }
+      }
     }
   }
 
@@ -2499,9 +2660,86 @@
           </div>
         {/if}
 
+        <!-- Queued Messages Drawer -->
+        {#if queuedMessages.length > 0}
+          <div class="px-3 pt-2 pb-1.5 border-t border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] flex flex-col gap-1.5">
+            <div class="flex items-center justify-between text-[11px] font-medium text-muted-foreground px-0.5">
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand/20 text-brand text-[10px] font-bold">
+                  {queuedMessages.length}
+                </span>
+                <span class="font-semibold text-foreground dark:text-neutral-200">
+                  File d'attente ({queuedMessages.length})
+                </span>
+              </div>
+              {#if !isThinking}
+                <button
+                  type="button"
+                  onclick={startNextQueuedMessage}
+                  class="text-[10px] px-2 py-0.5 rounded bg-brand/10 hover:bg-brand/20 text-brand font-medium transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <span>▶ Démarrer la file</span>
+                </button>
+              {:else}
+                <span class="text-[10px] text-muted-foreground font-mono">En attente du tour en cours...</span>
+              {/if}
+            </div>
+
+            <div class="flex flex-col gap-1.5 max-h-[130px] overflow-y-auto pr-0.5">
+              {#each queuedMessages as qMsg, idx (qMsg.id)}
+                <div class="group flex items-center justify-between gap-2 p-1.5 px-2 rounded-lg bg-card dark:bg-white/[0.04] border border-black/10 dark:border-white/10 hover:border-brand/30 transition-all text-xs">
+                  <div class="flex items-center gap-2 min-w-0 flex-1">
+                    <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-muted-foreground font-semibold shrink-0">
+                      #{idx + 1}
+                    </span>
+                    {#if qMsg.image}
+                      <div class="w-5 h-5 rounded border border-black/15 overflow-hidden shrink-0 bg-black/5">
+                        <img src={qMsg.image.dataUrl} alt="Attachment" class="w-full h-full object-cover" />
+                      </div>
+                    {/if}
+                    <span class="truncate text-foreground dark:text-neutral-200 font-normal">
+                      {qMsg.text || "(Image jointe)"}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onclick={() => recallAndEditQueuedMessage(qMsg.id)}
+                      class="px-2 py-0.5 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-1"
+                      title="Rappeler ce message dans le champ de saisie pour le modifier"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      <span>Modifier</span>
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => removeQueuedMessage(qMsg.id)}
+                      class="p-1 rounded text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                      title="Supprimer de la file"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
         <!-- Prompt Input Form -->
         <form
-          onsubmit={handleSendPrompt}
+          onsubmit={(e) => {
+            e.preventDefault();
+            if (isThinking) {
+              enqueueCurrentPrompt();
+            } else {
+              handleSendPrompt();
+            }
+          }}
           class="p-3 border-t border-black/10 dark:border-white/10 bg-surface/80 dark:bg-background/90 flex items-end gap-2 relative {isDraggingOver ? 'ring-2 ring-brand bg-brand/5' : ''}"
         >
           <!-- Hidden file input -->
@@ -2517,7 +2755,7 @@
           <button
             type="button"
             onclick={() => fileInputRef?.click()}
-            disabled={isThinking || promptQuota.remaining <= 0}
+            disabled={promptQuota.remaining <= 0}
             class="h-[38px] w-[38px] flex items-center justify-center rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer disabled:opacity-40 shrink-0 self-end"
             title="Joindre une image (PNG, JPG, WebP, SVG, max 5Mo)"
           >
@@ -2533,17 +2771,44 @@
             onkeydown={handlePromptKeydown}
             onpaste={handleChatPaste}
             rows="1"
-            placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint — Cliquez sur Recharger")}
-            disabled={isThinking || promptQuota.remaining <= 0}
+            placeholder={attachedImage ? "Ajoutez des instructions pour cette image..." : (isThinking ? "L'agent travaille... Écrivez un message pour la file (Entrée pour valider)..." : (promptQuota.remaining > 0 ? "Demandez une modification ou collez une image..." : "Quota quotidien atteint — Cliquez sur Recharger"))}
+            disabled={promptQuota.remaining <= 0}
             class="flex-1 rounded-lg border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] px-3.5 py-2 text-xs text-foreground dark:text-white placeholder:text-muted-foreground/50 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-[border-color,box-shadow] disabled:opacity-50 resize-none min-h-[38px] max-h-[160px] leading-relaxed select-text"
           ></textarea>
-          <button
-            type="submit"
-            disabled={(!promptInput.trim() && !attachedImage) || isThinking || promptQuota.remaining <= 0}
-            class="focus-ring h-[38px] px-4 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0 self-end flex items-center justify-center"
-          >
-            Envoyer
-          </button>
+
+          {#if isThinking}
+            <div class="flex items-center gap-1.5 shrink-0 self-end">
+              <button
+                type="button"
+                onclick={handleStopTurn}
+                class="focus-ring h-[38px] px-3.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                title="Arrêter immédiatement la génération en cours"
+              >
+                <span class="w-2.5 h-2.5 rounded-[2px] bg-white animate-pulse"></span>
+                <span>Arrêter</span>
+              </button>
+              {#if promptInput.trim() || attachedImage}
+                <button
+                  type="submit"
+                  class="focus-ring h-[38px] px-3 rounded-lg bg-brand hover:bg-brand/90 text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm active:scale-95 shrink-0"
+                  title="Mettre ce message dans la file d'attente"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>File</span>
+                </button>
+              {/if}
+            </div>
+          {:else}
+            <button
+              type="submit"
+              disabled={(!promptInput.trim() && !attachedImage) || promptQuota.remaining <= 0}
+              class="focus-ring h-[38px] px-4 rounded-lg bg-brand text-white text-xs font-medium uppercase tracking-wider hover:bg-brand/90 transition-all cursor-pointer disabled:opacity-40 shrink-0 self-end flex items-center justify-center"
+            >
+              Envoyer
+            </button>
+          {/if}
         </form>
 
         <!-- Quota Status Bar -->

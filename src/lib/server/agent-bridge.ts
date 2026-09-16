@@ -324,3 +324,27 @@ export async function revertTenantChanges(
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Immediately aborts and terminates any ongoing agent turn for a tenant on the runner daemon.
+ */
+export async function stopTenantTurn(tenantSlug: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${RUNNER_ENDPOINT}/stop/${tenantSlug}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const data = (await res.json().catch(() => ({}))) as any;
+      return data.success !== false;
+    }
+    return false;
+  } catch (err: any) {
+    console.error(
+      `[agent-bridge] Stop turn failed for ${tenantSlug}:`,
+      err.message,
+    );
+    return false;
+  }
+}

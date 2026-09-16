@@ -10,6 +10,7 @@ import {
   clearStudioChatHistory,
   revertStudioChatMessages,
 } from "../src/lib/server/db";
+import { stopTenantTurn } from "../src/lib/server/agent-bridge";
 
 describe("Tenant Files System", () => {
   it("should detect languages properly", () => {
@@ -211,5 +212,10 @@ describe("Studio Chat History Persistence", () => {
     expect(historyAfter[1].commitHash).toBe("commit_turn_1");
 
     clearStudioChatHistory(testTenant);
+  });
+
+  it("should gracefully handle stopTenantTurn when runner is responding or unreachable", async () => {
+    const res = await stopTenantTurn("test_tenant_stop");
+    expect(typeof res).toBe("boolean");
   });
 });
