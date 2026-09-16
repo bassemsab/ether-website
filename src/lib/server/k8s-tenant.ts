@@ -130,7 +130,10 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: web-prod
@@ -162,6 +165,13 @@ spec:
               value: "http://agent-runner.ether.svc.cluster.local:8080"
           ports:
             - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            failureThreshold: 3
           resources:
             requests:
               cpu: 50m

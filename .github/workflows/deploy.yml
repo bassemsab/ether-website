@@ -133,10 +133,10 @@ jobs:
           kubectl apply -f k8s/
           kubectl set image deployment/ether-website ether-website=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -n ether
           kubectl set env deployment/ether-website -n ether APP_RELEASE=${{ github.sha }}
-          kubectl rollout restart deployment ether-website -n ether
           kubectl rollout status deployment ether-website -n ether
-          # Restart any tenant web-prod deployments so they pick up the latest proxy wrapper
+          # Gracefully rolling restart any tenant web-prod deployments with zero downtime
           kubectl rollout restart deployment -l app=web-prod -A || true
+          kubectl rollout status deployment -l app=web-prod -A --timeout=90s || true
 
       - name: Deploy agent-runner
         if: steps.changes.outputs.runner_changed == 'true'
