@@ -212,10 +212,6 @@
           <div>
             <div class="flex items-center gap-2">
               <h2 class="font-display text-lg text-foreground font-medium tracking-tight">Accès Git &amp; Clone Local</h2>
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                🔒 Privé
-              </span>
             </div>
             <p class="text-xs text-muted-foreground font-mono mt-0.5">
               Projet : <span class="text-foreground font-medium">{projectSlug}</span>
@@ -336,11 +332,23 @@
                       {/if}
                     </div>
                     <button
+                      type="button"
                       onclick={() => (showPassword = !showPassword)}
-                      class="p-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface text-xs transition-colors cursor-pointer shrink-0"
-                      title={showPassword ? "Masquer" : "Afficher"}
+                      class="p-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 flex items-center justify-center"
+                      title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                     >
-                      {showPassword ? "🙈" : "👁️"}
+                      {#if showPassword}
+                        <!-- Eye-slash SVG (Hide) -->
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                        </svg>
+                      {:else}
+                        <!-- Eye SVG (Show) -->
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      {/if}
                     </button>
                     <button
                       onclick={() => copyText(gitPassword, "password")}
