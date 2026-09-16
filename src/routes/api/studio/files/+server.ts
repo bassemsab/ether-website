@@ -2,6 +2,7 @@ import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import {
   isBinaryFile,
+  isProtectedSystemFile,
   listTenantFiles,
   saveTenantFile,
 } from "$lib/server/tenant-files";
@@ -98,6 +99,17 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       return json(
         { success: false, error: "Chemin de fichier requis" },
         { status: 400 },
+      );
+    }
+
+    if (isProtectedSystemFile(filePath)) {
+      return json(
+        {
+          success: false,
+          error:
+            "Modification interdite : les fichiers d'infrastructure, de déploiement et de base de données ne peuvent pas être modifiés directement.",
+        },
+        { status: 403 },
       );
     }
 

@@ -46,15 +46,70 @@ const IGNORED_DIRS = new Set([
   "build",
   ".local-data",
   "uploads",
+  ".github",
+  ".gitlab",
+  "k8s",
+  "kubernetes",
+  "helm",
+  "deploy",
+  "deployments",
+  ".docker",
 ]);
 
 const IGNORED_FILES = new Set([
+  "dockerfile",
+  ".dockerignore",
+  "docker-compose.yml",
+  "docker-compose.yaml",
+  "compose.yml",
+  "compose.yaml",
+  "app.db",
   "bun.lock",
+  "bun.lockb",
   "package-lock.json",
   "yarn.lock",
-  ".DS_Store",
+  "pnpm-lock.yaml",
+  ".ds_store",
   "thumbs.db",
 ]);
+
+/**
+ * Determines whether a file is an internal platform, database, or infrastructure file
+ * that must be hidden from the UI explorer and protected against modifications.
+ */
+export function isProtectedSystemFile(filePath: string): boolean {
+  const norm = filePath.replace(/\\/g, "/").toLowerCase();
+  const basename = norm.split("/").pop() || "";
+
+  if (IGNORED_FILES.has(basename)) return true;
+  if (basename.startsWith("dockerfile")) return true;
+  if (basename.startsWith(".env")) return true;
+  if (
+    basename.endsWith(".db") ||
+    basename.endsWith(".sqlite") ||
+    basename.endsWith(".sqlite3") ||
+    basename.endsWith(".db-shm") ||
+    basename.endsWith(".db-wal")
+  ) {
+    return true;
+  }
+
+  // Root-level deployment or yaml files
+  if (
+    !norm.includes("/") &&
+    (basename.endsWith(".yaml") || basename.endsWith(".yml"))
+  ) {
+    return true;
+  }
+
+  // Deployment or cluster configuration directories
+  const segments = norm.split("/");
+  for (const seg of segments) {
+    if (IGNORED_DIRS.has(seg)) return true;
+  }
+
+  return false;
+}
 
 /**
  * Returns the absolute directory path where tenant code is stored.
@@ -125,32 +180,26 @@ export function listTenantFiles(
       const fullPath = join(currentDir, entryName);
 
       if (entry.isDirectory()) {
-        if (!IGNORED_DIRS.has(entryName)) {
+        if (
+          !IGNORED_DIRS.has(entryName.toLowerCase()) &&
+          !entryName.startsWith(".")
+        ) {
           scan(fullPath);
         }
       } else if (entry.isFile()) {
-        if (IGNORED_FILES.has(entryName) || entryName.startsWith(".")) {
+        const relPath = relative(rootDir, fullPath).replace(/\\/g, "/");
+        if (
+          isProtectedSystemFile(entryName) ||
+          isProtectedSystemFile(relPath) ||
+          entryName.startsWith(".")
+        ) {
           continue;
         }
 
         const stat = statSync(fullPath);
-        const relPath = relative(rootDir, fullPath).replace(/\\/g, "/");
         const category = getFileCategory(entryName);
         const lang = detectFileLang(entryName);
         const binary = isBinaryFile(entryName);
-
-        if (category === "sqlite") {
-          result[relPath] = {
-            name: entryName,
-            path: relPath,
-            lang: "html",
-            content: "",
-            size: stat.size,
-            category: "sqlite",
-            isBinary: true,
-          };
-          continue;
-        }
 
         if (category === "image") {
           let dataUrl: string | undefined;
@@ -272,6 +321,13 @@ export function saveTenantFile(
   if (!targetPath.startsWith(rootDir + "/") && targetPath !== rootDir) {
     throw new Error(
       "Tentative d'accès non autorisé en dehors de l'espace de travail du site.",
+    );
+  }
+
+  // Reject modifying protected system, infrastructure, or database files
+  if (isProtectedSystemFile(relPath)) {
+    throw new Error(
+      "Modification interdite : les fichiers d'infrastructure, de déploiement et de base de données ne peuvent pas être modifiés directement.",
     );
   }
 

@@ -1195,32 +1195,93 @@ const server = Bun.serve({
         gitToken,
       );
 
+      const ignoredDirs = new Set([
+        "node_modules",
+        ".svelte-kit",
+        ".git",
+        ".gemini",
+        ".gemini-sandbox",
+        "dist",
+        "build",
+        "uploads",
+        ".local-data",
+        ".github",
+        ".gitlab",
+        "k8s",
+        "kubernetes",
+        "helm",
+        "deploy",
+        "deployments",
+        ".docker",
+      ]);
+      const ignoredFiles = new Set([
+        "dockerfile",
+        ".dockerignore",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
+        "app.db",
+        "bun.lock",
+        "bun.lockb",
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        ".ds_store",
+        "thumbs.db",
+      ]);
+
+      function isProtectedFile(filePath: string): boolean {
+        const norm = filePath.replace(/\\/g, "/").toLowerCase();
+        const basename = norm.split("/").pop() || "";
+        if (ignoredFiles.has(basename)) return true;
+        if (basename.startsWith("dockerfile")) return true;
+        if (basename.startsWith(".env")) return true;
+        if (
+          basename.endsWith(".db") ||
+          basename.endsWith(".sqlite") ||
+          basename.endsWith(".sqlite3") ||
+          basename.endsWith(".db-shm") ||
+          basename.endsWith(".db-wal")
+        ) {
+          return true;
+        }
+        if (
+          !norm.includes("/") &&
+          (basename.endsWith(".yaml") || basename.endsWith(".yml"))
+        ) {
+          return true;
+        }
+        const segments = norm.split("/");
+        for (const seg of segments) {
+          if (ignoredDirs.has(seg)) return true;
+        }
+        return false;
+      }
+
       if (req.method === "GET") {
         const files: Record<string, any> = {};
-        const ignoredDirs = new Set([
-          "node_modules",
-          ".svelte-kit",
-          ".git",
-          ".gemini",
-          ".gemini-sandbox",
-          "dist",
-          "build",
-          "uploads",
-        ]);
-        const ignoredFiles = new Set(["bun.lock", ".DS_Store", "thumbs.db"]);
 
         function scan(dir: string) {
           if (!existsSync(dir)) return;
           for (const entry of readdirSync(dir, { withFileTypes: true })) {
             const fullPath = join(dir, entry.name);
             if (entry.isDirectory()) {
-              if (!ignoredDirs.has(entry.name) && !entry.name.startsWith(".")) {
+              if (
+                !ignoredDirs.has(entry.name.toLowerCase()) &&
+                !entry.name.startsWith(".")
+              ) {
                 scan(fullPath);
               }
             } else if (entry.isFile()) {
-              if (ignoredFiles.has(entry.name) || entry.name.startsWith("."))
-                continue;
               const rel = relative(codeDir, fullPath).replace(/\\/g, "/");
+              if (
+                isProtectedFile(entry.name) ||
+                isProtectedFile(rel) ||
+                entry.name.startsWith(".")
+              ) {
+                continue;
+              }
               const category = getFileCategory(entry.name);
               let lang = "html";
               if (
@@ -1234,19 +1295,6 @@ const server = Bun.serve({
 
               try {
                 const stat = statSync(fullPath);
-                if (category === "sqlite") {
-                  files[rel] = {
-                    name: entry.name,
-                    path: rel,
-                    lang: "html",
-                    content: "",
-                    size: stat.size,
-                    category: "sqlite",
-                    isBinary: true,
-                  };
-                  continue;
-                }
-
                 if (category === "image") {
                   let dataUrl: string | undefined;
                   let content = "";
@@ -1319,6 +1367,17 @@ const server = Bun.serve({
             return Response.json(
               { success: false, error: "Chemin de fichier requis" },
               { status: 400, headers: corsHeaders },
+            );
+          }
+
+          if (isProtectedFile(relPath)) {
+            return Response.json(
+              {
+                success: false,
+                error:
+                  "Modification interdite : les fichiers d'infrastructure, de déploiement et de base de données ne peuvent pas être modifiés directement.",
+              },
+              { status: 403, headers: corsHeaders },
             );
           }
 

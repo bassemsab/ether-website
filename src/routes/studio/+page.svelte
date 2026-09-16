@@ -1623,7 +1623,6 @@
     } finally {
       isThinking = false;
       await loadTenantFiles();
-      refreshPreview();
       await refreshConversations();
     }
   }
