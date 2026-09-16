@@ -89,6 +89,8 @@ export interface StudioChatMessageRecord {
   profile: string | null;
   steps_json: string | null;
   image_url: string | null;
+  commit_hash?: string | null;
+  prev_commit_hash?: string | null;
   created_at: string;
 }
 
@@ -226,6 +228,9 @@ try {
       content TEXT NOT NULL,
       profile TEXT,
       steps_json TEXT,
+      image_url TEXT,
+      commit_hash TEXT,
+      prev_commit_hash TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -279,6 +284,8 @@ try {
   safeAddColumn("tenants", "plan TEXT DEFAULT 'free'");
   safeAddColumn("tenants", "extra_prompts INTEGER DEFAULT 0");
   safeAddColumn("studio_chat_messages", "image_url TEXT");
+  safeAddColumn("studio_chat_messages", "commit_hash TEXT");
+  safeAddColumn("studio_chat_messages", "prev_commit_hash TEXT");
 } catch (error) {
   console.error(`❌ Failed to initialize bun:sqlite at ${DB_PATH}:`, error);
 }
@@ -1305,6 +1312,7 @@ export function addTenantExtraPrompts(
 
 // Studio Chat History Helpers
 export interface StudioChatMessageUI {
+  id?: number;
   role: "user" | "assistant";
   content: string;
   profile: string;
@@ -1316,6 +1324,8 @@ export interface StudioChatMessageUI {
   }[];
   conversationId?: string | null;
   imageUrl?: string | null;
+  commitHash?: string | null;
+  prevCommitHash?: string | null;
 }
 
 export interface StudioConversationSummary {
@@ -1371,6 +1381,7 @@ export function getStudioChatHistory(
       }
 
       return {
+        id: r.id,
         role: r.role,
         content: r.content,
         profile: r.profile || "primary",
@@ -1378,6 +1389,8 @@ export function getStudioChatHistory(
         steps,
         conversationId: r.conversation_id,
         imageUrl: r.image_url || undefined,
+        commitHash: r.commit_hash || undefined,
+        prevCommitHash: r.prev_commit_hash || undefined,
       };
     });
   } catch (err) {
@@ -1464,25 +1477,79 @@ export function saveStudioChatMessage(
   conversationId?: string | null,
   steps?: any[],
   imageUrl?: string | null,
-): void {
-  if (!db) return;
+  commitHash?: string | null,
+  prevCommitHash?: string | null,
+): number | undefined {
+  if (!db) return undefined;
 
   try {
     const stepsJson = steps && steps.length > 0 ? JSON.stringify(steps) : null;
-    db.prepare(
-      `INSERT INTO studio_chat_messages (tenant_slug, conversation_id, role, content, profile, steps_json, image_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      tenantSlug,
-      conversationId || null,
-      role,
-      content,
-      profile || null,
-      stepsJson,
-      imageUrl || null,
-    );
+    const info = db
+      .prepare(
+        `INSERT INTO studio_chat_messages (tenant_slug, conversation_id, role, content, profile, steps_json, image_url, commit_hash, prev_commit_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        tenantSlug,
+        conversationId || null,
+        role,
+        content,
+        profile || null,
+        stepsJson,
+        imageUrl || null,
+        commitHash || null,
+        prevCommitHash || null,
+      );
+    return Number(info.lastInsertRowid);
   } catch (err) {
     console.error("Failed to save studio chat message:", err);
+    return undefined;
+  }
+}
+
+export function revertStudioChatMessages(
+  tenantSlug: string,
+  fromMessageId: number,
+  includeUserPrompt = true,
+): { targetCommitHash?: string | null; deletedCount: number } {
+  if (!db) return { deletedCount: 0 };
+
+  try {
+    const msg = db
+      .prepare(
+        `SELECT * FROM studio_chat_messages WHERE id = ? AND tenant_slug = ?`,
+      )
+      .get(fromMessageId, tenantSlug) as StudioChatMessageRecord | undefined;
+
+    if (!msg) return { deletedCount: 0 };
+
+    let deleteFromId = fromMessageId;
+    if (includeUserPrompt && msg.role === "assistant") {
+      const prevUserMsg = db
+        .prepare(
+          `SELECT id FROM studio_chat_messages 
+           WHERE tenant_slug = ? AND id < ? 
+           ORDER BY id DESC LIMIT 1`,
+        )
+        .get(tenantSlug, fromMessageId) as { id: number } | undefined;
+      if (prevUserMsg) {
+        deleteFromId = prevUserMsg.id;
+      }
+    }
+
+    const info = db
+      .prepare(
+        `DELETE FROM studio_chat_messages WHERE tenant_slug = ? AND id >= ?`,
+      )
+      .run(tenantSlug, deleteFromId);
+
+    return {
+      targetCommitHash: msg.prev_commit_hash || null,
+      deletedCount: Number(info.changes),
+    };
+  } catch (err) {
+    console.error("Failed to revert studio chat messages:", err);
+    return { deletedCount: 0 };
   }
 }
 

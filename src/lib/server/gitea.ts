@@ -324,7 +324,15 @@ export default defineConfig({
   server: {
     watch: {
       usePolling: true,
-      interval: 100
+      interval: 500,
+      ignored: [
+        "**/.git/**",
+        "**/.svelte-kit/**",
+        "**/build/**",
+        "**/node_modules/**",
+        "**/*.db*",
+        "**/*.sqlite*"
+      ]
     },
     hmr: {
       clientPort: 443
@@ -338,6 +346,18 @@ export default defineConfig({
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (_) {}
+      })();
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover" class="bg-background text-foreground min-h-screen">
@@ -474,14 +494,8 @@ export const actions: Actions = {
   let isDark = $state(false);
 
   $effect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("theme");
-      if (stored) {
-        isDark = stored === "dark";
-      } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        isDark = true;
-      }
-      document.documentElement.classList.toggle("dark", isDark);
+    if (typeof document !== "undefined") {
+      isDark = document.documentElement.classList.contains("dark");
     }
   });
 

@@ -58,6 +58,8 @@ export interface AgentTurnResult {
   output: string;
   conversationId?: string;
   profileUsed: string;
+  commitHash?: string;
+  prevCommitHash?: string;
 }
 
 export interface RunnerProfileInfo {
@@ -110,6 +112,8 @@ export async function dispatchAgyPrompt(
         output: data.response || "Modifications appliquées avec succès.",
         conversationId: data.conversationId,
         profileUsed: data.profileUsed || targetProfile,
+        commitHash: data.commitHash,
+        prevCommitHash: data.prevCommitHash,
       };
     }
 
@@ -278,4 +282,45 @@ export async function createRunnerProfile(
   }
 
   return (await res.json()) as any;
+}
+
+/**
+ * Reverts the tenant codebase to a previous git commit or turn via the runner daemon.
+ */
+export async function revertTenantChanges(
+  tenantSlug: string,
+  targetCommit?: string | null,
+  stepsBack?: number,
+): Promise<{
+  success: boolean;
+  target?: string;
+  newHead?: string;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${RUNNER_ENDPOINT}/revert/${tenantSlug}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commitHash: targetCommit || undefined,
+        stepsBack: stepsBack || (targetCommit ? undefined : 1),
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      return data;
+    }
+    return {
+      success: false,
+      error: data.error || `Erreur runner lors du revert (${res.status})`,
+    };
+  } catch (err: any) {
+    console.error(
+      `[agent-bridge] Revert failed for ${tenantSlug}:`,
+      err.message,
+    );
+    return { success: false, error: err.message };
+  }
 }

@@ -96,12 +96,15 @@
   }
 
   interface ChatMessage {
+    id?: number;
     role: "user" | "assistant";
     content: string;
     profile: string;
     time: string;
     steps?: ChatStep[];
     imageUrl?: string | null;
+    commitHash?: string | null;
+    prevCommitHash?: string | null;
   }
 
   interface AttachedImageState {
@@ -305,6 +308,74 @@
         }
       }
     } catch {}
+  }
+
+  // Revert / Undo state & handlers
+  let revertLoading = $state(false);
+  let revertSuccessToast = $state<string | null>(null);
+  let revertErrorToast = $state<string | null>(null);
+
+  async function refreshMessages() {
+    try {
+      const q = conversationId ? `&conversationId=${encodeURIComponent(conversationId)}` : "";
+      const res = await fetch(`/api/studio/chat?project=${projectSlug}${q}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.history && json.history.length > 0) {
+          messages = json.history;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh messages:", err);
+    }
+  }
+
+  async function handleRevert(msg: ChatMessage) {
+    if (revertLoading) return;
+    if (!confirm("Voulez-vous vraiment annuler cette modification et restaurer le code précédent ?")) {
+      return;
+    }
+
+    revertLoading = true;
+    revertSuccessToast = null;
+    revertErrorToast = null;
+
+    try {
+      const res = await fetch("/api/studio/revert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectSlug,
+          messageId: msg.id,
+          targetCommit: msg.prevCommitHash,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        await refreshMessages();
+        await loadTenantFiles();
+        if (activeFile && files[activeFile]) {
+          await selectFile(activeFile);
+        }
+        revertSuccessToast = "Modifications annulées avec succès ! Le code a été restauré.";
+        setTimeout(() => {
+          revertSuccessToast = null;
+        }, 4500);
+      } else {
+        revertErrorToast = json.error || "Erreur lors de l'annulation des modifications.";
+        setTimeout(() => {
+          revertErrorToast = null;
+        }, 6000);
+      }
+    } catch (err: any) {
+      revertErrorToast = err.message || "Erreur réseau lors de l'annulation.";
+      setTimeout(() => {
+        revertErrorToast = null;
+      }, 6000);
+    } finally {
+      revertLoading = false;
+    }
   }
 
   function formatConversationDate(isoString?: string): string {
@@ -1534,6 +1605,12 @@
                 if (data.profileUsed) {
                   messages[assistantMsgIndex].profile = data.profileUsed;
                 }
+                if (data.commitHash) {
+                  messages[assistantMsgIndex].commitHash = data.commitHash;
+                }
+                if (data.prevCommitHash) {
+                  messages[assistantMsgIndex].prevCommitHash = data.prevCommitHash;
+                }
                 if (data.savedImageUrl && messages[assistantMsgIndex - 1]) {
                   if (!messages[assistantMsgIndex - 1].imageUrl || !messages[assistantMsgIndex - 1].imageUrl?.startsWith("data:")) {
                     messages[assistantMsgIndex - 1].imageUrl = data.savedImageUrl;
@@ -1599,6 +1676,8 @@
             content: resData.response,
             profile: resData.profileUsed || activeProfile,
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            commitHash: resData.commitHash,
+            prevCommitHash: resData.prevCommitHash,
           });
         } else {
           messages.push({
@@ -1624,6 +1703,7 @@
       isThinking = false;
       await loadTenantFiles();
       await refreshConversations();
+      await refreshMessages();
     }
   }
 
@@ -2196,16 +2276,53 @@
             </div>
           {/if}
 
+          {#if revertSuccessToast}
+            <div class="sticky top-0 z-20 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center justify-between shadow-retro-sm dark:shadow-none backdrop-blur-md">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold">✓</span>
+                <span>{revertSuccessToast}</span>
+              </div>
+              <button type="button" onclick={() => revertSuccessToast = null} class="text-xs hover:opacity-70 font-mono cursor-pointer px-1">✕</button>
+            </div>
+          {/if}
+
+          {#if revertErrorToast}
+            <div class="sticky top-0 z-20 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between shadow-retro-sm dark:shadow-none backdrop-blur-md">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold">⚠️</span>
+                <span>{revertErrorToast}</span>
+              </div>
+              <button type="button" onclick={() => revertErrorToast = null} class="text-xs hover:opacity-70 font-mono cursor-pointer px-1">✕</button>
+            </div>
+          {/if}
+
           {#each messages as msg}
             <div class="space-y-1.5 {msg.role === 'user' ? 'text-right' : 'text-left'}">
-              <div class="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground {msg.role === 'user' ? 'justify-end' : 'justify-start'} px-1">
-                <span class="font-semibold text-foreground dark:text-neutral-200">{msg.role === 'user' ? 'Vous' : 'Ether Agent'}</span>
-                <span>·</span>
-                <span>{msg.time}</span>
-                {#if msg.role === 'assistant' && msg.profile}
-                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 font-mono uppercase text-muted-foreground dark:text-neutral-300">
-                    {getProfileLabel(msg.profile)}
-                  </span>
+              <div class="flex items-center text-[10px] font-mono text-muted-foreground {msg.role === 'user' ? 'justify-end' : 'justify-between'} px-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-semibold text-foreground dark:text-neutral-200">{msg.role === 'user' ? 'Vous' : 'Ether Agent'}</span>
+                  <span>·</span>
+                  <span>{msg.time}</span>
+                </div>
+                {#if msg.role === 'assistant' && !isThinking && (msg.commitHash || msg.id)}
+                  <button
+                    type="button"
+                    onclick={() => handleRevert(msg)}
+                    disabled={revertLoading}
+                    class="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 px-2 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer disabled:opacity-50"
+                    title="Annuler cette modification et restaurer le code précédent"
+                  >
+                    {#if revertLoading}
+                      <svg class="animate-spin h-2.5 w-2.5" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                      </svg>
+                      <span>Annulation...</span>
+                    {:else}
+                      <span>↺</span>
+                      <span>Annuler</span>
+                    {/if}
+                  </button>
                 {/if}
               </div>
 

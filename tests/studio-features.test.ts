@@ -8,6 +8,7 @@ import {
   getStudioChatHistory,
   saveStudioChatMessage,
   clearStudioChatHistory,
+  revertStudioChatMessages,
 } from "../src/lib/server/db";
 
 describe("Tenant Files System", () => {
@@ -73,10 +74,14 @@ describe("Tenant Files System", () => {
 
     expect(() => {
       saveTenantFile("tester", "data.db", "corrupt binary data");
+    }).toThrow("Modification interdite");
+
+    expect(() => {
+      saveTenantFile("tester", "static/font.woff2", "not a font");
     }).toThrow("Impossible d'écraser un fichier binaire");
 
     expect(() => {
-      saveTenantFile("tester", "static/uploads/image.png", "not an image");
+      saveTenantFile("tester", "static/image.png", "not an image");
     }).toThrow("Impossible d'écraser un fichier binaire");
   });
 });
@@ -137,6 +142,73 @@ describe("Studio Chat History Persistence", () => {
     expect(history.length).toBe(1);
     expect(history[0].role).toBe("user");
     expect(history[0].imageUrl).toBe("/uploads/mockup_123.png");
+
+    clearStudioChatHistory(testTenant);
+  });
+
+  it("should revert studio chat messages and return target commit hash", () => {
+    clearStudioChatHistory(testTenant);
+
+    // Turn 1
+    saveStudioChatMessage(
+      testTenant,
+      "user",
+      "Crée un header",
+      "auto",
+      "conv_rev",
+    );
+    saveStudioChatMessage(
+      testTenant,
+      "assistant",
+      "Header créé.",
+      "primary",
+      "conv_rev",
+      undefined,
+      null,
+      "commit_turn_1",
+      "commit_init",
+    );
+
+    // Turn 2
+    saveStudioChatMessage(
+      testTenant,
+      "user",
+      "Ajoute un bouton rouge",
+      "auto",
+      "conv_rev",
+    );
+    const assistantMsg2Id = saveStudioChatMessage(
+      testTenant,
+      "assistant",
+      "Bouton rouge ajouté.",
+      "primary",
+      "conv_rev",
+      undefined,
+      null,
+      "commit_turn_2",
+      "commit_turn_1",
+    );
+
+    expect(assistantMsg2Id).toBeDefined();
+
+    const historyBefore = getStudioChatHistory(testTenant);
+    expect(historyBefore.length).toBe(4);
+    expect(historyBefore[3].commitHash).toBe("commit_turn_2");
+    expect(historyBefore[3].prevCommitHash).toBe("commit_turn_1");
+
+    // Revert Turn 2
+    const revertRes = revertStudioChatMessages(
+      testTenant,
+      assistantMsg2Id!,
+      true,
+    );
+    expect(revertRes.targetCommitHash).toBe("commit_turn_1");
+    expect(revertRes.deletedCount).toBe(2); // Deletes Turn 2 user prompt + assistant response
+
+    const historyAfter = getStudioChatHistory(testTenant);
+    expect(historyAfter.length).toBe(2);
+    expect(historyAfter[1].content).toBe("Header créé.");
+    expect(historyAfter[1].commitHash).toBe("commit_turn_1");
 
     clearStudioChatHistory(testTenant);
   });

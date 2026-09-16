@@ -172,6 +172,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       let assistantText = "";
       let finalProfile = preferredProfile || "primary";
       let finalConvId = conversationId;
+      let finalCommitHash: string | null = null;
+      let finalPrevCommitHash: string | null = null;
       const stepsMap = new Map<
         string | number,
         { id: string | number; name: string; state: "running" | "completed" }
@@ -202,6 +204,12 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
                 }
                 if (parsed.conversationId) {
                   finalConvId = parsed.conversationId;
+                }
+                if (parsed.commitHash) {
+                  finalCommitHash = parsed.commitHash;
+                }
+                if (parsed.prevCommitHash) {
+                  finalPrevCommitHash = parsed.prevCommitHash;
                 }
                 if (parsed.id !== undefined && parsed.name) {
                   const existing = stepsMap.get(parsed.id);
@@ -237,6 +245,9 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
               finalProfile,
               finalConvId,
               Array.from(stepsMap.values()),
+              null,
+              finalCommitHash,
+              finalPrevCommitHash,
             );
           }
         },
@@ -268,6 +279,10 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       result.output,
       result.profileUsed,
       result.conversationId,
+      undefined,
+      null,
+      result.commitHash,
+      result.prevCommitHash,
     );
 
     return json({
@@ -276,6 +291,8 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       profileUsed: result.profileUsed,
       conversationId: result.conversationId || `conv_${Date.now()}`,
       quotaRemaining: Math.max(0, quota.remaining - 1),
+      commitHash: result.commitHash,
+      prevCommitHash: result.prevCommitHash,
     });
   } catch (err: any) {
     console.error("[api/studio/chat] Error:", err);
