@@ -323,20 +323,20 @@ export default defineConfig({
   plugins: [sveltekit()],
   server: {
     watch: {
-      usePolling: true,
-      interval: 500,
       ignored: [
         "**/.git/**",
         "**/.svelte-kit/**",
         "**/build/**",
         "**/node_modules/**",
         "**/*.db*",
-        "**/*.sqlite*"
+        "**/*.sqlite*",
+        "**/*.sqlite3*",
+        "**/*.log",
+        "**/bun.lock*",
+        "**/.env*"
       ]
     },
-    hmr: {
-      clientPort: 443
-    }
+    hmr: false
   }
 });
 `;
@@ -491,18 +491,10 @@ export const actions: Actions = {
   const pageSvelte = `<script lang="ts">
   let { data, form } = $props();
   let count = $state(0);
-  let isDark = $state(false);
-
-  $effect(() => {
-    if (typeof document !== "undefined") {
-      isDark = document.documentElement.classList.contains("dark");
-    }
-  });
 
   function toggleDarkMode() {
-    isDark = !isDark;
     if (typeof document !== "undefined") {
-      document.documentElement.classList.toggle("dark", isDark);
+      const isDark = document.documentElement.classList.toggle("dark");
       try {
         localStorage.setItem("theme", isDark ? "dark" : "light");
       } catch {}
@@ -532,7 +524,7 @@ export const actions: Actions = {
           aria-label="Toggle Dark Mode"
           class="p-2 rounded-lg bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition text-sm cursor-pointer"
         >
-          {isDark ? "🌙" : "☀️"}
+          <span class="hidden dark:inline">🌙</span><span class="inline dark:hidden">☀️</span>
         </button>
       </div>
     </div>

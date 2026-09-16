@@ -1915,6 +1915,7 @@
       await loadTenantFiles();
       await refreshConversations();
       await refreshMessages();
+      refreshPreview();
 
       if (!wasTurnStopped && queuedMessages.length > 0) {
         const nextMsg = queuedMessages[0];
@@ -1974,6 +1975,7 @@
 
       if (res.ok) {
         editorSaved = true;
+        refreshPreview();
         setTimeout(() => {
           editorSaved = false;
         }, 2500);
