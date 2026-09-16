@@ -1974,7 +1974,6 @@
 
       if (res.ok) {
         editorSaved = true;
-        refreshPreview();
         setTimeout(() => {
           editorSaved = false;
         }, 2500);
@@ -3513,30 +3512,24 @@
 
       <!-- Iframe Container -->
       <div class="flex-1 flex items-center justify-center {viewportMode === 'desktop' ? 'p-0 bg-background' : 'p-4 bg-black/5'} overflow-hidden w-full h-full min-w-0">
-        {#if viewportMode === 'desktop'}
-          <div class="w-full h-full bg-background overflow-hidden flex flex-col">
-            <iframe
-              bind:this={previewIframe}
-              src={previewUrl}
-              title="Aperçu du code en cours de {projectSlug}"
-              class="w-full h-full border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
-            ></iframe>
-          </div>
-        {:else}
-          <div
-            class="h-full max-h-[760px] w-[375px] max-w-full bg-card rounded-2xl shadow-retro border-2 border-black/20 overflow-hidden flex flex-col transition-all duration-300 relative"
-          >
+        <div
+          class="{viewportMode === 'desktop'
+            ? 'w-full h-full bg-background overflow-hidden flex flex-col'
+            : 'h-full max-h-[760px] w-[375px] max-w-full bg-card rounded-2xl shadow-retro border-2 border-black/20 overflow-hidden flex flex-col transition-all duration-300 relative'}"
+        >
+          {#if viewportMode === 'mobile'}
             <!-- Mobile Phone Speaker Indicator -->
             <div class="h-4 bg-surface flex items-center justify-center border-b border-black/10 shrink-0">
               <div class="w-12 h-1 bg-black/20 rounded-full"></div>
             </div>
-            <iframe
-              src={previewUrl}
-              title="Aperçu mobile du code de {projectSlug}"
-              class="w-full flex-1 border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
-            ></iframe>
-          </div>
-        {/if}
+          {/if}
+          <iframe
+            bind:this={previewIframe}
+            src={previewUrl}
+            title="Aperçu du code en cours de {projectSlug}"
+            class="w-full flex-1 border-0 bg-background {isResizing ? 'pointer-events-none' : ''}"
+          ></iframe>
+        </div>
       </div>
     </div>
   </div>

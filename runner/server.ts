@@ -578,6 +578,67 @@ function runTenantGit(
 }
 
 /**
+ * Ensures the tenant's vite.config.js/ts exists and has robust HMR and watch ignore rules
+ * to prevent unnecessary full-reloads when databases, git objects, or logs change.
+ */
+function ensureTenantViteConfig(codeDir: string) {
+  const viteConfigJs = join(codeDir, "vite.config.js");
+  const viteConfigTs = join(codeDir, "vite.config.ts");
+  const targetConfig = existsSync(viteConfigTs) ? viteConfigTs : viteConfigJs;
+
+  const standardConfig = `import { sveltekit } from "@sveltejs/kit/vite";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  server: {
+    watch: {
+      ignored: [
+        "**/.git/**",
+        "**/.svelte-kit/**",
+        "**/build/**",
+        "**/node_modules/**",
+        "**/*.db*",
+        "**/*.sqlite*",
+        "**/*.sqlite3*",
+        "**/*.log",
+        "**/bun.lock*",
+        "**/.env*"
+      ]
+    },
+    hmr: {
+      overlay: false
+    }
+  }
+});
+`;
+
+  if (!existsSync(targetConfig)) {
+    writeFileSync(targetConfig, standardConfig);
+    return;
+  }
+
+  try {
+    const content = readFileSync(targetConfig, "utf-8");
+    if (
+      !content.includes("ignored:") ||
+      content.includes("clientPort: 443") ||
+      content.includes("usePolling: true") ||
+      !content.includes("**/*.db*")
+    ) {
+      if (
+        content.includes("plugins: [sveltekit()]") &&
+        (!content.includes("server:") ||
+          content.includes("usePolling: true") ||
+          content.includes("clientPort: 443"))
+      ) {
+        writeFileSync(targetConfig, standardConfig);
+      }
+    }
+  } catch {}
+}
+
+/**
  * Prepares the tenant codebase directory as a real Git clone or repository with SvelteKit.
  */
 async function ensureTenantCodebase(
@@ -720,13 +781,7 @@ async function ensureTenantCodebase(
     );
   }
 
-  const viteConfig = join(codeDir, "vite.config.js");
-  if (!existsSync(viteConfig)) {
-    writeFileSync(
-      viteConfig,
-      `import { sveltekit } from "@sveltejs/kit/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({\n  plugins: [sveltekit()],\n  server: {\n    watch: {\n      usePolling: true,\n      interval: 500,\n      ignored: [\n        "**/.git/**",\n        "**/.svelte-kit/**",\n        "**/build/**",\n        "**/node_modules/**",\n        "**/*.db*",\n        "**/*.sqlite*"\n      ]\n    },\n    hmr: {\n      clientPort: 443\n    }\n  }\n});\n`,
-    );
-  }
+  ensureTenantViteConfig(codeDir);
 
   const srcDir = join(codeDir, "src");
   mkdirSync(srcDir, { recursive: true });
@@ -884,13 +939,18 @@ async function getOrLaunchTenantDevServer(
   }
 
   const codeDir = await ensureTenantCodebase(slug, gitRepoUrl, gitToken);
+  ensureTenantViteConfig(codeDir);
   const tenantUser = ensureTenantSystemUser(slug);
   const isRoot = isLinuxRoot();
   const port = nextAvailablePort++;
 
   const dbPath = join(DATA_DIR, "tenants", slug, "app.db");
 
-  // Spawn vite dev server under unprivileged tenant user
+  const viteBin = existsSync(join(codeDir, "node_modules", ".bin", "vite"))
+    ? "./node_modules/.bin/vite"
+    : "vite";
+
+  // Spawn vite dev server under unprivileged tenant user with Bun runtime
   const spawnCmd = isRoot
     ? [
         "runuser",
@@ -902,15 +962,24 @@ async function getOrLaunchTenantDevServer(
         "HOST=0.0.0.0",
         `DB_PATH=${dbPath}`,
         "bun",
-        "x",
-        "vite",
+        "--bun",
+        viteBin,
         "dev",
         "--host",
         "0.0.0.0",
         "--port",
         String(port),
       ]
-    : ["bun", "x", "vite", "dev", "--host", "0.0.0.0", "--port", String(port)];
+    : [
+        "bun",
+        "--bun",
+        viteBin,
+        "dev",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        String(port),
+      ];
 
   const proc = Bun.spawn(spawnCmd, {
     cwd: codeDir,
@@ -933,9 +1002,12 @@ async function getOrLaunchTenantDevServer(
   tenantDevServers.set(slug, instance);
 
   // Poll for ready state
-  for (let attempt = 0; attempt < 30; attempt++) {
+  for (let attempt = 0; attempt < 40; attempt++) {
     try {
-      const ping = await fetch(`http://127.0.0.1:${port}`);
+      const ping = await fetch(`http://127.0.0.1:${port}/`, {
+        headers: { "accept-encoding": "identity" },
+        signal: AbortSignal.timeout(1000),
+      });
       if (ping.status < 500) {
         instance.ready = true;
         break;
@@ -1247,7 +1319,6 @@ const server = Bun.serve({
         resHeaders.delete("content-length");
         const contentType = resHeaders.get("content-type") || "";
         if (contentType.includes("text/html")) {
-          resHeaders.set("Clear-Site-Data", '"cache"');
           resHeaders.set(
             "Cache-Control",
             "no-cache, no-store, must-revalidate",
@@ -2957,9 +3028,25 @@ const server = Bun.serve({
     open(ws: any) {
       const devPort = ws.data?.devPort;
       const protocol = ws.data?.protocol || "vite-hmr";
+      const subPath = ws.data?.subPath || "/";
       try {
-        const targetWs = new WebSocket(`ws://127.0.0.1:${devPort}/`, protocol);
+        const queue: any[] = [];
+        ws.data.queue = queue;
+
+        const targetWs = new WebSocket(
+          `ws://127.0.0.1:${devPort}${subPath}`,
+          protocol,
+        );
         ws.data.targetWs = targetWs;
+
+        targetWs.onopen = () => {
+          while (queue.length > 0) {
+            const msg = queue.shift();
+            try {
+              targetWs.send(msg);
+            } catch {}
+          }
+        };
 
         targetWs.onmessage = (event: any) => {
           try {
@@ -2994,6 +3081,8 @@ const server = Bun.serve({
         try {
           ws.data.targetWs.send(message);
         } catch {}
+      } else if (ws.data?.queue) {
+        ws.data.queue.push(message);
       }
     },
     close(ws: any, code: number, reason: string) {

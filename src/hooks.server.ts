@@ -253,7 +253,6 @@ export const handle: Handle = async ({ event, resolve }) => {
         responseHeaders.delete("content-length");
         const contentType = responseHeaders.get("content-type") || "";
         if (contentType.includes("text/html")) {
-          responseHeaders.set("Clear-Site-Data", '"cache"');
           responseHeaders.set(
             "Cache-Control",
             "no-cache, no-store, must-revalidate",
