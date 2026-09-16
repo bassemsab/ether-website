@@ -619,8 +619,15 @@ export default defineConfig({
     return true;
   }
 
-  try {
     const content = readFileSync(targetConfig, "utf-8");
+    // Preserve custom frameworks and configs (e.g. TanStack Start, React, custom SvelteKit plugins)
+    if (
+      content.includes("@lovable.dev") ||
+      content.includes("@tanstack") ||
+      content.includes("@vitejs/plugin-react")
+    ) {
+      return false;
+    }
     if (
       !content.includes("ignored:") ||
       content.includes("clientPort: 443") ||
@@ -814,7 +821,8 @@ async function ensureTenantCodebase(
   }
 
   const pkgJson = join(codeDir, "package.json");
-  if (!existsSync(pkgJson)) {
+  const isExistingProject = existsSync(pkgJson);
+  if (!isExistingProject) {
     writeFileSync(
       pkgJson,
       JSON.stringify(
@@ -840,110 +848,112 @@ async function ensureTenantCodebase(
         2,
       ),
     );
-  }
 
-  // Ensure tailwind.config.js
-  const tailwindConfig = join(codeDir, "tailwind.config.js");
-  if (!existsSync(tailwindConfig)) {
-    writeFileSync(
-      tailwindConfig,
-      `/** @type {import('tailwindcss').Config} */\nexport default {\n  content: ['./src/**/*.{html,js,svelte,ts}'],\n  darkMode: 'class',\n  theme: {\n    extend: {\n      colors: {\n        background: 'hsl(var(--background, 0 0% 100%))',\n        foreground: 'hsl(var(--foreground, 240 10% 3.9%))',\n        brand: {\n          DEFAULT: 'hsl(var(--brand, 250 90% 64%))',\n          foreground: 'hsl(var(--brand-foreground, 0 0% 100%))',\n        },\n        muted: {\n          DEFAULT: 'hsl(var(--muted, 240 4.8% 95.9%))',\n          foreground: 'hsl(var(--muted-foreground, 240 3.8% 46.1%))',\n        },\n      },\n    },\n  },\n  plugins: [],\n};\n`,
-    );
-  }
+    // Ensure tailwind.config.js
+    const tailwindConfig = join(codeDir, "tailwind.config.js");
+    if (!existsSync(tailwindConfig)) {
+      writeFileSync(
+        tailwindConfig,
+        `/** @type {import('tailwindcss').Config} */\nexport default {\n  content: ['./src/**/*.{html,js,svelte,ts}'],\n  darkMode: 'class',\n  theme: {\n    extend: {\n      colors: {\n        background: 'hsl(var(--background, 0 0% 100%))',\n        foreground: 'hsl(var(--foreground, 240 10% 3.9%))',\n        brand: {\n          DEFAULT: 'hsl(var(--brand, 250 90% 64%))',\n          foreground: 'hsl(var(--brand-foreground, 0 0% 100%))',\n        },\n        muted: {\n          DEFAULT: 'hsl(var(--muted, 240 4.8% 95.9%))',\n          foreground: 'hsl(var(--muted-foreground, 240 3.8% 46.1%))',\n        },\n      },\n    },\n  },\n  plugins: [],\n};\n`,
+      );
+    }
 
-  // Ensure postcss.config.js
-  const postcssConfig = join(codeDir, "postcss.config.js");
-  if (!existsSync(postcssConfig)) {
-    writeFileSync(
-      postcssConfig,
-      `export default {\n  plugins: {\n    tailwindcss: {},\n  },\n};\n`,
-    );
-  }
+    // Ensure postcss.config.js
+    const postcssConfig = join(codeDir, "postcss.config.js");
+    if (!existsSync(postcssConfig)) {
+      writeFileSync(
+        postcssConfig,
+        `export default {\n  plugins: {\n    tailwindcss: {},\n  },\n};\n`,
+      );
+    }
 
-  const svelteConfig = join(codeDir, "svelte.config.js");
-  if (!existsSync(svelteConfig)) {
-    writeFileSync(
-      svelteConfig,
-      `import adapter from "svelte-adapter-bun";\nimport { vitePreprocess } from "@sveltejs/vite-plugin-svelte";\n\n/** @type {import("@sveltejs/kit").Config} */\nconst config = {\n  preprocess: vitePreprocess(),\n  kit: {\n    adapter: adapter()\n  }\n};\n\nexport default config;\n`,
-    );
+    const svelteConfig = join(codeDir, "svelte.config.js");
+    if (!existsSync(svelteConfig)) {
+      writeFileSync(
+        svelteConfig,
+        `import adapter from "svelte-adapter-bun";\nimport { vitePreprocess } from "@sveltejs/vite-plugin-svelte";\n\n/** @type {import("@sveltejs/kit").Config} */\nconst config = {\n  preprocess: vitePreprocess(),\n  kit: {\n    adapter: adapter()\n  }\n};\n\nexport default config;\n`,
+      );
+    }
   }
 
   ensureTenantViteConfig(codeDir);
 
-  const srcDir = join(codeDir, "src");
-  mkdirSync(srcDir, { recursive: true });
+  if (!isExistingProject) {
+    const srcDir = join(codeDir, "src");
+    mkdirSync(srcDir, { recursive: true });
 
-  const appHtml = join(srcDir, "app.html");
-  if (!existsSync(appHtml)) {
-    writeFileSync(
-      appHtml,
-      `<!doctype html>\n<html lang="fr">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <script>\n      (function() {\n        try {\n          var t = localStorage.getItem('theme');\n          if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {\n            document.documentElement.classList.add('dark');\n          } else {\n            document.documentElement.classList.remove('dark');\n          }\n        } catch (_) {}\n      })();\n    </script>\n    %sveltekit.head%\n  </head>\n  <body data-sveltekit-preload-data="hover" class="bg-background text-foreground min-h-screen">\n    <div style="display: contents">%sveltekit.body%</div>\n  </body>\n</html>\n`,
-    );
-  }
+    const appHtml = join(srcDir, "app.html");
+    if (!existsSync(appHtml)) {
+      writeFileSync(
+        appHtml,
+        `<!doctype html>\n<html lang="fr">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <script>\n      (function() {\n        try {\n          var t = localStorage.getItem('theme');\n          if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {\n            document.documentElement.classList.add('dark');\n          } else {\n            document.documentElement.classList.remove('dark');\n          }\n        } catch (_) {}\n      })();\n    </script>\n    %sveltekit.head%\n  </head>\n  <body data-sveltekit-preload-data="hover" class="bg-background text-foreground min-h-screen">\n    <div style="display: contents">%sveltekit.body%</div>\n  </body>\n</html>\n`,
+      );
+    }
 
-  const appCss = join(srcDir, "app.css");
-  if (!existsSync(appCss)) {
-    writeFileSync(
-      appCss,
-      `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n:root {\n  --background: 0 0% 100%;\n  --foreground: 240 10% 3.9%;\n  --brand: 250 90% 64%;\n  --brand-foreground: 0 0% 100%;\n  --muted: 240 4.8% 95.9%;\n  --muted-foreground: 240 3.8% 46.1%;\n}\n\n.dark {\n  --background: 222 47% 11%;\n  --foreground: 210 40% 98%;\n  --brand: 250 90% 64%;\n  --brand-foreground: 0 0% 100%;\n  --muted: 217 33% 17%;\n  --muted-foreground: 215 20% 65%;\n}\n`,
-    );
-  }
+    const appCss = join(srcDir, "app.css");
+    if (!existsSync(appCss)) {
+      writeFileSync(
+        appCss,
+        `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n:root {\n  --background: 0 0% 100%;\n  --foreground: 240 10% 3.9%;\n  --brand: 250 90% 64%;\n  --brand-foreground: 0 0% 100%;\n  --muted: 240 4.8% 95.9%;\n  --muted-foreground: 240 3.8% 46.1%;\n}\n\n.dark {\n  --background: 222 47% 11%;\n  --foreground: 210 40% 98%;\n  --brand: 250 90% 64%;\n  --brand-foreground: 0 0% 100%;\n  --muted: 217 33% 17%;\n  --muted-foreground: 215 20% 65%;\n}\n`,
+      );
+    }
 
-  const libServerDir = join(srcDir, "lib", "server");
-  mkdirSync(libServerDir, { recursive: true });
+    const libServerDir = join(srcDir, "lib", "server");
+    mkdirSync(libServerDir, { recursive: true });
 
-  const dbTs = join(libServerDir, "db.ts");
-  if (!existsSync(dbTs)) {
-    writeFileSync(
-      dbTs,
-      `import { Database } from "bun:sqlite";\nimport { dirname, join } from "path";\nimport { mkdirSync } from "fs";\n\nconst DB_PATH = process.env.DB_PATH || join(process.cwd(), "app.db");\ntry {\n  mkdirSync(dirname(DB_PATH), { recursive: true });\n} catch {}\n\nexport const db = new Database(DB_PATH, { create: true });\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS page_views (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    path TEXT NOT NULL,\n    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS contact_submissions (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    email TEXT NOT NULL,\n    message TEXT NOT NULL,\n    created_at DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n`,
-    );
-  }
+    const dbTs = join(libServerDir, "db.ts");
+    if (!existsSync(dbTs)) {
+      writeFileSync(
+        dbTs,
+        `import { Database } from "bun:sqlite";\nimport { dirname, join } from "path";\nimport { mkdirSync } from "fs";\n\nconst DB_PATH = process.env.DB_PATH || join(process.cwd(), "app.db");\ntry {\n  mkdirSync(dirname(DB_PATH), { recursive: true });\n} catch {}\n\nexport const db = new Database(DB_PATH, { create: true });\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS page_views (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    path TEXT NOT NULL,\n    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n\ndb.run(\`\n  CREATE TABLE IF NOT EXISTS contact_submissions (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    email TEXT NOT NULL,\n    message TEXT NOT NULL,\n    created_at DATETIME DEFAULT CURRENT_TIMESTAMP\n  );\n\`);\n`,
+      );
+    }
 
-  const routesDir = join(srcDir, "routes");
-  mkdirSync(routesDir, { recursive: true });
+    const routesDir = join(srcDir, "routes");
+    mkdirSync(routesDir, { recursive: true });
 
-  const layoutSvelte = join(routesDir, "+layout.svelte");
-  if (!existsSync(layoutSvelte)) {
-    writeFileSync(
-      layoutSvelte,
-      `<script lang="ts">\n  import "../app.css";\n  let { children } = $props();\n</script>\n\n{@render children()}\n`,
-    );
-  }
+    const layoutSvelte = join(routesDir, "+layout.svelte");
+    if (!existsSync(layoutSvelte)) {
+      writeFileSync(
+        layoutSvelte,
+        `<script lang="ts">\n  import "../app.css";\n  let { children } = $props();\n</script>\n\n{@render children()}\n`,
+      );
+    }
 
-  const pageServerTs = join(routesDir, "+page.server.ts");
-  if (!existsSync(pageServerTs)) {
-    writeFileSync(
-      pageServerTs,
-      `import type { Actions, PageServerLoad } from "./$types";\nimport { db } from "$lib/server/db";\n\nexport const load: PageServerLoad = async ({ url }) => {\n  try {\n    db.run("INSERT INTO page_views (path) VALUES (?)", [url.pathname]);\n    const viewsRow = db.query("SELECT COUNT(*) as count FROM page_views").get() as { count: number } | null;\n    return {\n      viewCount: viewsRow?.count || 1,\n    };\n  } catch {\n    return { viewCount: 1 };\n  }\n};\n\nexport const actions: Actions = {\n  default: async ({ request }) => {\n    const data = await request.formData();\n    const name = (data.get("name") as string || "").trim();\n    const email = (data.get("email") as string || "").trim();\n    const message = (data.get("message") as string || "").trim();\n\n    if (!name || !email || !message) {\n      return { success: false, error: "Veuillez remplir tous les champs obligatoires." };\n    }\n\n    try {\n      db.run(\n        "INSERT INTO contact_submissions (name, email, message) VALUES (?, ?, ?)",\n        [name, email, message]\n      );\n      return { success: true, message: "Merci pour votre message ! Nous vous répondrons bientôt." };\n    } catch (err: any) {\n      return { success: false, error: "Erreur lors de l'enregistrement du message." };\n    }\n  }\n};\n`,
-    );
-  }
+    const pageServerTs = join(routesDir, "+page.server.ts");
+    if (!existsSync(pageServerTs)) {
+      writeFileSync(
+        pageServerTs,
+        `import type { Actions, PageServerLoad } from "./$types";\nimport { db } from "$lib/server/db";\n\nexport const load: PageServerLoad = async ({ url }) => {\n  try {\n    db.run("INSERT INTO page_views (path) VALUES (?)", [url.pathname]);\n    const viewsRow = db.query("SELECT COUNT(*) as count FROM page_views").get() as { count: number } | null;\n    return {\n      viewCount: viewsRow?.count || 1,\n    };\n  } catch {\n    return { viewCount: 1 };\n  }\n};\n\nexport const actions: Actions = {\n  default: async ({ request }) => {\n    const data = await request.formData();\n    const name = (data.get("name") as string || "").trim();\n    const email = (data.get("email") as string || "").trim();\n    const message = (data.get("message") as string || "").trim();\n\n    if (!name || !email || !message) {\n      return { success: false, error: "Veuillez remplir tous les champs obligatoires." };\n    }\n\n    try {\n      db.run(\n        "INSERT INTO contact_submissions (name, email, message) VALUES (?, ?, ?)",\n        [name, email, message]\n      );\n      return { success: true, message: "Merci pour votre message ! Nous vous répondrons bientôt." };\n    } catch (err: any) {\n      return { success: false, error: "Erreur lors de l'enregistrement du message." };\n    }\n  }\n};\n`,
+      );
+    }
 
-  const pageSvelte = join(routesDir, "+page.svelte");
-  if (!existsSync(pageSvelte)) {
-    writeFileSync(
-      pageSvelte,
-      `<script lang="ts">\n  let { data, form } = $props();\n  let count = $state(0);\n\n  function toggleDarkMode() {\n    if (typeof document !== "undefined") {\n      const isDark = document.documentElement.classList.toggle("dark");\n      try {\n        localStorage.setItem("theme", isDark ? "dark" : "light");\n      } catch {}\n    }\n  }\n</script>\n\n<svelte:head>\n  <title>${tenantSlug} — Site Officiel</title>\n</svelte:head>\n\n<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">\n  <header class="border-b border-slate-200 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/50 backdrop-blur sticky top-0 z-50">\n    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">\n      <div class="flex items-center gap-3">\n        <div class="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">\n          ${tenantSlug.slice(0, 1).toUpperCase()}\n        </div>\n        <span class="font-bold text-lg tracking-tight text-slate-900 dark:text-white">${tenantSlug}</span>\n      </div>\n      <div class="flex items-center gap-4">\n        <a href="#features" class="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Fonctionnalités</a>\n        <a href="#contact" class="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Contact</a>\n        <button\n          onclick={toggleDarkMode}\n          aria-label="Toggle Dark Mode"\n          class="p-2 rounded-lg bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition text-sm cursor-pointer"\n        >\n          <span class="hidden dark:inline">🌙</span><span class="inline dark:hidden">☀️</span>\n        </button>\n      </div>\n    </div>\n  </header>\n\n  <main class="flex-1">\n    <section class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-16 text-center space-y-6">\n      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-xs font-mono">\n        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>\n        ${tenantSlug}.ether.paris · En ligne\n      </div>\n\n      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-950 via-slate-800 to-indigo-600 dark:from-white dark:via-slate-200 dark:to-indigo-300 max-w-3xl mx-auto">\n        Bienvenue sur ${tenantSlug}\n      </h1>\n\n      <p class="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">\n        Votre nouveau site web haute performance propulsé par Ether Studio, SvelteKit 5 Runes et Bun Runtime.\n      </p>\n\n      <div class="flex flex-wrap items-center justify-center gap-4 pt-4">\n        <button\n          onclick={() => count++}\n          class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center gap-2"\n        >\n          <span>Compteur interactif</span>\n          <span class="px-2 py-0.5 rounded-full bg-indigo-700/80 text-xs font-mono font-bold text-white">{count}</span>\n        </button>\n        <a\n          href="#contact"\n          class="px-6 py-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700/60 shadow-sm transition"\n        >\n          Nous contacter\n        </a>\n      </div>\n\n      <div class="pt-6 flex items-center justify-center gap-6 text-xs text-slate-500 dark:text-slate-400">\n        <div class="flex items-center gap-1.5">\n          <span class="text-indigo-500 dark:text-indigo-400">⚡</span> Svelte 5 Runes\n        </div>\n        <div class="flex items-center gap-1.5">\n          <span class="text-emerald-500 dark:text-emerald-400">💾</span> Bun SQLite (/data/app.db)\n        </div>\n        <div class="flex items-center gap-1.5">\n          <span class="text-sky-500 dark:text-sky-400">👀</span> {data?.viewCount || 1} visites\n        </div>\n      </div>\n    </section>\n\n    <section id="features" class="max-w-6xl mx-auto px-4 sm:px-6 py-12 border-t border-slate-200 dark:border-slate-900">\n      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">\n        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">\n          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 text-lg">⚡</div>\n          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Performances Bun</h2>\n          <p class="text-sm text-slate-600 dark:text-slate-400">Temps de réponse instantanés grâce au moteur d'exécution Bun natif et à Vite dev HMR.</p>\n        </div>\n        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">\n          <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 text-lg">🔒</div>\n          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Base de données SQLite</h2>\n          <p class="text-sm text-slate-600 dark:text-slate-400">Stockage persistant sur disque isolé par tenant (/data/app.db) avec requêtes typées à haute vitesse.</p>\n        </div>\n        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">\n          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-4 text-lg">🎨</div>\n          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Tailwind CSS & Runes</h2>\n          <p class="text-sm text-slate-600 dark:text-slate-400">Styles modernes précompilés avec Tailwind 3, Dark Mode réactif et la syntaxe Runes de Svelte 5.</p>\n        </div>\n      </div>\n    </section>\n\n    <section id="contact" class="max-w-3xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-200 dark:border-slate-900">\n      <div class="text-center mb-8">\n        <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Contactez-nous</h2>\n        <p class="text-sm text-slate-600 dark:text-slate-400 mt-2">Envoyez-nous un message directement sauvegardé dans la base SQLite locale.</p>\n      </div>\n\n      <div class="p-6 sm:p-8 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xl">\n        {#if form?.success}\n          <div class="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-3">\n            <span>✅</span>\n            <span>{form.message}</span>\n          </div>\n        {:else if form?.error}\n          <div class="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm flex items-center gap-3">\n            <span>⚠️</span>\n            <span>{form.error}</span>\n          </div>\n        {/if}\n\n        <form method="POST" class="space-y-4">\n          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">\n            <div>\n              <label for="name" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Nom complet</label>\n              <input\n                type="text"\n                id="name"\n                name="name"\n                required\n                placeholder="Jean Dupont"\n                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n              />\n            </div>\n            <div>\n              <label for="email" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Adresse e-mail</label>\n              <input\n                type="email"\n                id="email"\n                name="email"\n                required\n                placeholder="jean@exemple.fr"\n                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n              />\n            </div>\n          </div>\n          <div>\n            <label for="message" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Message</label>\n            <textarea\n              id="message"\n              name="message"\n              rows="4"\n              required\n              placeholder="Votre message ici..."\n              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n            ></textarea>\n          </div>\n          <button\n            type="submit"\n            class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer text-sm"\n          >\n            Envoyer le message\n          </button>\n        </form>\n      </div>\n    </section>\n  </main>\n\n  <footer class="border-t border-slate-200 dark:border-slate-900 bg-white dark:bg-slate-950 py-8 text-center text-xs text-slate-500">\n    <div class="max-w-6xl mx-auto px-4 space-y-2">\n      <p>© ${new Date().getFullYear()} ${tenantSlug}. Tous droits réservés.</p>\n      <p class="text-slate-500">Hébergé et géré via Ether Platform · ${tenantSlug}.ether.paris</p>\n    </div>\n  </footer>\n</div>\n`,
-    );
-  } else {
-    try {
-      const existingContent = readFileSync(pageSvelte, "utf-8");
-      if (
-        existingContent.includes('{isDark ? "🌙" : "☀️"}') ||
-        existingContent.includes("{isDark ? '🌙' : '☀️'}")
-      ) {
-        const fixedContent = existingContent
-          .replace(
-            '{isDark ? "🌙" : "☀️"}',
-            '<span class="hidden dark:inline">🌙</span><span class="inline dark:hidden">☀️</span>',
-          )
-          .replace(
-            "{isDark ? '🌙' : '☀️'}",
-            '<span class="hidden dark:inline">🌙</span><span class="inline dark:hidden">☀️</span>',
-          );
-        writeFileSync(pageSvelte, fixedContent);
-      }
-    } catch {}
+    const pageSvelte = join(routesDir, "+page.svelte");
+    if (!existsSync(pageSvelte)) {
+      writeFileSync(
+        pageSvelte,
+        `<script lang="ts">\n  let { data, form } = $props();\n  let count = $state(0);\n\n  function toggleDarkMode() {\n    if (typeof document !== "undefined") {\n      const isDark = document.documentElement.classList.toggle("dark");\n      try {\n        localStorage.setItem("theme", isDark ? "dark" : "light");\n      } catch {}\n    }\n  }\n</script>\n\n<svelte:head>\n  <title>${tenantSlug} — Site Officiel</title>\n</svelte:head>\n\n<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">\n  <header class="border-b border-slate-200 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/50 backdrop-blur sticky top-0 z-50">\n    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">\n      <div class="flex items-center gap-3">\n        <div class="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/30">\n          ${tenantSlug.slice(0, 1).toUpperCase()}\n        </div>\n        <span class="font-bold text-lg tracking-tight text-slate-900 dark:text-white">${tenantSlug}</span>\n      </div>\n      <div class="flex items-center gap-4">\n        <a href="#features" class="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Fonctionnalités</a>\n        <a href="#contact" class="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Contact</a>\n        <button\n          onclick={toggleDarkMode}\n          aria-label="Toggle Dark Mode"\n          class="p-2 rounded-lg bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition text-sm cursor-pointer"\n        >\n          <span class="hidden dark:inline">🌙</span><span class="inline dark:hidden">☀️</span>\n        </button>\n      </div>\n    </div>\n  </header>\n\n  <main class="flex-1">\n    <section class="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-16 text-center space-y-6">\n      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-xs font-mono">\n        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>\n        ${tenantSlug}.ether.paris · En ligne\n      </div>\n\n      <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-950 via-slate-800 to-indigo-600 dark:from-white dark:via-slate-200 dark:to-indigo-300 max-w-3xl mx-auto">\n        Bienvenue sur ${tenantSlug}\n      </h1>\n\n      <p class="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">\n        Votre nouveau site web haute performance propulsé par Ether Studio, SvelteKit 5 Runes et Bun Runtime.\n      </p>\n\n      <div class="flex flex-wrap items-center justify-center gap-4 pt-4">\n        <button\n          onclick={() => count++}\n          class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center gap-2"\n        >\n          <span>Compteur interactif</span>\n          <span class="px-2 py-0.5 rounded-full bg-indigo-700/80 text-xs font-mono font-bold text-white">{count}</span>\n        </button>\n        <a\n          href="#contact"\n          class="px-6 py-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700/60 shadow-sm transition"\n        >\n          Nous contacter\n        </a>\n      </div>\n\n      <div class="pt-6 flex items-center justify-center gap-6 text-xs text-slate-500 dark:text-slate-400">\n        <div class="flex items-center gap-1.5">\n          <span class="text-indigo-500 dark:text-indigo-400">⚡</span> Svelte 5 Runes\n        </div>\n        <div class="flex items-center gap-1.5">\n          <span class="text-emerald-500 dark:text-emerald-400">💾</span> Bun SQLite (/data/app.db)\n        </div>\n        <div class="flex items-center gap-1.5">\n          <span class="text-sky-500 dark:text-sky-400">👀</span> {data?.viewCount || 1} visites\n        </div>\n      </div>\n    </section>\n\n    <section id="features" class="max-w-6xl mx-auto px-4 sm:px-6 py-12 border-t border-slate-200 dark:border-slate-900">\n      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">\n        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">\n          <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 text-lg">⚡</div>\n          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Performances Bun</h2>\n          <p class="text-sm text-slate-600 dark:text-slate-400">Temps de réponse instantanés grâce au moteur d'exécution Bun natif et à Vite dev HMR.</p>\n        </div>\n        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">\n          <div class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 text-lg">🔒</div>\n          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Base de données SQLite</h2>\n          <p class="text-sm text-slate-600 dark:text-slate-400">Stockage persistant sur disque isolé par tenant (/data/app.db) avec requêtes typées à haute vitesse.</p>\n        </div>\n        <div class="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm dark:shadow-none transition">\n          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-4 text-lg">🎨</div>\n          <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Tailwind CSS & Runes</h2>\n          <p class="text-sm text-slate-600 dark:text-slate-400">Styles modernes précompilés avec Tailwind 3, Dark Mode réactif et la syntaxe Runes de Svelte 5.</p>\n        </div>\n      </div>\n    </section>\n\n    <section id="contact" class="max-w-3xl mx-auto px-4 sm:px-6 py-16 border-t border-slate-200 dark:border-slate-900">\n      <div class="text-center mb-8">\n        <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Contactez-nous</h2>\n        <p class="text-sm text-slate-600 dark:text-slate-400 mt-2">Envoyez-nous un message directement sauvegardé dans la base SQLite locale.</p>\n      </div>\n\n      <div class="p-6 sm:p-8 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xl">\n        {#if form?.success}\n          <div class="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm flex items-center gap-3">\n            <span>✅</span>\n            <span>{form.message}</span>\n          </div>\n        {:else if form?.error}\n          <div class="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm flex items-center gap-3">\n            <span>⚠️</span>\n            <span>{form.error}</span>\n          </div>\n        {/if}\n\n        <form method="POST" class="space-y-4">\n          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">\n            <div>\n              <label for="name" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Nom complet</label>\n              <input\n                type="text"\n                id="name"\n                name="name"\n                required\n                placeholder="Jean Dupont"\n                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n              />\n            </div>\n            <div>\n              <label for="email" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Adresse e-mail</label>\n              <input\n                type="email"\n                id="email"\n                name="email"\n                required\n                placeholder="jean@exemple.fr"\n                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n              />\n            </div>\n          </div>\n          <div>\n            <label for="message" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Message</label>\n            <textarea\n              id="message"\n              name="message"\n              rows="4"\n              required\n              placeholder="Votre message ici..."\n              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-sm"\n            ></textarea>\n          </div>\n          <button\n            type="submit"\n            class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-600/30 transition cursor-pointer text-sm"\n          >\n            Envoyer le message\n          </button>\n        </form>\n      </div>\n    </section>\n  </main>\n\n  <footer class="border-t border-slate-200 dark:border-slate-900 bg-white dark:bg-slate-950 py-8 text-center text-xs text-slate-500">\n    <div class="max-w-6xl mx-auto px-4 space-y-2">\n      <p>© ${new Date().getFullYear()} ${tenantSlug}. Tous droits réservés.</p>\n      <p class="text-slate-500">Hébergé et géré via Ether Platform · ${tenantSlug}.ether.paris</p>\n    </div>\n  </footer>\n</div>\n`,
+      );
+    } else {
+      try {
+        const existingContent = readFileSync(pageSvelte, "utf-8");
+        if (
+          existingContent.includes('{isDark ? "🌙" : "☀️"}') ||
+          existingContent.includes("{isDark ? '🌙' : '☀️'}")
+        ) {
+          const fixedContent = existingContent
+            .replace(
+              '{isDark ? "🌙" : "☀️"}',
+              '<span class="hidden dark:inline">🌙</span><span class="inline dark:hidden">☀️</span>',
+            )
+            .replace(
+              "{isDark ? '🌙' : '☀️'}",
+              '<span class="hidden dark:inline">🌙</span><span class="inline dark:hidden">☀️</span>',
+            );
+          writeFileSync(pageSvelte, fixedContent);
+        }
+      } catch {}
+    }
   }
 
   const tenantUser = ensureTenantSystemUser(tenantSlug);
@@ -965,10 +975,7 @@ async function ensureTenantCodebase(
   }
 
   // Ensure shared dependencies are linked
-  const nodeModulesKit = join(codeDir, "node_modules", "@sveltejs", "kit");
-  if (!existsSync(nodeModulesKit)) {
-    ensureTenantSharedDependencies(codeDir, tenantUser);
-  }
+  ensureTenantSharedDependencies(codeDir, tenantUser);
 
   // Ensure initial commit exists so HEAD always resolves for diffs & reverts
   try {
