@@ -415,19 +415,12 @@
             </div>
 
             <!-- Action Buttons -->
-            <div class="pt-4 border-t border-black/5 grid grid-cols-2 sm:grid-cols-5 gap-2 items-center">
+            <div class="pt-4 border-t border-black/5 grid grid-cols-2 sm:grid-cols-4 gap-2 items-center">
               <button
                 onclick={() => handleOpenStudio(tenant.slug || tenant.domain)}
                 class="h-9 px-2.5 rounded-full bg-brand text-white text-xs font-medium uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-retro-sm hover:-translate-y-0.5 transition-all text-center cursor-pointer whitespace-nowrap"
               >
                 Studio
-              </button>
-
-              <button
-                onclick={() => handlePublishSite(tenant)}
-                class="h-9 px-2.5 rounded-full border border-black/10 bg-surface/80 hover:bg-surface text-foreground text-xs uppercase tracking-wider transition-all cursor-pointer text-center flex items-center justify-center whitespace-nowrap"
-              >
-                Publier
               </button>
 
               <button
@@ -448,7 +441,7 @@
 
               <button
                 onclick={() => handleDeleteSite(tenant)}
-                class="h-9 px-2.5 rounded-full border col-span-2 sm:col-span-1 transition-all cursor-pointer text-center text-xs uppercase tracking-wider flex items-center justify-center whitespace-nowrap {
+                class="h-9 px-2.5 rounded-full border transition-all cursor-pointer text-center text-xs uppercase tracking-wider flex items-center justify-center whitespace-nowrap {
                   tenantErrors[tenant.slug]
                     ? 'border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-400 font-semibold'
                     : 'border-black/10 bg-surface/80 hover:bg-red-500/10 hover:border-red-500/30 text-red-600 hover:text-red-700'
