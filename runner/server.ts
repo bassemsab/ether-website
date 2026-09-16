@@ -2003,6 +2003,72 @@ const server = Bun.serve({
       }
     }
 
+    // Tenant File/Git Diff Endpoint
+    const diffMatch = path.match(/^\/diff\/([a-zA-Z0-9_-]+)$/);
+    if (diffMatch && (req.method === "GET" || req.method === "POST")) {
+      const tenantSlug = diffMatch[1];
+      const targetFile = (url.searchParams.get("path") || "").trim();
+      try {
+        let original = "";
+        let current = "";
+        const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
+
+        if (targetFile) {
+          const absTarget = join(codeDir, targetFile);
+          if (existsSync(absTarget)) {
+            current = readFileSync(absTarget, "utf-8");
+          }
+
+          const headPrevProc = runTenantGit(tenantSlug, [
+            "show",
+            `HEAD~1:${targetFile}`,
+          ]);
+          if (headPrevProc.exitCode === 0) {
+            original = headPrevProc.stdout;
+          } else {
+            const headProc = runTenantGit(tenantSlug, [
+              "show",
+              `HEAD:${targetFile}`,
+            ]);
+            original = headProc.exitCode === 0 ? headProc.stdout : "";
+          }
+
+          const diffProc = runTenantGit(tenantSlug, [
+            "diff",
+            "HEAD~1",
+            "--",
+            targetFile,
+          ]);
+          const diffOutput = diffProc.exitCode === 0 ? diffProc.stdout : "";
+
+          return Response.json(
+            {
+              success: true,
+              path: targetFile,
+              original,
+              current,
+              diff: diffOutput,
+            },
+            { headers: corsHeaders },
+          );
+        }
+
+        const fullDiffProc = runTenantGit(tenantSlug, ["diff", "HEAD~1"]);
+        return Response.json(
+          {
+            success: true,
+            diff: fullDiffProc.exitCode === 0 ? fullDiffProc.stdout : "",
+          },
+          { headers: corsHeaders },
+        );
+      } catch (err: any) {
+        return Response.json(
+          { success: false, error: err.message },
+          { status: 500, headers: corsHeaders },
+        );
+      }
+    }
+
     // Tenant Agent Turn Stop/Abort Endpoint
     const stopMatch = path.match(/^\/stop\/([a-zA-Z0-9_-]+)$/);
     if (stopMatch && req.method === "POST") {

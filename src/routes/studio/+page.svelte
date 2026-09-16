@@ -22,6 +22,7 @@
   import { theme } from "$lib/stores/theme";
   import { oneDark } from "@codemirror/theme-one-dark";
   import { getFileCategory, isBinaryFile } from "$lib/utils/file-types";
+  import { diffLines } from "diff";
 
   function isFilePath(str: string): boolean {
     if (!str || typeof str !== "string") return false;
@@ -220,6 +221,10 @@
 
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
+      if (confirmCloseModalFile) {
+        confirmCloseModalFile = null;
+        return;
+      }
       if (historyMenuOpen) historyMenuOpen = false;
       if (isProjectMenuOpen) isProjectMenuOpen = false;
       if (isQuickOpenOpen) closeQuickOpen();
@@ -227,6 +232,10 @@
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       handleSaveCode();
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      showExplorer = !showExplorer;
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "p") {
       event.preventDefault();
@@ -402,7 +411,7 @@
         await refreshConversations();
         await loadTenantFiles();
         if (activeFile && files[activeFile]) {
-          await selectFile(activeFile);
+          selectAndOpenFile(activeFile);
         }
 
         // Debounce preview iframe reload so git reset and Vite file watchers settle before iframe requests the page
@@ -903,11 +912,7 @@
       }
     } else if (panel === "preview") {
       if (showPreview && !showChat && !showEditor) return;
-      const willOpen = !showPreview;
-      showPreview = willOpen;
-      if (willOpen && showChat && showEditor && typeof window !== "undefined" && window.innerWidth < 1440) {
-        showExplorer = false;
-      }
+      showPreview = !showPreview;
     }
   }
 
@@ -1063,6 +1068,149 @@
   let fileSearchQuery = $state("");
   let saveToast = $state<string | null>(null);
 
+  // Dirty State Tracking & Modal State
+  let dirtyFiles = $state<Record<string, boolean>>({});
+  let savedFileContents: Record<string, string> = {};
+  let confirmCloseModalFile = $state<string | null>(null);
+
+  // Diff View State
+  let editorMode = $state<"code" | "diff">("code");
+  let diffLoading = $state(false);
+  let diffOriginal = $state<string>("");
+  let diffCurrent = $state<string>("");
+  let diffFilePath = $state<string>("");
+
+  const parsedDiff = $derived.by(() => {
+    if (!diffFilePath || editorMode !== "diff") {
+      return {
+        lines: [] as {
+          type: "added" | "removed" | "unchanged";
+          oldLineNumber: number | null;
+          newLineNumber: number | null;
+          content: string;
+        }[],
+        additions: 0,
+        deletions: 0,
+        hasChanges: false,
+      };
+    }
+    const original = diffOriginal || "";
+    const current = files[diffFilePath]?.content ?? diffCurrent ?? "";
+
+    if (original === current) {
+      return {
+        lines: [] as {
+          type: "added" | "removed" | "unchanged";
+          oldLineNumber: number | null;
+          newLineNumber: number | null;
+          content: string;
+        }[],
+        additions: 0,
+        deletions: 0,
+        hasChanges: false,
+      };
+    }
+
+    const changes = diffLines(original, current);
+    let oldLine = 1;
+    let newLine = 1;
+    const lines: {
+      type: "added" | "removed" | "unchanged";
+      oldLineNumber: number | null;
+      newLineNumber: number | null;
+      content: string;
+    }[] = [];
+    let additions = 0;
+    let deletions = 0;
+
+    for (const change of changes) {
+      const rawLines = change.value.replace(/\r\n/g, "\n").split("\n");
+      if (rawLines.length > 0 && rawLines[rawLines.length - 1] === "") {
+        rawLines.pop();
+      }
+      for (const line of rawLines) {
+        if (change.added) {
+          additions++;
+          lines.push({
+            type: "added",
+            oldLineNumber: null,
+            newLineNumber: newLine++,
+            content: line,
+          });
+        } else if (change.removed) {
+          deletions++;
+          lines.push({
+            type: "removed",
+            oldLineNumber: oldLine++,
+            newLineNumber: null,
+            content: line,
+          });
+        } else {
+          lines.push({
+            type: "unchanged",
+            oldLineNumber: oldLine++,
+            newLineNumber: newLine++,
+            content: line,
+          });
+        }
+      }
+    }
+
+    return {
+      lines,
+      additions,
+      deletions,
+      hasChanges: additions > 0 || deletions > 0,
+    };
+  });
+
+  async function loadDiffForFile(filePath: string) {
+    if (!filePath) return;
+    diffFilePath = filePath;
+    diffLoading = true;
+
+    if (editorView && activeFile === filePath && !isBinaryFile(filePath)) {
+      files[filePath].content = editorView.state.doc.toString();
+    }
+    const currentContent = files[filePath]?.content ?? "";
+
+    try {
+      const res = await fetch(
+        `/api/studio/diff?project=${projectSlug}&path=${encodeURIComponent(filePath)}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          diffOriginal = data.original ?? "";
+          diffCurrent = currentContent;
+          return;
+        }
+      }
+      diffOriginal = savedFileContents[filePath] ?? "";
+      diffCurrent = currentContent;
+    } catch {
+      diffOriginal = savedFileContents[filePath] ?? "";
+      diffCurrent = currentContent;
+    } finally {
+      diffLoading = false;
+    }
+  }
+
+  async function openDiffForFile(filePath: string) {
+    selectAndOpenFile(filePath);
+    editorMode = "diff";
+    showExplorer = false;
+    await loadDiffForFile(filePath);
+  }
+
+  async function openDiffForActiveFile() {
+    editorMode = "diff";
+    showExplorer = false;
+    if (activeFile) {
+      await loadDiffForFile(activeFile);
+    }
+  }
+
   $effect(() => {
     const current = showExplorer;
     if (typeof window !== "undefined" && explorerStateLoaded) {
@@ -1086,12 +1234,21 @@
     switchFile(filePath);
   }
 
-  function closeTab(e: MouseEvent, filePath: string) {
+  function requestCloseTab(e: MouseEvent, filePath: string) {
     e.stopPropagation();
+    if (dirtyFiles[filePath]) {
+      confirmCloseModalFile = filePath;
+      return;
+    }
+    executeCloseTab(filePath);
+  }
+
+  function executeCloseTab(filePath: string) {
     const remaining = openTabs.filter((p) => p !== filePath);
     if (remaining.length === 0) {
       openTabs = [];
       activeFile = "";
+      editorMode = "code";
       return;
     }
     openTabs = remaining;
@@ -1099,6 +1256,30 @@
       const next = remaining[remaining.length - 1];
       switchFile(next);
     }
+  }
+
+  async function confirmSaveAndClose(filePath: string) {
+    await handleSaveCode(filePath);
+    confirmCloseModalFile = null;
+    executeCloseTab(filePath);
+  }
+
+  function confirmDiscardAndClose(filePath: string) {
+    if (savedFileContents[filePath] !== undefined && files[filePath]) {
+      files[filePath].content = savedFileContents[filePath];
+      if (editorView && activeFile === filePath) {
+        editorView.dispatch({
+          changes: { from: 0, to: editorView.state.doc.length, insert: savedFileContents[filePath] },
+        });
+      }
+    }
+    dirtyFiles[filePath] = false;
+    confirmCloseModalFile = null;
+    executeCloseTab(filePath);
+  }
+
+  function cancelCloseTab() {
+    confirmCloseModalFile = null;
   }
 
   interface SearchMatchLine {
@@ -1288,13 +1469,18 @@
         const json = await res.json();
         if (json.success && json.files) {
           files = json.files;
+          for (const [path, f] of Object.entries(files)) {
+            if (!dirtyFiles[path]) {
+              savedFileContents[path] = f.content || "";
+            }
+          }
           if (openTabs.length > 0 && !files[activeFile]) {
             activeFile = openTabs[0] || "";
           }
           if (editorView && files[activeFile]) {
             const currentDoc = editorView.state.doc.toString();
             const newDoc = files[activeFile].content;
-            if (currentDoc !== newDoc) {
+            if (currentDoc !== newDoc && !dirtyFiles[activeFile]) {
               editorView.dispatch({
                 changes: { from: 0, to: currentDoc.length, insert: newDoc },
               });
@@ -1573,6 +1759,9 @@
     if (!editorContainer) return;
 
     const initialFile = files[activeFile] || { content: "", lang: "html" as SupportedLang };
+    if (activeFile && files[activeFile] && savedFileContents[activeFile] === undefined) {
+      savedFileContents[activeFile] = files[activeFile].content;
+    }
     const state = EditorState.create({
       doc: initialFile.content,
       extensions: [
@@ -1599,7 +1788,10 @@
         languageCompartment.of(getLangExtension(initialFile.lang)),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && files[activeFile]) {
-            files[activeFile].content = update.state.doc.toString();
+            const newDoc = update.state.doc.toString();
+            files[activeFile].content = newDoc;
+            const original = savedFileContents[activeFile] ?? "";
+            dirtyFiles[activeFile] = (newDoc !== original);
           }
         }),
       ],
@@ -1627,7 +1819,7 @@
   function switchFile(filePath: string) {
     if (!filePath) return;
     if (filePath === activeFile) {
-      if (editorView && !isBinaryFile(filePath)) {
+      if (editorView && !isBinaryFile(filePath) && editorMode === "code") {
         editorView.focus();
       }
       return;
@@ -1635,11 +1827,18 @@
 
     // Persist current file content before switching if it was editable text
     if (editorView && files[activeFile] && !isBinaryFile(activeFile)) {
-      files[activeFile].content = editorView.state.doc.toString();
+      const currentDoc = editorView.state.doc.toString();
+      files[activeFile].content = currentDoc;
+      const original = savedFileContents[activeFile] ?? "";
+      dirtyFiles[activeFile] = (currentDoc !== original);
     }
 
     activeFile = filePath;
     const target = files[filePath];
+
+    if (target && savedFileContents[filePath] === undefined) {
+      savedFileContents[filePath] = target.content || "";
+    }
 
     if (editorView && target && !isBinaryFile(filePath)) {
       editorView.dispatch({
@@ -1648,8 +1847,14 @@
       });
       requestAnimationFrame(() => {
         editorView?.requestMeasure();
-        editorView?.focus();
+        if (editorMode === "code") {
+          editorView?.focus();
+        }
       });
+    }
+
+    if (editorMode === "diff") {
+      loadDiffForFile(filePath);
     }
   }
 
@@ -1959,11 +2164,12 @@
     }
   }
 
-  async function handleSaveCode() {
-    if (!files[activeFile] || isCurrentFileBinary) return;
+  async function handleSaveCode(fileToSave?: string) {
+    const targetFile = fileToSave || activeFile;
+    if (!files[targetFile] || isBinaryFile(targetFile)) return false;
 
-    if (editorView && files[activeFile]) {
-      files[activeFile].content = editorView.state.doc.toString();
+    if (editorView && targetFile === activeFile) {
+      files[targetFile].content = editorView.state.doc.toString();
     }
 
     try {
@@ -1972,21 +2178,25 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectSlug,
-          path: activeFile,
-          content: files[activeFile]?.content || "",
+          path: targetFile,
+          content: files[targetFile]?.content || "",
         }),
       });
 
       if (res.ok) {
+        savedFileContents[targetFile] = files[targetFile]?.content || "";
+        dirtyFiles[targetFile] = false;
         editorSaved = true;
         // Vite HMR dev server handles file updates automatically
         setTimeout(() => {
           editorSaved = false;
         }, 2500);
+        return true;
       }
     } catch (err) {
       console.error("Save code error:", err);
     }
+    return false;
   }
 
   async function handleConnectDomain(customDomainToConnect?: string) {
@@ -2972,7 +3182,7 @@
         <button
           onclick={() => showExplorer = !showExplorer}
           class="p-1.5 rounded-[6px] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 {showExplorer ? 'bg-black/5 dark:bg-white/10 text-brand dark:text-white' : ''}"
-          title={showExplorer ? "Masquer l'explorateur de fichiers" : "Afficher l'explorateur de fichiers"}
+          title={showExplorer ? "Masquer l'explorateur de fichiers (⌘B)" : "Afficher l'explorateur de fichiers (⌘B)"}
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -2994,6 +3204,7 @@
           {:else}
             {#each openTabs as path}
               {@const file = files[path] || { name: path.split('/').pop() || path, path }}
+              {@const isDirty = Boolean(dirtyFiles[path])}
               <div
                 class="group flex items-center gap-1.5 px-2.5 py-1 rounded-t border-b-2 transition-all shrink-0 cursor-pointer text-xs {activeFile === path ? 'border-brand text-brand dark:text-white dark:border-brand bg-card dark:bg-[#1a1a22] font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'}"
                 role="tab"
@@ -3029,11 +3240,19 @@
 
                 <span class="truncate max-w-[130px]">{file.name}</span>
 
+                <!-- Dirty indicator: white dot -->
+                {#if isDirty}
+                  <span
+                    class="w-1.5 h-1.5 rounded-full bg-white shrink-0 {activeFile === path ? 'opacity-100' : 'opacity-80'} group-hover:hidden"
+                    title="Modifications non enregistrées"
+                  ></span>
+                {/if}
+
                 <!-- Close Tab Button -->
                 <button
                   type="button"
-                  onclick={(e) => closeTab(e, path)}
-                  class="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white opacity-50 group-hover:opacity-100 transition-all cursor-pointer shrink-0"
+                  onclick={(e) => requestCloseTab(e, path)}
+                  class="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-all cursor-pointer shrink-0 {isDirty ? 'hidden group-hover:block' : 'opacity-50 group-hover:opacity-100'}"
                   title="Fermer l'onglet"
                 >
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3048,19 +3267,40 @@
         <div class="flex items-center gap-1.5 shrink-0">
           {#if openTabs.length > 0}
             {#if activeFileCategory === 'code'}
-              <button
-                onclick={handleSaveCode}
-                class="px-2.5 py-1 rounded-full border border-black/10 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
-                title="Sauvegarder les modifications (Cmd+S ou Ctrl+S)"
-              >
-                {#if editorSaved}
-                  <span class="text-emerald-600 font-bold">✓</span>
-                  <span>Sauvegardé</span>
-                {:else}
-                  <span>Sauvegarder</span>
-                  <kbd class="text-[9px] bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-muted-foreground font-mono inline-flex items-center gap-0.5"><span class="font-sans">⌘</span><span>S</span></kbd>
-                {/if}
-              </button>
+              <!-- Code / Diff View Toggle -->
+              <div class="inline-flex items-center rounded-md p-0.5 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 shrink-0">
+                <button
+                  type="button"
+                  onclick={() => editorMode = 'code'}
+                  class="px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer {editorMode === 'code' ? 'bg-surface text-foreground font-semibold shadow-2xs' : 'text-muted-foreground hover:text-foreground'}"
+                >
+                  Code
+                </button>
+                <button
+                  type="button"
+                  onclick={() => openDiffForActiveFile()}
+                  class="px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer {editorMode === 'diff' ? 'bg-surface text-foreground font-semibold shadow-2xs' : 'text-muted-foreground hover:text-foreground'}"
+                >
+                  Diff
+                </button>
+              </div>
+
+              <!-- Save button: ONLY shown if file is edited (dirty) or just saved -->
+              {#if dirtyFiles[activeFile] || editorSaved}
+                <button
+                  onclick={() => handleSaveCode()}
+                  class="px-2.5 py-1 rounded-full border border-black/10 dark:border-white/15 bg-surface hover:bg-surface/80 text-[11px] text-foreground uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                  title="Sauvegarder les modifications (Cmd+S ou Ctrl+S)"
+                >
+                  {#if editorSaved}
+                    <span class="text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
+                    <span>Sauvegardé</span>
+                  {:else}
+                    <span>Sauvegarder</span>
+                    <kbd class="text-[9px] bg-black/5 dark:bg-white/10 px-1 py-0.5 rounded text-muted-foreground font-mono inline-flex items-center gap-0.5"><span class="font-sans">⌘</span><span>S</span></kbd>
+                  {/if}
+                </button>
+              {/if}
             {:else if activeFileCategory === 'sqlite'}
               <span class="px-2.5 py-1 rounded-full border border-cyan-500/20 bg-cyan-500/10 text-cyan-700 text-[10px] font-mono font-medium">
                 Base SQLite
@@ -3117,6 +3357,17 @@
                   >
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onclick={() => showExplorer = false}
+                    class="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
+                    title="Replier l'explorateur (⌘B)"
+                    aria-label="Replier l'explorateur"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
                 </div>
@@ -3185,39 +3436,55 @@
                   {/if}
                 </div>
               {:else}
-                <button
-                  type="button"
-                  onclick={() => selectAndOpenFile(node.path)}
-                  class="w-full text-left h-[26px] flex items-center gap-1.5 transition-colors cursor-pointer text-xs group focus:outline-none rounded-none border-0 {activeFile === node.path ? 'bg-black/10 dark:bg-white/[0.12] text-foreground dark:text-white font-medium' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-foreground dark:hover:text-white'}"
-                  style="padding-left: {node.depth * 14 + 24}px; padding-right: 8px;"
-                  title={node.path}
-                >
-                  {#if node.path.endsWith('.svelte')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
-                  {:else if node.path.endsWith('.ts')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
-                  {:else if node.path.endsWith('.js') || node.path.endsWith('.mjs')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
-                  {:else if node.path.endsWith('.json')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
-                  {:else if node.path.endsWith('.html')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-400 shrink-0">&lt;&gt;</span>
-                  {:else if node.path.endsWith('.css')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
-                  {:else if node.path.endsWith('.db') || node.path.endsWith('.sqlite') || node.path.endsWith('.sqlite3')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
-                  {:else if node.path.endsWith('.png') || node.path.endsWith('.jpg') || node.path.endsWith('.jpeg') || node.path.endsWith('.gif') || node.path.endsWith('.webp') || node.path.endsWith('.ico')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
-                  {:else if node.path.endsWith('.svg')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400 shrink-0">SVG</span>
-                  {:else if node.path.endsWith('.md')}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400 shrink-0">MD</span>
-                  {:else}
-                    <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-400 shrink-0">📄</span>
-                  {/if}
+                <div class="relative group/treeitem flex items-center w-full">
+                  <button
+                    type="button"
+                    onclick={() => selectAndOpenFile(node.path)}
+                    class="w-full text-left h-[26px] flex items-center gap-1.5 transition-colors cursor-pointer text-xs group focus:outline-none rounded-none border-0 min-w-0 pr-12 {activeFile === node.path ? 'bg-black/10 dark:bg-white/[0.12] text-foreground dark:text-white font-medium' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/[0.06] hover:text-foreground dark:hover:text-white'}"
+                    style="padding-left: {node.depth * 14 + 24}px;"
+                    title={node.path}
+                  >
+                    {#if node.path.endsWith('.svelte')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-orange-500/15 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400 shrink-0">S</span>
+                    {:else if node.path.endsWith('.ts')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 shrink-0">TS</span>
+                    {:else if node.path.endsWith('.js') || node.path.endsWith('.mjs')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400 shrink-0">JS</span>
+                    {:else if node.path.endsWith('.json')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400 shrink-0">{"{}"}</span>
+                    {:else if node.path.endsWith('.html')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-400 shrink-0">&lt;&gt;</span>
+                    {:else if node.path.endsWith('.css')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-purple-500/15 text-purple-600 dark:bg-purple-500/25 dark:text-purple-400 shrink-0">#</span>
+                    {:else if node.path.endsWith('.db') || node.path.endsWith('.sqlite') || node.path.endsWith('.sqlite3')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-cyan-500/15 text-cyan-600 dark:bg-cyan-500/25 dark:text-cyan-400 shrink-0">DB</span>
+                    {:else if node.path.endsWith('.png') || node.path.endsWith('.jpg') || node.path.endsWith('.jpeg') || node.path.endsWith('.gif') || node.path.endsWith('.webp') || node.path.endsWith('.ico')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400 shrink-0">IMG</span>
+                    {:else if node.path.endsWith('.svg')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400 shrink-0">SVG</span>
+                    {:else if node.path.endsWith('.md')}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[7px] font-bold rounded bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400 shrink-0">MD</span>
+                    {:else}
+                      <span class="w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-black/10 dark:bg-white/10 text-muted-foreground dark:text-neutral-400 shrink-0">📄</span>
+                    {/if}
 
-                  <span class="truncate text-[11px] {activeFile === node.path ? 'font-medium text-foreground dark:text-white' : 'text-foreground/80 dark:text-neutral-300 group-hover:text-foreground dark:group-hover:text-white'}">{node.name}</span>
-                </button>
+                    <span class="truncate text-[11px] {activeFile === node.path ? 'font-medium text-foreground dark:text-white' : 'text-foreground/80 dark:text-neutral-300 group-hover:text-foreground dark:group-hover:text-white'}">{node.name}</span>
+                  </button>
+
+                  {#if !isBinaryFile(node.path)}
+                    <button
+                      type="button"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        openDiffForFile(node.path);
+                      }}
+                      class="absolute right-1.5 opacity-0 group-hover/treeitem:opacity-100 px-1.5 py-0.5 rounded text-[9px] font-mono border border-black/10 dark:border-white/15 hover:border-brand/40 bg-surface/90 hover:bg-brand hover:text-white text-muted-foreground transition-all cursor-pointer z-10 shadow-2xs"
+                      title="Voir les différences (replie l'explorateur)"
+                    >
+                      Diff
+                    </button>
+                  {/if}
+                </div>
               {/if}
             {/snippet}
 
@@ -3285,6 +3552,19 @@
                           </button>
 
                           <div class="flex items-center gap-1 shrink-0 ml-1">
+                            {#if !isBinaryFile(res.filePath)}
+                              <button
+                                type="button"
+                                onclick={(e) => {
+                                  e.stopPropagation();
+                                  openDiffForFile(res.filePath);
+                                }}
+                                class="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded text-[9px] font-mono border border-black/10 dark:border-white/15 bg-surface/90 hover:bg-brand hover:text-white text-muted-foreground transition-all cursor-pointer shadow-2xs"
+                                title="Voir les différences (replie l'explorateur)"
+                              >
+                                Diff
+                              </button>
+                            {/if}
                             {#if res.matches.length > 0}
                               <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-brand/10 text-brand dark:bg-brand/20 dark:text-white font-mono">
                                 {res.matches.length}
@@ -3346,13 +3626,118 @@
         {/if}
 
         <!-- CodeMirror Editor Container (Kept mounted for CodeMirror persistence) -->
-        <div class="flex-1 overflow-hidden bg-card relative {openTabs.length > 0 && activeFileCategory === 'code' ? 'flex flex-col' : 'hidden'}" bind:this={editorContainer}>
+        <div class="flex-1 overflow-hidden bg-card relative {openTabs.length > 0 && activeFileCategory === 'code' && editorMode === 'code' ? 'flex flex-col' : 'hidden'}" bind:this={editorContainer}>
           {#if editorSaved}
             <div class="absolute bottom-3 right-3 bg-foreground text-background text-[11px] font-mono px-3 py-1.5 rounded-full shadow-retro z-20 pointer-events-none flex items-center gap-1.5">
               <span>✓ Sauvegardé</span>
             </div>
           {/if}
         </div>
+
+        <!-- Diff View Container -->
+        {#if openTabs.length > 0 && activeFileCategory === 'code' && editorMode === 'diff'}
+          <div class="flex-1 flex flex-col overflow-hidden bg-card font-mono text-xs select-text">
+            <!-- Diff View Toolbar -->
+            <div class="h-10 px-4 border-b border-black/10 dark:border-white/10 bg-surface/50 dark:bg-[#14141a] flex items-center justify-between shrink-0">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="text-[11px] font-semibold text-foreground dark:text-white truncate">
+                  {diffFilePath || activeFile}
+                </span>
+                <span class="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                  (vs Git HEAD~1)
+                </span>
+                {#if !diffLoading}
+                  <div class="flex items-center gap-1 text-[10px]">
+                    <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold">
+                      +{parsedDiff.additions}
+                    </span>
+                    <span class="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 font-semibold">
+                      -{parsedDiff.deletions}
+                    </span>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onclick={() => loadDiffForFile(diffFilePath || activeFile)}
+                  class="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
+                  title="Rafraîchir le diff"
+                >
+                  <svg class="w-3.5 h-3.5 {diffLoading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onclick={() => editorMode = 'code'}
+                  class="px-2.5 py-1 rounded-md bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-foreground dark:text-white text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Éditer le code</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Diff Content Area -->
+            {#if diffLoading}
+              <div class="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
+                <svg class="w-6 h-6 animate-spin mb-2 text-brand" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <p class="text-xs">Chargement du diff...</p>
+              </div>
+            {:else if !parsedDiff.hasChanges}
+              <div class="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground select-none">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg mb-2">
+                  ✓
+                </div>
+                <p class="font-semibold text-foreground dark:text-white text-sm mb-1">Aucune différence</p>
+                <p class="text-xs text-muted-foreground max-w-sm mb-4">
+                  Ce fichier est strictement identique à la version enregistrée dans Git.
+                </p>
+                <button
+                  type="button"
+                  onclick={() => editorMode = 'code'}
+                  class="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-foreground dark:text-white transition-colors cursor-pointer text-xs"
+                >
+                  Revenir au code
+                </button>
+              </div>
+            {:else}
+              <div class="flex-1 overflow-auto bg-surface/20 dark:bg-[#0f0f14] py-2">
+                <div class="min-w-fit font-mono text-[12px] leading-[1.6]">
+                  {#each parsedDiff.lines as line}
+                    <div
+                      class="flex items-stretch border-l-2 transition-colors {line.type === 'added' ? 'bg-emerald-500/10 dark:bg-emerald-500/[0.12] text-emerald-900 dark:text-emerald-200 border-emerald-500' : line.type === 'removed' ? 'bg-rose-500/10 dark:bg-rose-500/[0.12] text-rose-900 dark:text-rose-200 border-rose-500' : 'text-foreground dark:text-neutral-300 border-transparent hover:bg-black/[0.02] dark:hover:bg-white/[0.02]'}"
+                    >
+                      <!-- Old Line Number -->
+                      <span class="w-10 text-right pr-2 text-muted-foreground/50 select-none text-[11px] shrink-0 border-r border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.01]">
+                        {line.oldLineNumber ?? ""}
+                      </span>
+                      <!-- New Line Number -->
+                      <span class="w-10 text-right pr-2 text-muted-foreground/50 select-none text-[11px] shrink-0 border-r border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.01]">
+                        {line.newLineNumber ?? ""}
+                      </span>
+                      <!-- Symbol (+ / -) -->
+                      <span class="w-6 text-center select-none text-[11px] font-bold shrink-0 {line.type === 'added' ? 'text-emerald-600 dark:text-emerald-400' : line.type === 'removed' ? 'text-rose-600 dark:text-rose-400' : 'text-transparent'}">
+                        {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '}
+                      </span>
+                      <!-- Line Text -->
+                      <span class="flex-1 pr-4 whitespace-pre select-text font-mono">
+                        {line.content || " "}
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
 
         {#if openTabs.length > 0}
           <!-- Dedicated SQLite Inspector -->
@@ -3441,9 +3826,6 @@
       <button
         onclick={() => {
           showPreview = true;
-          if (showChat && showEditor && typeof window !== "undefined" && window.innerWidth < 1440) {
-            showExplorer = false;
-          }
         }}
         class="hidden lg:flex w-9 h-full border-l border-black/10 bg-surface/60 hover:bg-surface flex-col items-center justify-start py-4 gap-3 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer group"
         title="Déplier l'aperçu"
@@ -3860,5 +4242,64 @@
     </div>
   </div>
 {/if}
+
+<!-- Unsaved Changes Confirmation Modal -->
+{#if confirmCloseModalFile}
+  {@const closingFileName = confirmCloseModalFile.split('/').pop() || confirmCloseModalFile}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+    role="presentation"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) cancelCloseTab();
+    }}
+  >
+    <div
+      class="w-full max-w-md rounded-2xl border border-black/15 dark:border-white/15 bg-card dark:bg-[#16161e] shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-150"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="unsaved-modal-title"
+    >
+      <div class="flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg shrink-0">
+          ⚠️
+        </div>
+        <div class="space-y-1 min-w-0">
+          <h3 id="unsaved-modal-title" class="font-semibold text-foreground dark:text-white text-base">
+            Enregistrer les modifications ?
+          </h3>
+          <p class="text-xs text-muted-foreground leading-relaxed">
+            Le fichier <span class="font-mono font-medium text-foreground dark:text-neutral-200">"{closingFileName}"</span> contient des modifications non enregistrées. Voulez-vous les enregistrer avant de fermer l'onglet ?
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-black/5 dark:border-white/5 font-mono text-xs">
+        <button
+          type="button"
+          onclick={cancelCloseTab}
+          class="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          onclick={() => confirmDiscardAndClose(confirmCloseModalFile!)}
+          class="px-3 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer font-medium"
+        >
+          Ne pas enregistrer
+        </button>
+        <button
+          type="button"
+          onclick={() => confirmSaveAndClose(confirmCloseModalFile!)}
+          class="px-3.5 py-1.5 rounded-lg bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer font-medium shadow-xs"
+        >
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 
 

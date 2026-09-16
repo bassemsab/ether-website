@@ -137,36 +137,71 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="1">
-  <title>Mise à jour de l'aperçu...</title>
+  <title>Mise à jour en cours...</title>
   <style>
+    :root {
+      --bg: #0b0a10;
+      --card-bg: rgba(22, 21, 32, 0.85);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --subtext: #9ca3af;
+      --accent: #8b5cf6;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f9fafb;
+        --card-bg: rgba(255, 255, 255, 0.9);
+        --border: rgba(0, 0, 0, 0.08);
+        --text: #111827;
+        --subtext: #6b7280;
+        --accent: #6d28d9;
+      }
+    }
     body {
+      margin: 0;
+      padding: 16px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
       height: 100vh;
-      background: #FBF9F5;
-      color: #1E1B39;
-      margin: 0;
+      box-sizing: border-box;
     }
     .card {
       text-align: center;
-      padding: 24px 32px;
-      background: #fff;
-      border: 1.5px solid #1E1B39;
-      border-radius: 16px;
-      box-shadow: 3px 3px 0 #1E1B39;
+      padding: 24px 28px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+      backdrop-filter: blur(12px);
+      max-width: 320px;
+      width: 100%;
     }
     .spinner {
-      display: inline-block;
-      width: 24px;
-      height: 24px;
-      border: 3px solid rgba(30,27,57,0.15);
+      width: 22px;
+      height: 22px;
+      margin: 0 auto 14px auto;
+      border: 2.5px solid rgba(139, 92, 246, 0.2);
+      border-top-color: var(--accent);
       border-radius: 50%;
-      border-top-color: #1E1B39;
-      animation: spin 1s linear infinite;
-      margin-bottom: 12px;
+      animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    h3 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--subtext);
+      line-height: 1.4;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -174,8 +209,8 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
 <body>
   <div class="card">
     <div class="spinner"></div>
-    <h3 style="margin:0 0 6px 0;font-size:15px;font-weight:600;">⚡ Mise à jour de l'aperçu...</h3>
-    <p style="font-size:12px;color:#666;margin:0;">Le serveur applique les modifications. Reconnexion automatique...</p>
+    <h3>Mise à jour en cours</h3>
+    <p>Application des modifications et reconnexion automatique...</p>
   </div>
   <script>
     setTimeout(function() {
