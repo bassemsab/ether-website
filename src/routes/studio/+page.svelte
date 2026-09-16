@@ -1915,7 +1915,8 @@
       await loadTenantFiles();
       await refreshConversations();
       await refreshMessages();
-      refreshPreview();
+      // Notice: we do NOT call refreshPreview() here because Vite HMR has already
+      // updated the changes live without a disruptive full-page iframe reload.
 
       if (!wasTurnStopped && queuedMessages.length > 0) {
         const nextMsg = queuedMessages[0];
@@ -1975,7 +1976,7 @@
 
       if (res.ok) {
         editorSaved = true;
-        refreshPreview();
+        // Vite HMR dev server handles file updates automatically
         setTimeout(() => {
           editorSaved = false;
         }, 2500);
@@ -2124,7 +2125,7 @@
 
 <svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
-<div class="h-screen flex flex-col bg-background text-foreground overflow-hidden grain-overlay">
+<div class="h-screen flex flex-col bg-background text-foreground overflow-hidden grain-overlay studio-root no-scrollbar">
   <!-- Studio Top Navigation -->
   <header class="h-14 border-b border-black/10 dark:border-white/10 bg-surface/90 dark:bg-background/90 backdrop-blur px-3 sm:px-6 flex items-center justify-between shrink-0 z-30 gap-2 sm:gap-4 relative">
     <div class="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
@@ -2482,7 +2483,7 @@
           bind:this={chatContainer}
           use:autoScrollChat
           onclick={handleChatContainerClick}
-          class="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-neue relative scroll-smooth"
+          class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 text-xs font-neue relative scroll-smooth"
           ondragover={handleDragOver}
           ondragleave={handleDragLeave}
           ondrop={handleDrop}
