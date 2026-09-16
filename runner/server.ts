@@ -6,6 +6,7 @@ import {
   readdirSync,
   statSync,
   rmSync,
+  symlinkSync,
 } from "fs";
 import { join, relative, dirname, resolve } from "path";
 import { Database } from "bun:sqlite";
@@ -637,6 +638,94 @@ export default defineConfig({
 }
 
 /**
+ * Ensures the central shared template node_modules exists so all tenants can share dependencies.
+ */
+function ensureSharedTemplate(): string {
+  const sharedDir = join(DATA_DIR, "shared_template");
+  if (!existsSync(sharedDir)) {
+    mkdirSync(sharedDir, { recursive: true });
+  }
+  const sharedPkg = join(sharedDir, "package.json");
+  if (!existsSync(sharedPkg)) {
+    writeFileSync(
+      sharedPkg,
+      JSON.stringify(
+        {
+          name: "shared-template",
+          version: "1.0.0",
+          private: true,
+          dependencies: {
+            "@sveltejs/kit": "^2.0.0",
+            "@sveltejs/vite-plugin-svelte": "^4.0.0",
+            svelte: "^5.0.0",
+            tailwindcss: "^3.4.3",
+            "svelte-adapter-bun": "^1.0.1",
+            vite: "^5.0.0",
+            "lucide-svelte": "^0.475.0",
+          },
+          type: "module",
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  const sharedModulesKit = join(sharedDir, "node_modules", "@sveltejs", "kit");
+  if (!existsSync(sharedModulesKit)) {
+    console.log("[Runner] Installing base packages in shared template...");
+    Bun.spawnSync(["bun", "install"], { cwd: sharedDir });
+    if (isLinuxRoot()) {
+      Bun.spawnSync(["chmod", "-R", "a+rX", sharedDir]);
+    }
+  }
+  return sharedDir;
+}
+
+/**
+ * Links shared template node_modules into a tenant code directory, saving ~110MB per tenant.
+ */
+function ensureTenantSharedDependencies(codeDir: string, tenantUser: string) {
+  try {
+    const sharedDir = ensureSharedTemplate();
+    const sharedModules = join(sharedDir, "node_modules");
+    if (!existsSync(sharedModules)) return;
+
+    const tenantModules = join(codeDir, "node_modules");
+    if (!existsSync(tenantModules)) {
+      mkdirSync(tenantModules, { recursive: true });
+    }
+
+    const items = readdirSync(sharedModules);
+    for (const item of items) {
+      const src = join(sharedModules, item);
+      const dest = join(tenantModules, item);
+      if (!existsSync(dest)) {
+        try {
+          symlinkSync(src, dest);
+        } catch {}
+      }
+    }
+    const srcBin = join(sharedModules, ".bin");
+    const destBin = join(tenantModules, ".bin");
+    if (existsSync(srcBin) && !existsSync(destBin)) {
+      try {
+        symlinkSync(srcBin, destBin);
+      } catch {}
+    }
+
+    if (isLinuxRoot()) {
+      Bun.spawnSync(["chown", "-hR", `${tenantUser}:${tenantUser}`, tenantModules]);
+    }
+  } catch (e: any) {
+    console.warn("[Runner] Shared dependencies link fallback:", e.message);
+    const installCmd = isLinuxRoot()
+      ? ["runuser", "-u", tenantUser, "--", "bun", "install"]
+      : ["bun", "install"];
+    Bun.spawnSync(installCmd, { cwd: codeDir });
+  }
+}
+
+/**
  * Prepares the tenant codebase directory as a real Git clone or repository with SvelteKit.
  */
 async function ensureTenantCodebase(
@@ -875,13 +964,10 @@ async function ensureTenantCodebase(
     } catch {}
   }
 
-  // Ensure dependencies installed if node_modules is missing or incomplete
+  // Ensure shared dependencies are linked
   const nodeModulesKit = join(codeDir, "node_modules", "@sveltejs", "kit");
   if (!existsSync(nodeModulesKit)) {
-    const installCmd = isLinuxRoot()
-      ? ["runuser", "-u", tenantUser, "--", "bun", "install"]
-      : ["bun", "install"];
-    Bun.spawnSync(installCmd, { cwd: codeDir });
+    ensureTenantSharedDependencies(codeDir, tenantUser);
   }
 
   // Ensure initial commit exists so HEAD always resolves for diffs & reverts
@@ -969,6 +1055,11 @@ async function getOrLaunchTenantDevServer(
   ensureTenantViteConfig(codeDir);
   const tenantUser = ensureTenantSystemUser(slug);
   const isRoot = isLinuxRoot();
+  if (isRoot) {
+    try {
+      Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", "vite"]);
+    } catch {}
+  }
   const port = nextAvailablePort++;
 
   const dbPath = join(DATA_DIR, "tenants", slug, "app.db");
@@ -1935,13 +2026,10 @@ const server = Bun.serve({
         const nodeModulesKit = join(codeDir, "node_modules", "@sveltejs", "kit");
         if (!existsSync(nodeModulesKit)) {
           console.log(
-            `[Runner] Re-installing dependencies for ${tenantSlug} after revert...`,
+            `[Runner] Re-linking dependencies for ${tenantSlug} after revert...`,
           );
           const tenantUser = ensureTenantSystemUser(tenantSlug);
-          const installCmd = isLinuxRoot()
-            ? ["runuser", "-u", tenantUser, "--", "bun", "install"]
-            : ["bun", "install"];
-          Bun.spawnSync(installCmd, { cwd: codeDir });
+          ensureTenantSharedDependencies(codeDir, tenantUser);
         }
 
         // Re-sync SvelteKit route types / generated code so Vite doesn't serve stale routes
@@ -3254,5 +3342,31 @@ const server = Bun.serve({
     },
   },
 });
+
+/**
+ * Automatically prunes node_modules for tenants that have been inactive for > 14 days.
+ * Source code, git history, and SQLite data remain completely safe.
+ */
+function pruneInactiveTenants() {
+  const tenantsDir = join(DATA_DIR, "tenants");
+  if (!existsSync(tenantsDir)) return;
+  const now = Date.now();
+  const maxInactiveMs = 14 * 24 * 60 * 60 * 1000;
+  for (const slug of readdirSync(tenantsDir)) {
+    if (tenantDevServers.has(slug)) continue;
+    const nodeModules = join(tenantsDir, slug, "code", "node_modules");
+    if (!existsSync(nodeModules)) continue;
+    try {
+      const stat = statSync(join(tenantsDir, slug, "code"));
+      if (now - stat.mtimeMs > maxInactiveMs) {
+        console.log(`[prune] Pruning inactive tenant node_modules: ${slug}`);
+        rmSync(nodeModules, { recursive: true, force: true });
+      }
+    } catch {}
+  }
+}
+
+setTimeout(pruneInactiveTenants, 60000);
+setInterval(pruneInactiveTenants, 24 * 60 * 60 * 1000);
 
 console.log(`🤖 Ether Agent Runner Server started on port ${PORT}`);
