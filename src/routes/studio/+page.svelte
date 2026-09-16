@@ -373,7 +373,9 @@
       const json = await res.json();
       if (res.ok && json.success) {
         // Optimistically remove the reverted turn from the messages array immediately
-        const msgIdx = messages.findIndex((m) => m.id === msg.id);
+        const msgIdx = messages.findIndex(
+          (m) => (msg.id !== undefined && m.id === msg.id) || m === msg,
+        );
         if (msgIdx !== -1) {
           const startIdx =
             msgIdx > 0 && messages[msgIdx - 1].role === "user"
@@ -401,10 +403,8 @@
           await selectFile(activeFile);
         }
 
-        // Force preview iframe reload to show restored state
-        setTimeout(() => {
-          refreshPreview();
-        }, 600);
+        // Force preview iframe reload with cache buster (dev server is already warmed up and ready)
+        refreshPreview();
 
         revertSuccessToast =
           "Modifications annulées avec succès ! Le code a été restauré.";

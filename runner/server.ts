@@ -1859,20 +1859,32 @@ const server = Bun.serve({
         const stepsBack =
           typeof body.stepsBack === "number" ? body.stepsBack : 1;
 
-        if (!target) {
+        const curHeadProc = runTenantGit(tenantSlug, ["rev-parse", "HEAD"]);
+        const curHead = curHeadProc.exitCode === 0 ? curHeadProc.stdout : "";
+
+        // If no target commit was specified, OR if targetCommit is identical to current HEAD,
+        // we MUST step back to previous commit so we don't no-op on the current commit!
+        if (!target || target === curHead) {
           target = `HEAD~${stepsBack}`;
         }
 
         // Validate that target exists in git
         const checkProc = runTenantGit(tenantSlug, ["cat-file", "-t", target]);
         if (checkProc.exitCode !== 0 || checkProc.stdout !== "commit") {
-          return Response.json(
-            {
-              success: false,
-              error: `Commit ou révision cible invalide: ${target}`,
-            },
-            { status: 400, headers: corsHeaders },
-          );
+          // If the specified commit doesn't resolve, fallback safely to HEAD~stepsBack
+          if (target !== `HEAD~${stepsBack}`) {
+            target = `HEAD~${stepsBack}`;
+            const fbCheck = runTenantGit(tenantSlug, ["cat-file", "-t", target]);
+            if (fbCheck.exitCode !== 0 || fbCheck.stdout !== "commit") {
+              return Response.json(
+                {
+                  success: false,
+                  error: `Aucune révision précédente disponible à restaurer.`,
+                },
+                { status: 400, headers: corsHeaders },
+              );
+            }
+          }
         }
 
         // Reset hard and clean untracked files
@@ -1925,13 +1937,38 @@ const server = Bun.serve({
           Bun.spawnSync(installCmd, { cwd: codeDir });
         }
 
-        // Restart Vite dev server so it immediately loads the reverted codebase cleanly
+        // Re-sync SvelteKit route types / generated code so Vite doesn't serve stale routes
+        const tenantUser = ensureTenantSystemUser(tenantSlug);
+        const syncCmd = isLinuxRoot()
+          ? [
+              "runuser",
+              "-u",
+              tenantUser,
+              "--",
+              "bun",
+              "--bun",
+              "./node_modules/.bin/svelte-kit",
+              "sync",
+            ]
+          : ["bun", "--bun", "./node_modules/.bin/svelte-kit", "sync"];
+        Bun.spawnSync(syncCmd, { cwd: codeDir });
+
+        // Restart Vite dev server and WAIT for it to be ready so preview iframe never crashes on 502/broken pipe
         const existingDev = tenantDevServers.get(tenantSlug);
         if (existingDev) {
           try {
             existingDev.proc.kill();
           } catch {}
           tenantDevServers.delete(tenantSlug);
+        }
+
+        try {
+          await getOrLaunchTenantDevServer(tenantSlug);
+        } catch (launchErr: any) {
+          console.error(
+            `[Runner] Failed to relaunch dev server for ${tenantSlug} after revert:`,
+            launchErr.message,
+          );
         }
 
         // Get new HEAD
@@ -2498,6 +2535,16 @@ const server = Bun.serve({
                   let attemptCount = 0;
                   const maxAttempts = 3;
 
+                  // Capture initial HEAD commit BEFORE any agent commands or modifications run
+                  const initialHeadProc = runTenantGit(project, [
+                    "rev-parse",
+                    "HEAD",
+                  ]);
+                  const initialHead =
+                    initialHeadProc.exitCode === 0
+                      ? initialHeadProc.stdout
+                      : undefined;
+
                   while (!success && attemptCount < maxAttempts) {
                     attemptCount++;
                     triedProfiles.push(activeProfile);
@@ -2736,18 +2783,9 @@ const server = Bun.serve({
 
                     // Auto-commit Git modifications if turn succeeded
                     let commitHash: string | undefined;
-                    let prevCommitHash: string | undefined;
+                    let prevCommitHash: string | undefined = initialHead;
                     if (success) {
                       try {
-                        const curHeadRes = runTenantGit(project, [
-                          "rev-parse",
-                          "HEAD",
-                        ]);
-                        prevCommitHash =
-                          curHeadRes.exitCode === 0
-                            ? curHeadRes.stdout
-                            : undefined;
-
                         const statusRes = runTenantGit(project, [
                           "status",
                           "--porcelain",
@@ -2778,7 +2816,15 @@ const server = Bun.serve({
                             );
                           }
                         } else {
-                          commitHash = prevCommitHash;
+                          // No uncommitted working-tree changes: check current HEAD (agent may have committed with git tool)
+                          const curHeadRes = runTenantGit(project, [
+                            "rev-parse",
+                            "HEAD",
+                          ]);
+                          commitHash =
+                            curHeadRes.exitCode === 0
+                              ? curHeadRes.stdout
+                              : prevCommitHash;
                         }
                       } catch (gitErr: any) {
                         console.error(
@@ -2831,6 +2877,16 @@ const server = Bun.serve({
             let activeProfile = resolveInitialProfile(requestedProfile);
             let attemptCount = 0;
             const maxAttempts = 3;
+
+            // Capture initial HEAD commit BEFORE any agent commands or modifications run
+            const initialHeadProc = runTenantGit(project, [
+              "rev-parse",
+              "HEAD",
+            ]);
+            const initialHead =
+              initialHeadProc.exitCode === 0
+                ? initialHeadProc.stdout
+                : undefined;
 
             while (attemptCount < maxAttempts) {
               attemptCount++;
@@ -2965,16 +3021,9 @@ const server = Bun.serve({
 
               // Auto-commit Git modifications if turn succeeded
               let commitHash: string | undefined;
-              let prevCommitHash: string | undefined;
+              let prevCommitHash: string | undefined = initialHead;
               if (success) {
                 try {
-                  const curHeadRes = runTenantGit(project, [
-                    "rev-parse",
-                    "HEAD",
-                  ]);
-                  prevCommitHash =
-                    curHeadRes.exitCode === 0 ? curHeadRes.stdout : undefined;
-
                   const statusRes = runTenantGit(project, [
                     "status",
                     "--porcelain",
@@ -3005,7 +3054,15 @@ const server = Bun.serve({
                       );
                     }
                   } else {
-                    commitHash = prevCommitHash;
+                    // No uncommitted working-tree changes: check current HEAD (agent may have committed with git tool)
+                    const curHeadRes = runTenantGit(project, [
+                      "rev-parse",
+                      "HEAD",
+                    ]);
+                    commitHash =
+                      curHeadRes.exitCode === 0
+                        ? curHeadRes.stdout
+                        : prevCommitHash;
                   }
                 } catch (gitErr: any) {
                   console.error(

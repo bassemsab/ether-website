@@ -1509,21 +1509,30 @@ export function saveStudioChatMessage(
 
 export function revertStudioChatMessages(
   tenantSlug: string,
-  fromMessageId: number,
+  fromMessageId?: number,
   includeUserPrompt = true,
 ): { targetCommitHash?: string | null; deletedCount: number } {
   if (!db) return { deletedCount: 0 };
 
   try {
-    const msg = db
-      .prepare(
-        `SELECT * FROM studio_chat_messages WHERE id = ? AND tenant_slug = ?`,
-      )
-      .get(fromMessageId, tenantSlug) as StudioChatMessageRecord | undefined;
+    let msg: StudioChatMessageRecord | undefined;
+    if (fromMessageId) {
+      msg = db
+        .prepare(
+          `SELECT * FROM studio_chat_messages WHERE id = ? AND tenant_slug = ?`,
+        )
+        .get(fromMessageId, tenantSlug) as StudioChatMessageRecord | undefined;
+    } else {
+      msg = db
+        .prepare(
+          `SELECT * FROM studio_chat_messages WHERE tenant_slug = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1`,
+        )
+        .get(tenantSlug) as StudioChatMessageRecord | undefined;
+    }
 
     if (!msg) return { deletedCount: 0 };
 
-    let deleteFromId = fromMessageId;
+    let deleteFromId = msg.id;
     if (includeUserPrompt && msg.role === "assistant") {
       const prevUserMsg = db
         .prepare(
@@ -1531,7 +1540,7 @@ export function revertStudioChatMessages(
            WHERE tenant_slug = ? AND id < ? 
            ORDER BY id DESC LIMIT 1`,
         )
-        .get(tenantSlug, fromMessageId) as { id: number } | undefined;
+        .get(tenantSlug, msg.id) as { id: number } | undefined;
       if (prevUserMsg) {
         deleteFromId = prevUserMsg.id;
       }
