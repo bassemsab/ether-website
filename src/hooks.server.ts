@@ -109,6 +109,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         k8s_namespace: `tenant-${tenantSlug}`,
         git_repo_url: `https://git.ether.paris/${tenantSlug}/${tenantSlug}.git`,
         git_access_token: "",
+        git_password: null,
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

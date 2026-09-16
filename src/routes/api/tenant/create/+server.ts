@@ -10,6 +10,8 @@ import {
   ensureGiteaUser,
   createGiteaRepo,
   seedTenantRepoTemplate,
+  generateSecureGitPassword,
+  setGiteaUserPassword,
 } from "$lib/server/gitea";
 import { applyTenantK8s } from "$lib/server/k8s-tenant";
 
@@ -109,10 +111,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       throw new Error("Échec de la création du tenant en base de données.");
     }
 
-    // Update with git repo URL and access token
+    // Generate secure Git password and sync with Gitea
+    const gitPassword = generateSecureGitPassword();
+    await setGiteaUserPassword(giteaUsername, gitPassword);
+
+    // Update with git repo URL, access token, and git password
     await updateTenantStatus(slug, "active", {
       git_repo_url: repo.clone_url,
       git_access_token: giteaToken,
+      git_password: gitPassword,
     });
 
     // 5. Apply Kubernetes resources (Namespace, NetworkPolicy, PVC, Deployments, Ingress)

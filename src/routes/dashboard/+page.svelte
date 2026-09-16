@@ -24,6 +24,16 @@
   let isDeleteModalOpen = $state(false);
   let selectedTenant = $state<any>(null);
   let tenantToDelete = $state<any>(null);
+  let showGitModalPassword = $state(false);
+  let copiedGitField = $state<string | null>(null);
+
+  function copyGitText(text: string, fieldId: string) {
+    try {
+      navigator.clipboard.writeText(text);
+      copiedGitField = fieldId;
+      setTimeout(() => { if (copiedGitField === fieldId) copiedGitField = null; }, 2000);
+    } catch {}
+  }
 
   // New site creation form
   let newSiteBrand = $state("");
@@ -593,29 +603,75 @@
 
   <!-- Modal 3: Git & Database Info -->
   {#if isGitModalOpen && selectedTenant}
+    {@const giteaUser = user?.gitea_username || user?.email?.split('@')[0] || 'user'}
+    {@const tenantGitPwd = selectedTenant.git_password || selectedTenant.git_access_token || user?.gitea_token || 'Généré automatiquement'}
+    {@const cloneCmd = `git clone https://${giteaUser}:${tenantGitPwd}@git.ether.paris/${giteaUser}/${selectedTenant.slug}.git`}
     <div class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="retro-card w-full max-w-xl p-6 md:p-8 space-y-5 bg-card">
         <div class="flex items-center justify-between">
-          <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Accès Git &amp; Données SQLite</h2>
+          <div class="flex items-center gap-2">
+            <h2 class="font-display text-xl text-foreground font-normal tracking-tight">Accès Git &amp; Données SQLite</h2>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+              🔒 Privé
+            </span>
+          </div>
           <button onclick={() => isGitModalOpen = false} class="text-muted-foreground hover:text-foreground">✕</button>
         </div>
 
         <div class="space-y-4 text-sm font-neue">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
-              Dépôt Git hébergé
+              Identifiant Git (Username)
             </label>
-            <div class="p-3 bg-surface border border-black/10 rounded-2xl font-mono text-xs text-brand break-all select-all">
-              {selectedTenant.git_repo_url || `https://git.ether.paris/${user?.email?.split('@')[0] || 'user'}/${selectedTenant.slug}.git`}
+            <div class="p-3 bg-surface border border-black/10 rounded-2xl font-mono text-xs text-foreground flex items-center justify-between">
+              <span>{giteaUser}</span>
+              <button
+                onclick={() => copyGitText(giteaUser, 'user')}
+                class="text-[10px] uppercase font-mono text-brand hover:underline cursor-pointer"
+              >
+                {copiedGitField === 'user' ? 'Copié !' : 'Copier'}
+              </button>
             </div>
           </div>
 
           <div>
             <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
-              Jeton d'accès personnel Git (PAT)
+              Mot de passe Git pour ce site
             </label>
-            <div class="p-3 bg-surface border border-black/10 rounded-2xl font-mono text-xs text-foreground select-all">
-              {selectedTenant.git_access_token || user?.gitea_token || 'Généré automatiquement lors de la création'}
+            <div class="p-3 bg-surface border border-black/10 rounded-2xl font-mono text-xs text-foreground flex items-center justify-between">
+              <span class="truncate mr-2 font-mono">
+                {showGitModalPassword ? tenantGitPwd : '••••••••••••••••••••••••'}
+              </span>
+              <div class="flex items-center gap-2 shrink-0">
+                <button
+                  onclick={() => showGitModalPassword = !showGitModalPassword}
+                  class="text-xs hover:opacity-75 cursor-pointer"
+                  title={showGitModalPassword ? "Masquer" : "Afficher"}
+                >
+                  {showGitModalPassword ? "🙈" : "👁️"}
+                </button>
+                <button
+                  onclick={() => copyGitText(tenantGitPwd, 'pwd')}
+                  class="text-[10px] uppercase font-mono text-brand hover:underline cursor-pointer"
+                >
+                  {copiedGitField === 'pwd' ? 'Copié !' : 'Copier'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-1.5">
+              Commande de clonage rapide
+            </label>
+            <div class="p-3 bg-surface border border-black/10 rounded-2xl font-mono text-xs text-brand break-all select-all flex items-center justify-between gap-2">
+              <span class="break-all">{cloneCmd}</span>
+              <button
+                onclick={() => copyGitText(cloneCmd, 'clone')}
+                class="px-2.5 py-1 rounded-lg bg-brand text-white text-[10px] font-mono shrink-0 hover:bg-brand/90 cursor-pointer"
+              >
+                {copiedGitField === 'clone' ? 'Copié !' : 'Copier'}
+              </button>
             </div>
           </div>
 
@@ -631,7 +687,17 @@
           </div>
         </div>
 
-        <div class="pt-2 flex justify-end">
+        <div class="pt-2 flex items-center justify-between">
+          <button
+            onclick={() => {
+              isGitModalOpen = false;
+              handleOpenStudio(selectedTenant.slug || selectedTenant.domain);
+            }}
+            class="text-xs font-mono text-brand hover:underline flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Ouvrir dans Ether Studio pour clés SSH</span>
+            <span>→</span>
+          </button>
           <button onclick={() => isGitModalOpen = false} class="focus-ring px-5 py-2 rounded-full border border-black/10 bg-surface text-foreground text-xs uppercase tracking-[0.2em] hover:bg-surface/80 cursor-pointer">
             Fermer
           </button>

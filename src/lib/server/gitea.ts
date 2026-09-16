@@ -1,4 +1,5 @@
 import { env } from "$env/dynamic/private";
+import { updateTenantGitPassword } from "./db";
 
 const GITEA_API_URL =
   env.GITEA_API_URL ||
@@ -157,7 +158,7 @@ export async function createGiteaRepo(
     body: JSON.stringify({
       name: safeRepoName,
       description,
-      private: false,
+      private: true, // Always private: only authenticated owner can clone
       auto_init: false,
     }),
   });
@@ -177,6 +178,224 @@ export async function createGiteaRepo(
     clone_url: `https://git.ether.paris/${username}/${safeRepoName}.git`,
     html_url: `https://git.ether.paris/${username}/${safeRepoName}`,
   };
+}
+
+/**
+ * Enforces or toggles repository privacy on Gitea.
+ */
+export async function setGiteaRepoPrivate(
+  username: string,
+  repoName: string,
+  isPrivate: boolean = true,
+): Promise<boolean> {
+  const safeRepoName = repoName.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+  if (!GITEA_ADMIN_TOKEN) return false;
+
+  try {
+    const res = await fetch(
+      `${GITEA_API_URL}/repos/${username}/${safeRepoName}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `token ${GITEA_ADMIN_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          private: isPrivate,
+        }),
+      },
+    );
+    return res.ok;
+  } catch (err: any) {
+    console.error(
+      `[Gitea] Failed to set repo privacy for ${username}/${safeRepoName}:`,
+      err.message,
+    );
+    return false;
+  }
+}
+
+/**
+ * Updates a user's password on Gitea.
+ */
+export async function setGiteaUserPassword(
+  username: string,
+  newPassword: string,
+): Promise<boolean> {
+  if (!GITEA_ADMIN_TOKEN) return false;
+
+  try {
+    const res = await fetch(`${GITEA_API_URL}/admin/users/${username}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `token ${GITEA_ADMIN_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        login_name: username,
+        source_id: 0,
+        password: newPassword,
+        must_change_password: false,
+      }),
+    });
+    return res.ok;
+  } catch (err: any) {
+    console.error(
+      `[Gitea] Failed to set password for ${username}:`,
+      err.message,
+    );
+    return false;
+  }
+}
+
+/**
+ * Generates a high-entropy URL-safe Git password.
+ */
+export function generateSecureGitPassword(): string {
+  const chars =
+    "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let pwd = "eth_";
+  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  for (let i = 0; i < 20; i++) {
+    pwd += chars[bytes[i] % chars.length];
+  }
+  return pwd;
+}
+
+/**
+ * Ensures a tenant has a valid Git password synced with Gitea and database.
+ */
+export async function ensureTenantGitPassword(
+  username: string,
+  tenantSlug: string,
+  existingPassword?: string | null,
+): Promise<string> {
+  if (existingPassword && existingPassword.trim().length >= 6) {
+    return existingPassword;
+  }
+
+  const newPassword = generateSecureGitPassword();
+  await setGiteaUserPassword(username, newPassword);
+  await updateTenantGitPassword(tenantSlug, newPassword);
+  return newPassword;
+}
+
+export interface GiteaPublicKey {
+  id: number;
+  title: string;
+  key: string;
+  fingerprint: string;
+  created_at: string;
+  read_only: boolean;
+}
+
+/**
+ * Lists SSH public keys configured for a user.
+ */
+export async function listGiteaUserKeys(
+  username: string,
+): Promise<GiteaPublicKey[]> {
+  if (!GITEA_ADMIN_TOKEN) return [];
+
+  try {
+    const res = await fetch(`${GITEA_API_URL}/users/${username}/keys`, {
+      headers: {
+        Authorization: `token ${GITEA_ADMIN_TOKEN}`,
+      },
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as GiteaPublicKey[];
+  } catch (err: any) {
+    console.warn(`[Gitea] Failed to list keys for ${username}:`, err.message);
+    return [];
+  }
+}
+
+/**
+ * Adds an SSH public key for a user on Gitea.
+ */
+export async function addGiteaUserKey(
+  username: string,
+  title: string,
+  keyContent: string,
+): Promise<{ success: boolean; error?: string; key?: GiteaPublicKey }> {
+  if (!GITEA_ADMIN_TOKEN) {
+    return { success: false, error: "Gitea non configuré." };
+  }
+
+  const cleanKey = keyContent.trim();
+  const cleanTitle = (title || "Studio Key").trim();
+
+  if (
+    !cleanKey.startsWith("ssh-") &&
+    !cleanKey.startsWith("ecdsa-") &&
+    !cleanKey.startsWith("sk-")
+  ) {
+    return {
+      success: false,
+      error:
+        "Format de clé invalide. La clé publique doit débuter par 'ssh-ed25519', 'ssh-rsa', ou 'ecdsa-'.",
+    };
+  }
+
+  try {
+    const res = await fetch(`${GITEA_API_URL}/admin/users/${username}/keys`, {
+      method: "POST",
+      headers: {
+        Authorization: `token ${GITEA_ADMIN_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: cleanTitle,
+        key: cleanKey,
+        read_only: false,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ message: "Erreur Gitea" }));
+      return {
+        success: false,
+        error:
+          errData.message ||
+          "Impossible d'enregistrer la clé SSH sur le serveur Git.",
+      };
+    }
+
+    const createdKey = (await res.json()) as GiteaPublicKey;
+    return { success: true, key: createdKey };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Deletes an SSH public key for a user.
+ */
+export async function deleteGiteaUserKey(
+  username: string,
+  keyId: number,
+): Promise<boolean> {
+  if (!GITEA_ADMIN_TOKEN) return false;
+
+  try {
+    const res = await fetch(
+      `${GITEA_API_URL}/admin/users/${username}/keys/${keyId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `token ${GITEA_ADMIN_TOKEN}`,
+        },
+      },
+    );
+    return res.ok || res.status === 204;
+  } catch (err: any) {
+    console.error(
+      `[Gitea] Failed to delete key ${keyId} for ${username}:`,
+      err.message,
+    );
+    return false;
+  }
 }
 
 /**

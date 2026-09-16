@@ -50,6 +50,7 @@ export interface TenantRecord {
   k8s_namespace: string | null;
   git_repo_url: string | null;
   git_access_token: string | null;
+  git_password: string | null;
   stripe_subscription_id: string | null;
   plan: string;
   github_repo: string | null;
@@ -280,6 +281,7 @@ try {
   safeAddColumn("tenants", "k8s_namespace TEXT");
   safeAddColumn("tenants", "git_repo_url TEXT");
   safeAddColumn("tenants", "git_access_token TEXT");
+  safeAddColumn("tenants", "git_password TEXT");
   safeAddColumn("tenants", "stripe_subscription_id TEXT");
   safeAddColumn("tenants", "plan TEXT DEFAULT 'free'");
   safeAddColumn("tenants", "extra_prompts INTEGER DEFAULT 0");
@@ -484,6 +486,25 @@ export async function updateTenantStatus(
   }
 }
 
+export async function updateTenantGitPassword(
+  slug: string,
+  gitPassword: string,
+): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const stmt = db.prepare(`
+      UPDATE tenants
+      SET git_password = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE slug = ?
+    `);
+    const res = stmt.run(gitPassword, slug);
+    return res.changes > 0;
+  } catch (error) {
+    console.error("Failed to update tenant git password:", error);
+    return false;
+  }
+}
+
 export async function getAllTenants(): Promise<TenantRecord[]> {
   if (!db) return [];
 
@@ -632,6 +653,7 @@ export async function ensureUserPersonalWorkspace(user: {
     k8s_namespace: `tenant-${fallbackSlug}`,
     git_repo_url: null,
     git_access_token: null,
+    git_password: null,
     stripe_subscription_id: null,
     plan: "demo",
     github_repo: null,
