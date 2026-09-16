@@ -70,6 +70,39 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
     var contentType = resHeaders.get("content-type") || "";
     if (contentType.includes("text/html")) {
       resHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+      if (isPreview) {
+        var html = await res.text();
+        var guardScript = \`<script>
+(function(){
+  try{
+    var k='__ether_r_ts',c='__ether_r_cnt';
+    var now=Date.now();
+    var last=parseInt(sessionStorage.getItem(k)||'0',10);
+    var count=parseInt(sessionStorage.getItem(c)||'0',10);
+    if(now-last<4000){
+      count++;
+      sessionStorage.setItem(c,String(count));
+      if(count>=2){
+        console.warn('[Ether] Rapid reload loop suppressed');
+        var noop=function(){};
+        try{window.location.reload=noop;}catch(_){}
+      }
+    }else{
+      sessionStorage.setItem(c,'0');
+    }
+    sessionStorage.setItem(k,String(now));
+  }catch(_){}
+})();
+</script>\`;
+        var modifiedHtml = html.includes("<head>")
+          ? html.replace("<head>", "<head>" + guardScript)
+          : (guardScript + html);
+        return new Response(modifiedHtml, {
+          status: res.status,
+          statusText: res.statusText,
+          headers: resHeaders,
+        });
+      }
     }
     return new Response(res.body, {
       status: res.status,
@@ -112,6 +145,19 @@ var serverOptions = {
     if (host.startsWith("preview-") && host.endsWith(".ether.paris")) {
       var candidate = host.slice(8).replace(".ether.paris", "");
       if (candidate.length > 0 && !RESERVED_SLUGS.has(candidate)) {
+        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          var protocol =
+            req.headers.get("sec-websocket-protocol") || "vite-hmr";
+          var targetWsUrl = runnerUrl.replace(/^http/, "ws") + "/dev/" + candidate + url.pathname + url.search;
+          var upgraded = srv.upgrade(req, {
+            data: { targetWsUrl: targetWsUrl, protocol: protocol, tenantSlug: candidate },
+            headers: protocol
+              ? { "Sec-WebSocket-Protocol": protocol }
+              : undefined,
+          });
+          if (upgraded) return undefined;
+        }
+
         try {
           var proxied = await proxyToRunner(candidate, req, rawHost, true);
           if (proxied) return proxied;
@@ -124,6 +170,7 @@ var serverOptions = {
     // 3. Check if host is a published tenant (e.g. tester.ether.paris)
     if (
       host.endsWith(".ether.paris") &&
+      !host.startsWith("preview-") &&
       host !== "ether.paris" &&
       host !== "www.ether.paris" &&
       host !== "studio.ether.paris"
@@ -142,13 +189,74 @@ var serverOptions = {
     // Fallback: standard SvelteKit application
     return httpserver(req, srv);
   },
+  websocket: {
+    open(ws) {
+      if (ws.data && ws.data.targetWsUrl) {
+        var protocol = ws.data.protocol || "vite-hmr";
+        var queue = [];
+        ws.data.queue = queue;
+        try {
+          var targetWs = new WebSocket(ws.data.targetWsUrl, protocol);
+          ws.data.targetWs = targetWs;
+
+          targetWs.onopen = () => {
+            while (queue.length > 0) {
+              var msg = queue.shift();
+              try {
+                targetWs.send(msg);
+              } catch (_) {}
+            }
+          };
+
+          targetWs.onmessage = (event) => {
+            try {
+              ws.send(event.data);
+            } catch (_) {}
+          };
+
+          targetWs.onclose = (event) => {
+            try {
+              ws.close(event.code, event.reason);
+            } catch (_) {}
+          };
+
+          targetWs.onerror = (err) => {
+            console.warn("[Entry WS Proxy] Error for " + ws.data.tenantSlug + ":", err.message);
+          };
+        } catch (err) {
+          console.error("[Entry WS Proxy] Failed to connect to " + ws.data.targetWsUrl + ":", err.message);
+          try {
+            ws.close(1011, "Backend dev server unreachable");
+          } catch (_) {}
+        }
+      } else if (websocket && websocket.open) {
+        websocket.open(ws);
+      }
+    },
+    message(ws, message) {
+      if (ws.data && ws.data.targetWs && ws.data.targetWs.readyState === WebSocket.OPEN) {
+        try {
+          ws.data.targetWs.send(message);
+        } catch (_) {}
+      } else if (ws.data && ws.data.queue) {
+        ws.data.queue.push(message);
+      } else if (websocket && websocket.message) {
+        websocket.message(ws, message);
+      }
+    },
+    close(ws, code, reason) {
+      if (ws.data && ws.data.targetWs) {
+        try {
+          ws.data.targetWs.close(code, reason);
+        } catch (_) {}
+      } else if (websocket && websocket.close) {
+        websocket.close(ws, code, reason);
+      }
+    },
+  },
 };
 
-if (websocket) {
-  serverOptions.websocket = websocket;
-}
-
-console.info("Listening on " + hostname + ":" + port + (websocket ? " (Websocket)" : ""));
+console.info("Listening on " + hostname + ":" + port + " (Websocket)");
 serve(serverOptions);
 `;
 

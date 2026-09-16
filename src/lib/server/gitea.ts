@@ -336,7 +336,9 @@ export default defineConfig({
         "**/.env*"
       ]
     },
-    hmr: false
+    hmr: {
+      overlay: false
+    }
   }
 });
 `;

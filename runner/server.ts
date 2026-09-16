@@ -606,7 +606,9 @@ export default defineConfig({
         "**/.env*"
       ]
     },
-    hmr: false
+    hmr: {
+      overlay: false
+    }
   }
 });
 `;
@@ -624,8 +626,8 @@ export default defineConfig({
       content.includes("usePolling: true") ||
       !content.includes("**/*.db*") ||
       !content.includes("**/bun.lock*") ||
-      content.includes("hmr: {") ||
-      !content.includes("hmr: false")
+      content.includes("hmr: false") ||
+      !content.includes("overlay: false")
     ) {
       writeFileSync(targetConfig, standardConfig);
       return true;
@@ -1262,8 +1264,13 @@ const server = Bun.serve({
         if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           const protocol =
             req.headers.get("sec-websocket-protocol") || "vite-hmr";
+          const cleanWsPath =
+            subPath.replace(/^\/(?:dev|prod|preview)\/[^/?]+/, "") || "/";
+          const finalWsPath = cleanWsPath.startsWith("/")
+            ? cleanWsPath
+            : "/" + cleanWsPath;
           const upgraded = srv.upgrade(req, {
-            data: { tenantSlug, devPort, subPath, protocol },
+            data: { tenantSlug, devPort, subPath: finalWsPath, protocol },
             headers: { "Sec-WebSocket-Protocol": protocol },
           });
           if (upgraded) return undefined;
@@ -3110,7 +3117,12 @@ const server = Bun.serve({
     open(ws: any) {
       const devPort = ws.data?.devPort;
       const protocol = ws.data?.protocol || "vite-hmr";
-      const subPath = ws.data?.subPath || "/";
+      const rawSubPath = ws.data?.subPath || "/";
+      const cleanSubPath =
+        rawSubPath.replace(/^\/(?:dev|prod|preview)\/[^/?]+/, "") || "/";
+      const subPath = cleanSubPath.startsWith("/")
+        ? cleanSubPath
+        : "/" + cleanSubPath;
       try {
         const queue: any[] = [];
         ws.data.queue = queue;
