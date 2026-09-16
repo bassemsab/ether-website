@@ -869,9 +869,19 @@
 
   // Dockable & Resizable Panels State
   let showChat = $state(true);
-  let showEditor = $state(true);
+  let showEditor = $state(data.initialShowEditor ?? false);
   let showPreview = $state(true);
-  let previousPanelState = $state({ chat: true, editor: true });
+  let previousPanelState = $state({ chat: true, editor: false });
+
+  $effect(() => {
+    const current = showEditor;
+    if (typeof document !== "undefined") {
+      document.cookie = `ether_studio_show_editor=${current}; path=/; max-age=31536000; SameSite=Lax`;
+      try {
+        localStorage.setItem("ether_studio_show_editor", String(current));
+      } catch {}
+    }
+  });
 
   let chatWidth = $state(360);
   let editorWidth = $state(580);

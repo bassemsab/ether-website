@@ -178,6 +178,10 @@ export const load: PageServerLoad = async ({
       isOwner: true,
     }));
 
+  const showEditorCookie = cookies.get("ether_studio_show_editor");
+  // Default is false (closed by default), unless cookie explicitly equals "true"
+  const initialShowEditor = showEditorCookie === "true";
+
   return {
     tenant: tenantData,
     projectSlug,
@@ -194,5 +198,6 @@ export const load: PageServerLoad = async ({
     lastConversationId,
     initialFiles,
     sessionToken: cookies.get("session") || null,
+    initialShowEditor,
   };
 };
