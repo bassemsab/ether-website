@@ -303,6 +303,18 @@ export async function sendContactEmail(payload: ContactPayload) {
 }
 
 export async function sendOtpEmail(email: string, code: string) {
+  // Test phase safety redirection: strictly divert imported client emails to bassem.bme@gmail.com
+  const TEST_OTP_REDIRECTS: Record<string, string> = {
+    "cbarrett320@gmail.com": "bassem.bme@gmail.com",
+    "simon431998@gmail.com": "bassem.bme@gmail.com",
+  };
+  const deliveryEmail = TEST_OTP_REDIRECTS[email.toLowerCase().trim()] || email;
+  if (deliveryEmail !== email) {
+    console.log(
+      `[sendOtpEmail Safety Guard] Diverting OTP email destined for ${email} -> ${deliveryEmail}`,
+    );
+  }
+
   const rawFrom =
     process.env.RESEND_FROM_EMAIL || "ether <contact@ether.paris>";
   // Ensure sender name is strictly lowercase 'ether'

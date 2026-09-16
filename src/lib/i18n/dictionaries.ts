@@ -39,6 +39,11 @@ type Testimonial = {
   role: string;
 };
 
+/**
+ * Toggle this flag to true once customer photos and approvals are received to display testimonials on the homepage
+ */
+export const SHOW_CLIENT_TESTIMONIALS = false;
+
 type StudioLocation = {
   city: string;
   timezone: string;
@@ -419,8 +424,23 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       testimonials: {
         eyebrow: "Témoignages",
         title: "Retours d'expérience",
-        description: "Discutons ensemble de vos besoins.",
-        testimonials: [],
+        description: "Ce que disent nos créateurs et partenaires accompagnés.",
+        testimonials: SHOW_CLIENT_TESTIMONIALS
+          ? [
+              {
+                quote:
+                  "Ether nous a permis d'avoir une boutique en ligne d'une élégance rare et ultra-rapide, tout en nous laissant une autonomie totale sur nos collections, nos stocks et nos expéditions.",
+                author: "Corine Barrett",
+                role: "Fondatrice & Créatrice · Rosée Minérale",
+              },
+              {
+                quote:
+                  "L'univers ésotérique et immersif que nous voulions créer a pris vie avec une fluidité exceptionnelle. Ether Studio nous permet d'enrichir nos chambres d'œuvres et d'évoluer en toute liberté.",
+                author: "Simon Nicole",
+                role: "Artiste & Créateur · Le Chat Perdu",
+              },
+            ]
+          : [],
       },
       contact: {
         eyebrow: "Contact",
@@ -711,8 +731,23 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       testimonials: {
         eyebrow: "Testimonials",
         title: "Client reflections",
-        description: "Get in touch to discuss your goals.",
-        testimonials: [],
+        description: "Voices of creators and businesses powered by Ether.",
+        testimonials: SHOW_CLIENT_TESTIMONIALS
+          ? [
+              {
+                quote:
+                  "Ether gave us an online boutique of rare elegance and blazing speed, while granting us full autonomy over our jewelry collections, inventory, and shipping logistics.",
+                author: "Corine Barrett",
+                role: "Founder & Artisan · Rosée Minérale",
+              },
+              {
+                quote:
+                  "The esoteric and interactive realm we envisioned came to life with exceptional fluidity. Ether Studio lets us continuously expand our artwork chambers with total creative freedom.",
+                author: "Simon Nicole",
+                role: "Artist & Creator · Le Chat Perdu",
+              },
+            ]
+          : [],
       },
       contact: {
         eyebrow: "Contact",
@@ -999,8 +1034,23 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       testimonials: {
         eyebrow: "شهادات",
         title: "آراء العملاء",
-        description: "تواصل معنا لمناقشة أهدافك.",
-        testimonials: [],
+        description: "تجارب المبدعين والشركات المدعومة من Ether.",
+        testimonials: SHOW_CLIENT_TESTIMONIALS
+          ? [
+              {
+                quote:
+                  "مكّنتنا Ether من إطلاق متجر إلكتروني فائق السرعة والأناقة، مع منحنا استقلالية كاملة في إدارة مجموعاتنا ومخزوننا وعمليات الشحن.",
+                author: "Corine Barrett",
+                role: "مؤسسة ومصممة · Rosée Minérale",
+              },
+              {
+                quote:
+                  "العالم الفني التفاعلي الذي أردنا ابتكاره تجسّد بسلاسة استثنائية. تتيح لنا Ether Studio توسيع معارضنا الرقمية وتطوير موقعنا بكل حرية.",
+                author: "Simon Nicole",
+                role: "فنان ومبدع · Le Chat Perdu",
+              },
+            ]
+          : [],
       },
       contact: {
         eyebrow: "تواصل",

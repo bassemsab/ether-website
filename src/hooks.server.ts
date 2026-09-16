@@ -95,8 +95,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   if (tenantSlug) {
     let tenant = await getTenantBySlug(tenantSlug);
-    if (!tenant) {
-      // Fallback for pod running in tenant namespace or newly created tenant
+    if (!tenant && process.env.TENANT_SLUG && process.env.TENANT_SLUG === tenantSlug) {
+      // Fallback only for pod running in isolated tenant namespace
       tenant = {
         id: 0,
         user_id: 0,
@@ -125,8 +125,10 @@ export const handle: Handle = async ({ event, resolve }) => {
         error_message: null,
         stripe_subscription_id: null,
       };
+    } else if (!tenant) {
+      tenantSlug = null;
     }
-    event.locals.tenant = tenant;
+    event.locals.tenant = tenant || undefined;
   } else if (
     host !== "ether.paris" &&
     host !== "www.ether.paris" &&
