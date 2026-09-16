@@ -88,7 +88,14 @@
         alt={logoAlt}
         width={46}
         height={40}
-        class="h-9 w-auto object-contain dark:brightness-0 dark:invert"
+        class="h-9 w-auto object-contain dark:hidden"
+      />
+      <img
+        src="/ether-logo-white.png"
+        alt={logoAlt}
+        width={46}
+        height={40}
+        class="h-9 w-auto object-contain hidden dark:block"
       />
     </a>
 

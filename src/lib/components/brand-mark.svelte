@@ -8,6 +8,11 @@
   <img
     src="/ether-logo-official.png"
     alt="ether"
-    class="w-full h-full object-contain dark:brightness-0 dark:invert"
+    class="w-full h-full object-contain dark:hidden"
+  />
+  <img
+    src="/ether-logo-white.png"
+    alt="ether"
+    class="w-full h-full object-contain hidden dark:block"
   />
 </span>

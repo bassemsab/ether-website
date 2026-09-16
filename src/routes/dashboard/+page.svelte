@@ -689,17 +689,7 @@
           </div>
         </div>
 
-        <div class="pt-2 flex items-center justify-between">
-          <button
-            onclick={() => {
-              isGitModalOpen = false;
-              handleOpenStudio(selectedTenant.slug || selectedTenant.domain);
-            }}
-            class="text-xs font-mono text-brand hover:underline flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>Ouvrir dans Ether Studio pour clés SSH</span>
-            <span>→</span>
-          </button>
+        <div class="pt-2 flex justify-end">
           <button onclick={() => isGitModalOpen = false} class="focus-ring px-5 py-2 rounded-full border border-black/10 bg-surface text-foreground text-xs uppercase tracking-[0.2em] hover:bg-surface/80 cursor-pointer">
             Fermer
           </button>

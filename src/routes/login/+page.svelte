@@ -218,7 +218,14 @@
           alt="ether"
           width={130}
           height={114}
-          class="h-16 sm:h-20 w-auto object-contain animate-ether-pulse dark:brightness-0 dark:invert relative z-10 select-none"
+          class="h-16 sm:h-20 w-auto object-contain animate-ether-pulse dark:hidden relative z-10 select-none"
+        />
+        <img
+          src="/ether-logo-white.png"
+          alt="ether"
+          width={130}
+          height={114}
+          class="h-16 sm:h-20 w-auto object-contain animate-ether-pulse hidden dark:block relative z-10 select-none"
         />
 
         <!-- Status label -->

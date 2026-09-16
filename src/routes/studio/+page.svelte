@@ -2280,17 +2280,19 @@
         {/if}
       </button>
 
-      <!-- Git Access Modal Trigger -->
-      <button
-        onclick={() => { isGitModalOpen = true; }}
-        class="focus-ring px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-foreground dark:text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all inline-flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5 shrink-0"
-        title="Accès Git, mot de passe et clés SSH pour cloner ce site"
-      >
-        <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-        </svg>
-        <span class="hidden sm:inline">Git</span>
-      </button>
+      <!-- Git Access Modal Trigger (hidden for now) -->
+      {#if false}
+        <button
+          onclick={() => { isGitModalOpen = true; }}
+          class="focus-ring px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-foreground dark:text-white text-xs font-medium uppercase tracking-[0.15em] shadow-retro-sm transition-all inline-flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5 shrink-0"
+          title="Accès Git, mot de passe et clés SSH pour cloner ce site"
+        >
+          <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+          <span class="hidden sm:inline">Git</span>
+        </button>
+      {/if}
 
       <button
         onclick={handlePublish}
@@ -2311,15 +2313,13 @@
       </div>
 
       {#if user}
-        <button
-          type="button"
-          onclick={() => { isGitModalOpen = true; }}
-          class="hidden lg:flex items-center gap-2 text-xs font-mono text-muted-foreground hover:text-foreground dark:hover:text-white border-l border-black/10 dark:border-white/10 pl-2.5 shrink-0 cursor-pointer transition-colors"
-          title="Voir votre profil et accès Git"
+        <div
+          class="hidden lg:flex items-center gap-2 text-xs font-mono text-muted-foreground border-l border-black/10 dark:border-white/10 pl-2.5 shrink-0 select-none"
+          title="Compte connecté"
         >
           <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
           <span class="hidden xl:inline truncate max-w-[120px] 2xl:max-w-[160px]">{user.email || user.github_username}</span>
-        </button>
+        </div>
       {/if}
 
       <button
