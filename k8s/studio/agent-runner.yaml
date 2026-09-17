@@ -32,6 +32,9 @@ spec:
               value: "/data"
             - name: MAX_CONCURRENT_TURNS
               value: "3"
+            # Idle memory optimizations:
+            # - IDLE_SERVER_TIMEOUT_MS: reap inactive preview dev/prod servers after 10m
+            # - MAX_RUNNING_DEV_SERVERS: limit concurrently running dev servers with LRU eviction
             - name: IDLE_SERVER_TIMEOUT_MS
               value: "600000"
             - name: MAX_RUNNING_DEV_SERVERS
@@ -41,6 +44,7 @@ spec:
           resources:
             requests:
               cpu: 250m
+              # Lowered idle memory reservation baseline
               memory: 512Mi
             limits:
               cpu: 2000m
