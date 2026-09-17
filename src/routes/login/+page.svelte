@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/stores";
   import BrandMark from "$lib/components/brand-mark.svelte";
+  import StudioLoader from "$lib/components/studio-loader.svelte";
 
   const errorParam = $page.url.searchParams.get("error");
 
@@ -204,41 +205,7 @@
 <div class="relative min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-4 py-12 grain-overlay overflow-hidden">
   <!-- Splash screen with flashing Ether logo while token is verified -->
   {#if checkingAuth}
-    <div
-      id="auth-splash-screen"
-      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md transition-opacity duration-300"
-    >
-      <div class="relative flex flex-col items-center justify-center">
-        <!-- Ambient aura glow -->
-        <div class="absolute -inset-10 rounded-full bg-brand/10 blur-3xl pointer-events-none"></div>
-
-        <!-- Flashing / breathing transparent Ether logo -->
-        <img
-          src="/ether-logo-official.png"
-          alt="ether"
-          width={130}
-          height={114}
-          class="h-16 sm:h-20 w-auto object-contain animate-ether-pulse dark:hidden relative z-10 select-none"
-        />
-        <img
-          src="/ether-logo-white.png"
-          alt="ether"
-          width={130}
-          height={114}
-          class="h-16 sm:h-20 w-auto object-contain animate-ether-pulse hidden dark:block relative z-10 select-none"
-        />
-
-        <!-- Status label -->
-        <p class="mt-8 font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground animate-pulse text-center">
-          Connexion au Studio...
-        </p>
-
-        <!-- Subtle loading indicator line -->
-        <div class="mt-4 h-0.5 w-28 overflow-hidden rounded-full bg-foreground/10 relative">
-          <div class="absolute inset-y-0 w-1/2 rounded-full bg-brand animate-shimmer-slide"></div>
-        </div>
-      </div>
-    </div>
+    <StudioLoader id="auth-splash-screen" />
   {/if}
 
   <!-- Main login content (fades in once auth verification completes or if no token) -->

@@ -11,6 +11,8 @@
   import Studio from '$lib/components/studio.svelte';
   import Testimonials from '$lib/components/testimonials.svelte';
   import Button from '$lib/components/button.svelte';
+  import { navigating } from '$app/stores';
+  import { isStudioNavigating, startStudioNavigation } from '$lib/stores/studio-nav';
 
   import type { PageData } from './$types';
 
@@ -27,6 +29,14 @@
   let socials = $derived(site.socials);
   let year = new Date().getFullYear();
   let rights = $derived(footer.rights.replace('{year}', year.toString()).replace('{name}', site.name));
+
+  let studioLoading = $derived(
+    $isStudioNavigating ||
+    Boolean(
+      $navigating?.to?.url.pathname &&
+      ($navigating.to.url.pathname.startsWith('/studio') || $navigating.to.url.pathname.startsWith('/login'))
+    )
+  );
 </script>
 
 <svelte:head>
@@ -86,6 +96,8 @@
             href="/studio"
             size="lg"
             variant="solid"
+            loading={studioLoading}
+            onclick={startStudioNavigation}
           >
             {sections.platform.primaryCta}
           </Button>

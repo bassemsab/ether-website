@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { page } from '$app/stores';
+  import { page, navigating } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { isStudioNavigating, startStudioNavigation } from '$lib/stores/studio-nav';
   import Button from './button.svelte';
   import { cn } from '$utils/cn';
   import { locales, localeAbbreviations, isLocale, localeDirections } from '$lib/i18n/config';
@@ -67,6 +68,18 @@
        document.cookie = `NEXT_LOCALE=${value}; path=/;`; // Keep cookie for persistence if needed
        goto(target.href);
     }
+  }
+
+  let studioLoading = $derived(
+    $isStudioNavigating ||
+    Boolean(
+      $navigating?.to?.url.pathname &&
+      ($navigating.to.url.pathname.startsWith('/studio') || $navigating.to.url.pathname.startsWith('/login'))
+    )
+  );
+
+  function handleStudioClick() {
+    startStudioNavigation();
   }
 
   function scrollToContact() {
@@ -139,9 +152,20 @@
       </div>
       <a
         href="/studio"
-        class="whitespace-nowrap inline-flex items-center justify-center rounded-full border border-black/10 bg-surface/80 px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-foreground transition hover:border-brand hover:bg-brand hover:text-white"
+        onclick={handleStudioClick}
+        aria-busy={studioLoading}
+        class={cn(
+          "whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-full border border-black/10 bg-surface/80 px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-foreground transition hover:border-brand hover:bg-brand hover:text-white",
+          studioLoading && "pointer-events-none opacity-80 cursor-wait border-brand/40 text-brand"
+        )}
       >
-        {studioLabel || "Studio"}
+        {#if studioLoading}
+          <svg class="h-3 w-3 animate-spin text-current shrink-0" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        {/if}
+        <span>{studioLabel || "Studio"}</span>
       </a>
       <Button
         type="button"
@@ -226,10 +250,20 @@
       {/each}
       <a
         href="/studio"
-        onclick={() => open = false}
-        class="block rounded-2xl border border-black/10 bg-surface px-5 py-3 text-center text-sm font-medium uppercase tracking-[0.2em] text-foreground transition hover:border-brand hover:bg-brand hover:text-white"
+        onclick={() => { open = false; handleStudioClick(); }}
+        aria-busy={studioLoading}
+        class={cn(
+          "flex items-center justify-center gap-2 rounded-2xl border border-black/10 bg-surface px-5 py-3 text-center text-sm font-medium uppercase tracking-[0.2em] text-foreground transition hover:border-brand hover:bg-brand hover:text-white",
+          studioLoading && "pointer-events-none opacity-80 cursor-wait border-brand/40 text-brand"
+        )}
       >
-        {studioLabel || "Studio"}
+        {#if studioLoading}
+          <svg class="h-3.5 w-3.5 animate-spin text-current shrink-0" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        {/if}
+        <span>{studioLabel || "Studio"}</span>
       </a>
       <Button
         type="button"
