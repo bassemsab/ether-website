@@ -91,6 +91,7 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
     if (contentType.includes("text/html")) {
       resHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
       if (isPreview) {
+        var html = await res.text();
         var guardScript = \`<script>
 (function(){
   try{
@@ -232,68 +233,34 @@ async function proxyToRunner(slug, req, rawHost, isPreview = false) {
   return null;
 }
 
-var serverOptions = {
-  baseURI: env("ORIGIN", undefined),
-  hostname,
-  port,
-  development: env("SERVERDEV", build_options.development ?? false),
-  error(error) {
-    console.error(error);
-    return new Response("Uh oh!!", { status: 500 });
-  },
-  async fetch(req, srv) {
-    var rawHost =
-      req.headers.get("x-forwarded-host") ||
-      req.headers.get("host") ||
-      "";
-    var host = rawHost.split(":")[0].toLowerCase();
-    var url = new URL(req.url);
-
-    // 1. If running in a tenant namespace with TENANT_SLUG defined (e.g. web-prod)
-    var envSlug = process.env.TENANT_SLUG;
-    if (envSlug) {
-      try {
-        var proxied = await proxyToRunner(envSlug, req, rawHost, false);
-        if (proxied) return proxied;
-      } catch (err) {
-        console.warn("[Proxy to runner failed for tenant " + envSlug + "]:", err.message);
-      }
-    }
-
-    // 2. Check if host is a preview subdomain (e.g. preview-tester.ether.paris)
-    if (host.startsWith("preview-") && host.endsWith(".ether.paris")) {
-      var candidate = host.slice(8).replace(".ether.paris", "");
-      if (candidate.length > 0 && !RESERVED_SLUGS.has(candidate)) {
-        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
-          var protocol =
-            req.headers.get("sec-websocket-protocol") || "vite-hmr";
-          var targetWsUrl = runnerUrl.replace(/^http/, "ws") + "/dev/" + candidate + url.pathname + url.search;
-          var upgraded = srv.upgrade(req, {
-            data: { targetWsUrl: targetWsUrl, protocol: protocol, tenantSlug: candidate },
-            headers: protocol
-              ? { "Sec-WebSocket-Protocol": protocol }
-              : undefined,
-          });
-          if (upgraded) return undefined;
-        }
-
-        try {
-          var proxied = await proxyToRunner(candidate, req, rawHost, true);
-          if (proxied) return proxied;
-        } catch (err) {
-          console.warn("[Preview proxy failed for " + candidate + "]:", err.message);
-        }
-      }
-    }
+function isScannerProbe(pathname) {
+  var p = pathname.toLowerCase();
+  if (
+    p.startsWith("/wp-") ||
+    p.startsWith("/xmlrpc") ||
+    p.startsWith("/.env") ||
+    p.startsWith("/.git") ||
+    p.startsWith("/php") ||
+    p.startsWith("/actuator") ||
+    p.startsWith("/setup.cgi") ||
+    p.startsWith("/solr") ||
+    p.startsWith("/autodiscover") ||
+    p.startsWith("/config.")
+  ) {
+    return true;
+  }
+  var exts = [".php", ".asp", ".aspx", ".jsp", ".cgi", ".env", ".git", ".bak", ".old"];
+  for (var i = 0; i < exts.length; i++) {
+    if (p.endsWith(exts[i])) return true;
+  }
+  return false;
+}
 
 async function handleTenantProdRequest(slug, req, rawHost) {
   var url = new URL(req.url);
 
   // 1. Instant 404 for vulnerability scanners
-  if (
-    /^\/(?:wp-|xmlrpc|\.env|\.git|php|actuator|setup\.cgi|solr|autodiscover|config\.)/i.test(url.pathname) ||
-    /\.(?:php|asp|aspx|jsp|cgi|env|git|bak|old)$/i.test(url.pathname)
-  ) {
+  if (isScannerProbe(url.pathname)) {
     return new Response("Not Found", { status: 404 });
   }
 
@@ -397,6 +364,60 @@ async function handleTenantProdRequest(slug, req, rawHost) {
   // 5. Fallback to runner if tenant pod is not yet provisioned
   return proxyToRunner(slug, req, rawHost, false);
 }
+
+var serverOptions = {
+  baseURI: env("ORIGIN", undefined),
+  hostname,
+  port,
+  development: env("SERVERDEV", build_options.development ?? false),
+  error(error) {
+    console.error(error);
+    return new Response("Uh oh!!", { status: 500 });
+  },
+  async fetch(req, srv) {
+    var rawHost =
+      req.headers.get("x-forwarded-host") ||
+      req.headers.get("host") ||
+      "";
+    var host = rawHost.split(":")[0].toLowerCase();
+    var url = new URL(req.url);
+
+    // 1. If running in a tenant namespace with TENANT_SLUG defined (e.g. web-prod)
+    var envSlug = process.env.TENANT_SLUG;
+    if (envSlug) {
+      try {
+        var proxied = await proxyToRunner(envSlug, req, rawHost, false);
+        if (proxied) return proxied;
+      } catch (err) {
+        console.warn("[Proxy to runner failed for tenant " + envSlug + "]:", err.message);
+      }
+    }
+
+    // 2. Check if host is a preview subdomain (e.g. preview-tester.ether.paris)
+    if (host.startsWith("preview-") && host.endsWith(".ether.paris")) {
+      var candidate = host.slice(8).replace(".ether.paris", "");
+      if (candidate.length > 0 && !RESERVED_SLUGS.has(candidate)) {
+        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          var protocol =
+            req.headers.get("sec-websocket-protocol") || "vite-hmr";
+          var targetWsUrl = runnerUrl.replace(/^http/, "ws") + "/dev/" + candidate + url.pathname + url.search;
+          var upgraded = srv.upgrade(req, {
+            data: { targetWsUrl: targetWsUrl, protocol: protocol, tenantSlug: candidate },
+            headers: protocol
+              ? { "Sec-WebSocket-Protocol": protocol }
+              : undefined,
+          });
+          if (upgraded) return undefined;
+        }
+
+        try {
+          var proxied = await proxyToRunner(candidate, req, rawHost, true);
+          if (proxied) return proxied;
+        } catch (err) {
+          console.warn("[Preview proxy failed for " + candidate + "]:", err.message);
+        }
+      }
+    }
 
     // 3. Check if host is a published tenant (e.g. tester.ether.paris)
     if (

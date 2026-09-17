@@ -232,6 +232,176 @@ async function proxyToRunner(
   return null;
 }
 
+function isScannerProbe(pathname: string): boolean {
+  const p = pathname.toLowerCase();
+  if (
+    p.startsWith("/wp-") ||
+    p.startsWith("/xmlrpc") ||
+    p.startsWith("/.env") ||
+    p.startsWith("/.git") ||
+    p.startsWith("/php") ||
+    p.startsWith("/actuator") ||
+    p.startsWith("/setup.cgi") ||
+    p.startsWith("/solr") ||
+    p.startsWith("/autodiscover") ||
+    p.startsWith("/config.")
+  ) {
+    return true;
+  }
+  const exts = [
+    ".php",
+    ".asp",
+    ".aspx",
+    ".jsp",
+    ".cgi",
+    ".env",
+    ".git",
+    ".bak",
+    ".old",
+  ];
+  for (let i = 0; i < exts.length; i++) {
+    if (p.endsWith(exts[i])) return true;
+  }
+  return false;
+}
+
+async function handleTenantProdRequest(
+  slug: string,
+  req: Request,
+  rawHost: string,
+): Promise<Response | null> {
+  const url = new URL(req.url);
+
+  // 1. Instant 404 for vulnerability scanners
+  if (isScannerProbe(url.pathname)) {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  const userAgent = req.headers.get("user-agent") || "";
+  const isCrawler =
+    /Googlebot|bingbot|yandex|Baiduspider|DuckDuckBot/i.test(userAgent);
+  const targetPodUrl = `http://web-prod.tenant-${slug}.svc.cluster.local:3000`;
+
+  // Quick check if the tenant pod is awake
+  let isAwake = false;
+  try {
+    const probe = await fetch(`${targetPodUrl}/api/_health`, {
+      signal: AbortSignal.timeout(200),
+    });
+    if (probe.ok) isAwake = true;
+  } catch {}
+
+  // 2. Search crawler policy: if asleep, serve pre-rendered static HTML directly from disk/PVC in 5ms
+  if (isCrawler && !isAwake) {
+    const codeDir = process.env.DATA_DIR
+      ? `${process.env.DATA_DIR}/tenants/${slug}/code`
+      : `/data/tenants/${slug}/code`;
+    const candidates = [
+      `${codeDir}/.output/public/index.html`,
+      `${codeDir}/build/client/index.html`,
+      `${codeDir}/dist/index.html`,
+      `${codeDir}/public/index.html`,
+    ];
+    for (const c of candidates) {
+      const file = Bun.file(c);
+      if (await file.exists()) {
+        return new Response(file, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=3600",
+            "X-Served-By": "Ether-Static-Crawler-Cache",
+          },
+        });
+      }
+    }
+  }
+
+  // 3. If asleep and visitor is human: wake up the pod in background (~800ms) while holding connection
+  if (!isAwake) {
+    try {
+      console.log(
+        `[wake-on-request] Scaling up pod for tenant '${slug}'...`,
+      );
+      const scaleProc = Bun.spawn(
+        [
+          "kubectl",
+          "scale",
+          "deployment/web-prod",
+          "--replicas=1",
+          "-n",
+          `tenant-${slug}`,
+        ],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      await scaleProc.exited;
+
+      for (let attempt = 0; attempt < 80; attempt++) {
+        try {
+          const check = await fetch(`${targetPodUrl}/api/_health`, {
+            signal: AbortSignal.timeout(250),
+          });
+          if (check.ok) {
+            isAwake = true;
+            break;
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    } catch (err: any) {
+      console.warn(
+        `[wake-on-request] Failed to scale up tenant ${slug}:`,
+        err.message,
+      );
+    }
+  }
+
+  // 4. Proxy to the live tenant pod if awake
+  if (isAwake) {
+    const forwardHeaders = new Headers(req.headers);
+    forwardHeaders.set(
+      "host",
+      `web-prod.tenant-${slug}.svc.cluster.local:3000`,
+    );
+    forwardHeaders.set("x-forwarded-host", rawHost);
+    forwardHeaders.set("accept-encoding", "identity");
+
+    const reqBody =
+      req.method !== "GET" && req.method !== "HEAD"
+        ? await req.blob()
+        : undefined;
+
+    try {
+      const podRes = await fetch(
+        `${targetPodUrl}${url.pathname}${url.search}`,
+        {
+          method: req.method,
+          headers: forwardHeaders,
+          body: reqBody,
+        },
+      );
+
+      const resHeaders = new Headers(podRes.headers);
+      resHeaders.delete("content-encoding");
+      resHeaders.delete("content-length");
+
+      return new Response(podRes.body, {
+        status: podRes.status,
+        statusText: podRes.statusText,
+        headers: resHeaders,
+      });
+    } catch (err: any) {
+      console.warn(
+        `[Proxy to tenant pod failed for ${slug}]:`,
+        err.message,
+      );
+    }
+  }
+
+  // 5. Fallback to runner if tenant pod is not yet provisioned
+  return proxyToRunner(slug, req, rawHost, false);
+}
+
 const serverOptions: any = {
   baseURI: env("ORIGIN", undefined),
   hostname,
@@ -285,148 +455,6 @@ const serverOptions: any = {
           console.warn(`[Preview proxy failed for ${candidate}]:`, err.message);
         }
       }
-    }
-
-    async function handleTenantProdRequest(
-      slug: string,
-      req: Request,
-      rawHost: string,
-    ): Promise<Response | null> {
-      const url = new URL(req.url);
-
-      // 1. Instant 404 for vulnerability scanners
-      if (
-        /^\/(?:wp-|xmlrpc|\.env|\.git|php|actuator|setup\.cgi|solr|autodiscover|config\.)/i.test(
-          url.pathname,
-        ) ||
-        /\.(?:php|asp|aspx|jsp|cgi|env|git|bak|old)$/i.test(url.pathname)
-      ) {
-        return new Response("Not Found", { status: 404 });
-      }
-
-      const userAgent = req.headers.get("user-agent") || "";
-      const isCrawler =
-        /Googlebot|bingbot|yandex|Baiduspider|DuckDuckBot/i.test(userAgent);
-      const targetPodUrl = `http://web-prod.tenant-${slug}.svc.cluster.local:3000`;
-
-      // Quick check if the tenant pod is awake
-      let isAwake = false;
-      try {
-        const probe = await fetch(`${targetPodUrl}/api/_health`, {
-          signal: AbortSignal.timeout(200),
-        });
-        if (probe.ok) isAwake = true;
-      } catch {}
-
-      // 2. Search crawler policy: if asleep, serve pre-rendered static HTML directly from disk/PVC in 5ms
-      if (isCrawler && !isAwake) {
-        const codeDir = process.env.DATA_DIR
-          ? `${process.env.DATA_DIR}/tenants/${slug}/code`
-          : `/data/tenants/${slug}/code`;
-        const candidates = [
-          `${codeDir}/.output/public/index.html`,
-          `${codeDir}/build/client/index.html`,
-          `${codeDir}/dist/index.html`,
-          `${codeDir}/public/index.html`,
-        ];
-        for (const c of candidates) {
-          const file = Bun.file(c);
-          if (await file.exists()) {
-            return new Response(file, {
-              status: 200,
-              headers: {
-                "Content-Type": "text/html; charset=utf-8",
-                "Cache-Control": "public, max-age=3600",
-                "X-Served-By": "Ether-Static-Crawler-Cache",
-              },
-            });
-          }
-        }
-      }
-
-      // 3. If asleep and visitor is human: wake up the pod in background (~800ms) while holding connection
-      if (!isAwake) {
-        try {
-          console.log(
-            `[wake-on-request] Scaling up pod for tenant '${slug}'...`,
-          );
-          const scaleProc = Bun.spawn(
-            [
-              "kubectl",
-              "scale",
-              "deployment/web-prod",
-              "--replicas=1",
-              "-n",
-              `tenant-${slug}`,
-            ],
-            { stdout: "pipe", stderr: "pipe" },
-          );
-          await scaleProc.exited;
-
-          for (let attempt = 0; attempt < 80; attempt++) {
-            try {
-              const check = await fetch(`${targetPodUrl}/api/_health`, {
-                signal: AbortSignal.timeout(250),
-              });
-              if (check.ok) {
-                isAwake = true;
-                break;
-              }
-            } catch {}
-            await new Promise((r) => setTimeout(r, 100));
-          }
-        } catch (err: any) {
-          console.warn(
-            `[wake-on-request] Failed to scale up tenant ${slug}:`,
-            err.message,
-          );
-        }
-      }
-
-      // 4. Proxy to the live tenant pod if awake
-      if (isAwake) {
-        const forwardHeaders = new Headers(req.headers);
-        forwardHeaders.set(
-          "host",
-          `web-prod.tenant-${slug}.svc.cluster.local:3000`,
-        );
-        forwardHeaders.set("x-forwarded-host", rawHost);
-        forwardHeaders.set("accept-encoding", "identity");
-
-        const reqBody =
-          req.method !== "GET" && req.method !== "HEAD"
-            ? await req.blob()
-            : undefined;
-
-        try {
-          const podRes = await fetch(
-            `${targetPodUrl}${url.pathname}${url.search}`,
-            {
-              method: req.method,
-              headers: forwardHeaders,
-              body: reqBody,
-            },
-          );
-
-          const resHeaders = new Headers(podRes.headers);
-          resHeaders.delete("content-encoding");
-          resHeaders.delete("content-length");
-
-          return new Response(podRes.body, {
-            status: podRes.status,
-            statusText: podRes.statusText,
-            headers: resHeaders,
-          });
-        } catch (err: any) {
-          console.warn(
-            `[Proxy to tenant pod failed for ${slug}]:`,
-            err.message,
-          );
-        }
-      }
-
-      // 5. Fallback to runner if tenant pod is not yet provisioned
-      return proxyToRunner(slug, req, rawHost, false);
     }
 
     // 3. Check if host is a published tenant (e.g. tester.ether.paris)
