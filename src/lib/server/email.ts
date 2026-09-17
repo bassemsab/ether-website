@@ -111,7 +111,6 @@ export async function sendContactEmail(payload: ContactPayload) {
           max-width: 520px;
           margin: 0 auto;
           background-color: #FFFFFF;
-          background-image: linear-gradient(#FFFFFF, #FFFFFF);
           border: 1px solid #e5e7eb;
           border-radius: 16px;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
@@ -123,12 +122,7 @@ export async function sendContactEmail(payload: ContactPayload) {
           width: 72px;
           height: auto;
           vertical-align: middle;
-        }
-        .logo-light {
-          display: inline-block;
-        }
-        .logo-dark {
-          display: none;
+          mix-blend-mode: difference;
         }
         @media (prefers-color-scheme: dark) {
           body, .email-table {
@@ -136,16 +130,9 @@ export async function sendContactEmail(payload: ContactPayload) {
           }
           .email-card {
             background-color: #14141b !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
             color: #F1F5F9 !important;
-          }
-          .logo-light {
-            display: none !important;
-          }
-          .logo-dark {
-            display: inline-block !important;
           }
           .card-title, .val-text {
             color: #F8FAFC !important;
@@ -170,16 +157,9 @@ export async function sendContactEmail(payload: ContactPayload) {
         }
         [data-ogsc] .email-card, [data-ogsb] .email-card {
           background-color: #14141b !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
           color: #F1F5F9 !important;
-        }
-        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
-          display: none !important;
-        }
-        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
-          display: inline-block !important;
         }
         [data-ogsc] .details-box, [data-ogsb] .details-box {
           background-color: #1a1a24 !important;
@@ -197,24 +177,25 @@ export async function sendContactEmail(payload: ContactPayload) {
       <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; padding: 36px 16px;">
         <tr>
           <td align="center" style="padding: 36px 16px; background-color: #f9fafb;">
-            <div class="email-card" style="max-width: 520px; margin: 0 auto; background-color: #FFFFFF; background-image: linear-gradient(#FFFFFF, #FFFFFF); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: left;">
+            <div class="email-card" style="max-width: 520px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: left;">
               
               <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
+                <!--[if mso]>
                 <img
                   src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <![endif]-->
                 <!--[if !mso]><!-->
                 <img
                   src="https://ether.paris/ether-logo-white.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-dark"
-                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                  class="logo-mark"
+                  style="mix-blend-mode: difference; display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
                 <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
@@ -361,7 +342,6 @@ export async function sendOtpEmail(email: string, code: string) {
           max-width: 480px;
           margin: 0 auto;
           background-color: #FFFFFF;
-          background-image: linear-gradient(#FFFFFF, #FFFFFF);
           border: 1px solid #e5e7eb;
           border-radius: 16px;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
@@ -373,12 +353,7 @@ export async function sendOtpEmail(email: string, code: string) {
           width: 72px;
           height: auto;
           vertical-align: middle;
-        }
-        .logo-light {
-          display: inline-block;
-        }
-        .logo-dark {
-          display: none;
+          mix-blend-mode: difference;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -399,7 +374,6 @@ export async function sendOtpEmail(email: string, code: string) {
           margin: 24px 0;
           padding: 22px 16px;
           background-color: #f8fafc;
-          background-image: linear-gradient(#f8fafc, #f8fafc);
           border: 1px solid #e2e8f0;
           border-radius: 12px;
           text-align: center;
@@ -434,16 +408,9 @@ export async function sendOtpEmail(email: string, code: string) {
           }
           .email-card {
             background-color: #14141b !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
             color: #F1F5F9 !important;
-          }
-          .logo-light {
-            display: none !important;
-          }
-          .logo-dark {
-            display: inline-block !important;
           }
           .greeting, .code-number {
             color: #F8FAFC !important;
@@ -453,7 +420,6 @@ export async function sendOtpEmail(email: string, code: string) {
           }
           .code-container {
             background-color: #1a1a24 !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
             color: #F1F5F9 !important;
@@ -465,20 +431,12 @@ export async function sendOtpEmail(email: string, code: string) {
         }
         [data-ogsc] .email-card, [data-ogsb] .email-card {
           background-color: #14141b !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
-          display: none !important;
-        }
-        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
-          display: inline-block !important;
-        }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
         }
@@ -488,24 +446,25 @@ export async function sendOtpEmail(email: string, code: string) {
       <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f9fafb;">
         <tr>
           <td align="center" style="padding: 32px 16px;">
-            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; background-image: linear-gradient(#FFFFFF, #FFFFFF); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
+            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
               
               <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
+                <!--[if mso]>
                 <img
                   src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <![endif]-->
                 <!--[if !mso]><!-->
                 <img
                   src="https://ether.paris/ether-logo-white.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-dark"
-                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                  class="logo-mark"
+                  style="mix-blend-mode: difference; display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
                 <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
@@ -522,7 +481,7 @@ export async function sendOtpEmail(email: string, code: string) {
               </p>
 
               <!-- OTP code container -->
-              <div class="code-container" style="margin: 24px 0; padding: 22px 16px; background-color: #f8fafc; background-image: linear-gradient(#f8fafc, #f8fafc); border: 1px solid #e2e8f0; border-radius: 12px; text-align: center;">
+              <div class="code-container" style="margin: 24px 0; padding: 22px 16px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: center;">
                 <div class="code-number" style="font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 34px; font-weight: 700; letter-spacing: 0.35em; color: #1E1B39;">
                   ${code}
                 </div>
@@ -731,7 +690,6 @@ export async function sendPromptTopupConfirmationEmail(
           max-width: 480px;
           margin: 0 auto;
           background-color: #FFFFFF;
-          background-image: linear-gradient(#FFFFFF, #FFFFFF);
           border: 1px solid #e5e7eb;
           border-radius: 16px;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
@@ -743,12 +701,7 @@ export async function sendPromptTopupConfirmationEmail(
           width: 72px;
           height: auto;
           vertical-align: middle;
-        }
-        .logo-light {
-          display: inline-block;
-        }
-        .logo-dark {
-          display: none;
+          mix-blend-mode: difference;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -769,7 +722,6 @@ export async function sendPromptTopupConfirmationEmail(
           margin: 24px 0;
           padding: 20px;
           background-color: #f8fafc;
-          background-image: linear-gradient(#f8fafc, #f8fafc);
           border: 1px solid #e2e8f0;
           border-radius: 12px;
           text-align: left;
@@ -815,16 +767,9 @@ export async function sendPromptTopupConfirmationEmail(
           }
           .email-card {
             background-color: #14141b !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
             color: #F1F5F9 !important;
-          }
-          .logo-light {
-            display: none !important;
-          }
-          .logo-dark {
-            display: inline-block !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
@@ -834,7 +779,6 @@ export async function sendPromptTopupConfirmationEmail(
           }
           .code-container {
             background-color: #1a1a24 !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
           }
@@ -851,20 +795,12 @@ export async function sendPromptTopupConfirmationEmail(
         }
         [data-ogsc] .email-card, [data-ogsb] .email-card {
           background-color: #14141b !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
-          display: none !important;
-        }
-        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
-          display: inline-block !important;
-        }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
         }
@@ -879,24 +815,25 @@ export async function sendPromptTopupConfirmationEmail(
       <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f9fafb;">
         <tr>
           <td align="center" style="padding: 32px 16px;">
-            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; background-image: linear-gradient(#FFFFFF, #FFFFFF); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
+            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
               
               <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
+                <!--[if mso]>
                 <img
                   src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <![endif]-->
                 <!--[if !mso]><!-->
                 <img
                   src="https://ether.paris/ether-logo-white.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-dark"
-                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                  class="logo-mark"
+                  style="mix-blend-mode: difference; display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
                 <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
@@ -1050,7 +987,6 @@ export async function sendDomainPurchaseConfirmationEmail(
           max-width: 480px;
           margin: 0 auto;
           background-color: #FFFFFF;
-          background-image: linear-gradient(#FFFFFF, #FFFFFF);
           border: 1px solid #e5e7eb;
           border-radius: 16px;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
@@ -1062,12 +998,7 @@ export async function sendDomainPurchaseConfirmationEmail(
           width: 72px;
           height: auto;
           vertical-align: middle;
-        }
-        .logo-light {
-          display: inline-block;
-        }
-        .logo-dark {
-          display: none;
+          mix-blend-mode: difference;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -1088,7 +1019,6 @@ export async function sendDomainPurchaseConfirmationEmail(
           margin: 24px 0;
           padding: 20px;
           background-color: #f8fafc;
-          background-image: linear-gradient(#f8fafc, #f8fafc);
           border: 1px solid #e2e8f0;
           border-radius: 12px;
           text-align: left;
@@ -1134,16 +1064,9 @@ export async function sendDomainPurchaseConfirmationEmail(
           }
           .email-card {
             background-color: #14141b !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
             color: #F1F5F9 !important;
-          }
-          .logo-light {
-            display: none !important;
-          }
-          .logo-dark {
-            display: inline-block !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
@@ -1153,7 +1076,6 @@ export async function sendDomainPurchaseConfirmationEmail(
           }
           .code-container {
             background-color: #1a1a24 !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
           }
@@ -1170,20 +1092,12 @@ export async function sendDomainPurchaseConfirmationEmail(
         }
         [data-ogsc] .email-card, [data-ogsb] .email-card {
           background-color: #14141b !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
-          display: none !important;
-        }
-        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
-          display: inline-block !important;
-        }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
         }
@@ -1198,24 +1112,25 @@ export async function sendDomainPurchaseConfirmationEmail(
       <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f9fafb;">
         <tr>
           <td align="center" style="padding: 32px 16px;">
-            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; background-image: linear-gradient(#FFFFFF, #FFFFFF); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
+            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
               
               <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
+                <!--[if mso]>
                 <img
                   src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <![endif]-->
                 <!--[if !mso]><!-->
                 <img
                   src="https://ether.paris/ether-logo-white.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-dark"
-                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                  class="logo-mark"
+                  style="mix-blend-mode: difference; display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
                 <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
@@ -1360,7 +1275,6 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           max-width: 480px;
           margin: 0 auto;
           background-color: #FFFFFF;
-          background-image: linear-gradient(#FFFFFF, #FFFFFF);
           border: 1px solid #e5e7eb;
           border-radius: 16px;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
@@ -1372,12 +1286,7 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           width: 72px;
           height: auto;
           vertical-align: middle;
-        }
-        .logo-light {
-          display: inline-block;
-        }
-        .logo-dark {
-          display: none;
+          mix-blend-mode: difference;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -1398,7 +1307,6 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           margin: 24px 0;
           padding: 20px;
           background-color: #f8fafc;
-          background-image: linear-gradient(#f8fafc, #f8fafc);
           border: 1px solid #e2e8f0;
           border-radius: 12px;
           text-align: left;
@@ -1444,16 +1352,9 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           }
           .email-card {
             background-color: #14141b !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
             color: #F1F5F9 !important;
-          }
-          .logo-light {
-            display: none !important;
-          }
-          .logo-dark {
-            display: inline-block !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
@@ -1463,7 +1364,6 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           }
           .code-container {
             background-color: #1a1a24 !important;
-            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
           }
@@ -1480,20 +1380,12 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
         }
         [data-ogsc] .email-card, [data-ogsb] .email-card {
           background-color: #14141b !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
-          display: none !important;
-        }
-        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
-          display: inline-block !important;
-        }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
-          background-image: none !important;
           border: 1px solid rgba(255, 255, 255, 0.1) !important;
           box-shadow: none !important;
         }
@@ -1508,24 +1400,25 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
       <table role="presentation" class="email-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f9fafb;">
         <tr>
           <td align="center" style="padding: 32px 16px;">
-            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; background-image: linear-gradient(#FFFFFF, #FFFFFF); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
+            <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
               
               <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
+                <!--[if mso]>
                 <img
                   src="https://ether.paris/ether-logo-official.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-light"
                   style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
+                <![endif]-->
                 <!--[if !mso]><!-->
                 <img
                   src="https://ether.paris/ether-logo-white.png"
                   alt="ether"
                   width="72"
-                  class="logo-mark logo-dark"
-                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                  class="logo-mark"
+                  style="mix-blend-mode: difference; display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
                 />
                 <!--<![endif]-->
                 <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
