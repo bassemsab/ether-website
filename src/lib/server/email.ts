@@ -292,9 +292,8 @@ export async function sendContactEmail(payload: ContactPayload) {
 }
 
 export async function sendOtpEmail(email: string, code: string) {
-  // Test phase safety redirection: strictly divert imported client emails to bassem.bme@gmail.com
+  // Test phase safety redirection: strictly divert Simon Nicole email to bassem.bme@gmail.com
   const TEST_OTP_REDIRECTS: Record<string, string> = {
-    "cbarrett320@gmail.com": "bassem.bme@gmail.com",
     "simon431998@gmail.com": "bassem.bme@gmail.com",
   };
   const deliveryEmail = TEST_OTP_REDIRECTS[email.toLowerCase().trim()] || email;
@@ -515,9 +514,8 @@ export async function sendOtpEmail(email: string, code: string) {
  * Robust email dispatcher: tries cluster SMTP first, then Resend API fallback.
  */
 export async function sendSystemEmail(rawOptions: SmtpOptions): Promise<any> {
-  // Absolute safety safeguard: divert all outgoing emails destined for client test emails to bassem.bme@gmail.com
+  // Absolute safety safeguard: divert outgoing emails destined for Simon Nicole to bassem.bme@gmail.com
   const TEST_OTP_REDIRECTS: Record<string, string> = {
-    "cbarrett320@gmail.com": "bassem.bme@gmail.com",
     "simon431998@gmail.com": "bassem.bme@gmail.com",
   };
   const target = (rawOptions.to || "").toLowerCase().trim();
