@@ -3181,7 +3181,7 @@ const server = Bun.serve({
                       console.warn(
                         `[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`,
                       );
-                      markProfileThrottled(activeProfile, 60 * 60 * 1000);
+                      markProfileThrottled(activeProfile, 3 * 60 * 1000);
 
                       const nextProfile = getNextHealthyProfile(
                         DATA_DIR,
@@ -3433,7 +3433,7 @@ const server = Bun.serve({
                 console.warn(
                   `[Runner] Quota limit detected on profile [${activeProfile}]. Auto-failing over...`,
                 );
-                markProfileThrottled(activeProfile, 60 * 60 * 1000);
+                markProfileThrottled(activeProfile, 3 * 60 * 1000);
 
                 const nextProfile = getNextHealthyProfile(
                   DATA_DIR,

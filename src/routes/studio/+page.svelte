@@ -88,6 +88,41 @@
     }
   }
 
+  interface ContentSegment {
+    type: "text" | "failover";
+    content: string;
+  }
+
+  function parseMessageSegments(content: string): ContentSegment[] {
+    if (!content) return [];
+    // Match failover notifications like: 🔄 Quota Google atteint sur le profil [primary]. Basculement automatique vers le profil sain [secondary]...
+    const failoverRegex = /(?:^|\n+)(🔄\s*[*_]?Quota Google atteint[^\n]+(?:\n[^\n]+)?)/gi;
+    const segments: ContentSegment[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = failoverRegex.exec(content)) !== null) {
+      const textBefore = content.slice(lastIndex, match.index).trim();
+      if (textBefore) {
+        segments.push({ type: "text", content: textBefore });
+      }
+      const rawNotice = match[1].replace(/[*_]/g, "").trim();
+      segments.push({ type: "failover", content: rawNotice });
+      lastIndex = match.index + match[0].length;
+    }
+
+    const remainingText = content.slice(lastIndex).trim();
+    if (remainingText) {
+      segments.push({ type: "text", content: remainingText });
+    }
+
+    if (segments.length === 0 && content.trim()) {
+      segments.push({ type: "text", content: content.trim() });
+    }
+
+    return segments;
+  }
+
   interface Props {
     data: PageData;
   }
@@ -1975,9 +2010,10 @@
         const decoder = new TextDecoder();
         let buffer = "";
 
+        let streamDone = false;
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done || streamDone) break;
           buffer += decoder.decode(value, { stream: true });
           const parts = buffer.split("\n\n");
           buffer = parts.pop() || "";
@@ -1987,6 +2023,8 @@
             if (!trimmed) continue;
             // Ignore keepalive comments
             if (trimmed.startsWith(":")) continue;
+
+            const isDoneEvent = trimmed.includes("event: done") || trimmed.includes('"type":"done"') || trimmed.includes('"event":"done"');
 
             const dataMatch = trimmed.match(/data:\s*(.*)/);
             if (dataMatch) {
@@ -2056,9 +2094,15 @@
                   }
                   scrollToBottom("auto");
                 }
+
+                if (isDoneEvent || data.exitCode !== undefined || data.done === true) {
+                  streamDone = true;
+                  break;
+                }
               } catch (e) {}
             }
           }
+          if (streamDone) break;
         }
         scrollToBottom();
       } else {
@@ -2507,31 +2551,34 @@
         </button>
       {/if}
 
-      <!-- Git Diff Modal Trigger -->
-      <button
-        onclick={() => { isDiffModalOpen = true; }}
-        class="focus-ring px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-foreground dark:text-white text-xs font-medium uppercase tracking-[0.12em] shadow-retro-sm transition-all inline-flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5 shrink-0"
-        title="Voir les différences Git depuis la dernière publication"
-      >
-        <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-        </svg>
-        <span>Diff</span>
-      </button>
-
-      <button
-        onclick={handlePublish}
-        disabled={publishLoading}
-        class="focus-ring w-[100px] h-[30px] rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.12em] shadow-retro-sm transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-75 hover:-translate-y-0.5 shrink-0"
-        title="Publier les modifications en ligne"
-      >
-        {#if publishLoading}
-          <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
-          <span>Publier</span>
-        {:else}
-          <span>Publier</span>
-        {/if}
-      </button>
+      <!-- Publish Button with Disabled State & Hints -->
+      <div class="relative inline-flex items-center shrink-0">
+        <button
+          onclick={handlePublish}
+          disabled={publishLoading || isThinking || revertLoading}
+          class="focus-ring min-w-[100px] h-[30px] px-3.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-medium uppercase tracking-[0.12em] shadow-retro-sm transition-all inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 hover:-translate-y-0.5 shrink-0"
+          title={publishLoading
+            ? "Publication en cours..."
+            : isThinking
+              ? "Publication désactivée pendant le travail de l'agent. En attente des modifications..."
+              : revertLoading
+                ? "Publication désactivée pendant l'annulation..."
+                : "Publier les modifications en ligne"}
+        >
+          {#if publishLoading}
+            <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
+            <span>Publication...</span>
+          {:else if isThinking}
+            <span class="w-2 h-2 rounded-full bg-amber-300 animate-pulse shrink-0"></span>
+            <span>En attente...</span>
+          {:else if revertLoading}
+            <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
+            <span>Annulation...</span>
+          {:else}
+            <span>Publier</span>
+          {/if}
+        </button>
+      </div>
 
       <div class="flex items-center shrink-0">
         <ThemeToggle />
@@ -2618,6 +2665,19 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
               <span class="hidden 2xl:inline">Nouveau</span>
+            </button>
+
+            <!-- Git Diff Trigger Button -->
+            <button
+              type="button"
+              onclick={() => { isDiffModalOpen = true; }}
+              class="h-7 text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center justify-center gap-1 shadow-retro-sm dark:shadow-none shrink-0"
+              title="Voir les différences Git depuis la dernière publication"
+            >
+              <svg class="w-3.5 h-3.5 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+              </svg>
+              <span class="font-medium hidden sm:inline">Diff</span>
             </button>
 
             <!-- Conversations History Dropdown Menu -->
@@ -2897,14 +2957,39 @@
                   {/if}
 
                   {#if msg.content}
-                    <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed px-2 sm:px-2.5 py-1 sm:py-1.5
-                      prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
-                      prose-strong:text-foreground dark:prose-strong:text-white
-                      prose-a:text-brand dark:prose-a:text-indigo-400
-                      prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md
-                      dark:prose-counters:text-neutral-300 dark:prose-bullets:text-neutral-400 dark:prose-li:text-neutral-200">
-                      {@html renderMarkdown(msg.content)}
-                    </div>
+                    {@const segments = parseMessageSegments(msg.content)}
+                    {#if segments.length > 1}
+                      <div class="space-y-3">
+                        {#each segments as seg}
+                          {#if seg.type === 'failover'}
+                            <div class="my-2 px-3 py-2 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-mono flex items-center gap-2 shadow-xs">
+                              <span class="text-sm">🔄</span>
+                              <span class="leading-relaxed font-medium">{seg.content}</span>
+                            </div>
+                          {:else}
+                            <div class="p-3.5 sm:p-4 rounded-2xl bg-black/[0.02] dark:bg-white/[0.025] border border-black/5 dark:border-white/10">
+                              <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed
+                                prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
+                                prose-strong:text-foreground dark:prose-strong:text-white
+                                prose-a:text-brand dark:prose-a:text-indigo-400
+                                prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md
+                                dark:prose-counters:text-neutral-300 dark:prose-bullets:text-neutral-400 dark:prose-li:text-neutral-200">
+                                {@html renderMarkdown(seg.content)}
+                              </div>
+                            </div>
+                          {/if}
+                        {/each}
+                      </div>
+                    {:else}
+                      <div class="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-neutral-100 leading-relaxed px-2 sm:px-2.5 py-1 sm:py-1.5
+                        prose-headings:font-display prose-headings:text-foreground dark:prose-headings:text-white
+                        prose-strong:text-foreground dark:prose-strong:text-white
+                        prose-a:text-brand dark:prose-a:text-indigo-400
+                        prose-code:text-foreground dark:prose-code:text-white prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md
+                        dark:prose-counters:text-neutral-300 dark:prose-bullets:text-neutral-400 dark:prose-li:text-neutral-200">
+                        {@html renderMarkdown(msg.content)}
+                      </div>
+                    {/if}
                   {/if}
                 </div>
               {/if}
@@ -3908,6 +3993,18 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
+          </button>
+
+          <!-- Git Diff Modal Button in Preview Toolbar -->
+          <button
+            onclick={() => { isDiffModalOpen = true; }}
+            class="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors px-2 py-0.5 rounded text-[11px] font-mono cursor-pointer shrink-0 inline-flex items-center gap-1 border border-black/10 dark:border-white/10"
+            title="Voir les différences Git depuis la dernière publication"
+          >
+            <svg class="w-3.5 h-3.5 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+            </svg>
+            <span>Diff</span>
           </button>
 
           <a

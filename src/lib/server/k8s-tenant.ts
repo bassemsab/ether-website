@@ -361,6 +361,19 @@ export async function applyTenantK8s(
       return false;
     }
 
+    // Clean up any legacy ingress in 'ether' namespace that might conflict with this tenant's custom domain
+    try {
+      Bun.spawn([
+        "kubectl",
+        "delete",
+        "ingress",
+        `${config.slug}-web`,
+        "-n",
+        "ether",
+        "--ignore-not-found=true",
+      ]);
+    } catch {}
+
     return true;
   } catch (err: any) {
     console.warn(
