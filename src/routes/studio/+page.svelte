@@ -2667,19 +2667,6 @@
               <span class="hidden 2xl:inline">Nouveau</span>
             </button>
 
-            <!-- Git Diff Trigger Button -->
-            <button
-              type="button"
-              onclick={() => { isDiffModalOpen = true; }}
-              class="h-7 text-[11px] font-mono bg-card dark:bg-white/[0.05] hover:bg-surface dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 rounded-md px-2 text-foreground dark:text-white cursor-pointer outline-none transition-all flex items-center justify-center gap-1 shadow-retro-sm dark:shadow-none shrink-0"
-              title="Voir les différences Git depuis la dernière publication"
-            >
-              <svg class="w-3.5 h-3.5 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-              </svg>
-              <span class="font-medium hidden sm:inline">Diff</span>
-            </button>
-
             <!-- Conversations History Dropdown Menu -->
             <div bind:this={historyMenuContainer} class="relative shrink-0">
               <button
@@ -3286,6 +3273,19 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
+        </button>
+
+        <!-- Git Diff Trigger Button in Code Pane Header -->
+        <button
+          type="button"
+          onclick={() => { isDiffModalOpen = true; }}
+          class="p-1 px-2 rounded-[6px] hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1 text-[11px] font-mono border border-black/10 dark:border-white/10 shadow-xs"
+          title="Voir les différences Git depuis la dernière publication"
+        >
+          <svg class="w-3.5 h-3.5 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+          </svg>
+          <span class="font-medium">Diff</span>
         </button>
 
         <!-- Horizontally Scrollable Tab Strip with Close Buttons -->
@@ -3993,18 +3993,6 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-          </button>
-
-          <!-- Git Diff Modal Button in Preview Toolbar -->
-          <button
-            onclick={() => { isDiffModalOpen = true; }}
-            class="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors px-2 py-0.5 rounded text-[11px] font-mono cursor-pointer shrink-0 inline-flex items-center gap-1 border border-black/10 dark:border-white/10"
-            title="Voir les différences Git depuis la dernière publication"
-          >
-            <svg class="w-3.5 h-3.5 text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-            </svg>
-            <span>Diff</span>
           </button>
 
           <a
