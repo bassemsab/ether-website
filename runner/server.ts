@@ -1797,6 +1797,7 @@ const server = Bun.serve({
         return new Response(`Bundle generation failed: ${err.message}`, {
           status: 500,
           headers: corsHeaders,
+        });
       }
     }
 
