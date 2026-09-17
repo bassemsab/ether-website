@@ -1229,7 +1229,31 @@ async function getOrLaunchTenantDevServer(
 
 // Production Server Management for Published Tenants
 const tenantProdServers = new Map<string, DevServerInstance>();
+const tenantBuildLocks = new Map<string, Promise<void>>();
 let nextAvailableProdPort = 5400;
+
+function findTenantProductionEntrypoint(codeDir: string): { cmd: string[]; type: string } | null {
+  // 1. SvelteKit (bun/node adapter): build/index.js
+  const svelteBuild = join(codeDir, "build", "index.js");
+  if (existsSync(svelteBuild)) {
+    return { cmd: ["bun", "./build/index.js"], type: "sveltekit" };
+  }
+  // 2. TanStack Start / Nitro / Nuxt: .output/server/index.mjs
+  const nitroBuild = join(codeDir, ".output", "server", "index.mjs");
+  if (existsSync(nitroBuild)) {
+    return { cmd: ["bun", ".output/server/index.mjs"], type: "nitro" };
+  }
+  // 3. Vite SSR / Dist: dist/server/index.js or dist/index.js
+  const distServer = join(codeDir, "dist", "server", "index.js");
+  if (existsSync(distServer)) {
+    return { cmd: ["bun", "./dist/server/index.js"], type: "vite-ssr" };
+  }
+  const distIndex = join(codeDir, "dist", "index.js");
+  if (existsSync(distIndex)) {
+    return { cmd: ["bun", "./dist/index.js"], type: "dist" };
+  }
+  return null;
+}
 
 async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
   const existing = tenantProdServers.get(slug);
@@ -1246,37 +1270,52 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
   const tenantEnv = getTenantEnv(slug, codeDir);
   const extraEnvArgs = Object.entries(tenantEnv).map(([k, v]) => `${k}=${v}`);
 
-  const buildIndex = join(codeDir, "build", "index.js");
-  if (!existsSync(buildIndex)) {
-    const buildCmd = isRoot
-      ? [
-          "runuser",
-          "-u",
-          tenantUser,
-          "--",
-          "env",
-          `DB_PATH=${dbPath}`,
-          ...extraEnvArgs,
-          "bun",
-          "run",
-          "build",
-        ]
-      : ["bun", "run", "build"];
-    const buildProc = Bun.spawn(buildCmd, {
-      cwd: codeDir,
-      env: {
-        ...process.env,
-        ...tenantEnv,
-        DB_PATH: dbPath,
-        NODE_ENV: "production",
-      },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    await buildProc.exited;
+  let entrypoint = findTenantProductionEntrypoint(codeDir);
+  if (!entrypoint) {
+    let buildPromise = tenantBuildLocks.get(slug);
+    if (!buildPromise) {
+      buildPromise = (async () => {
+        try {
+          console.log(`[Prod Build] Building production bundle for tenant '${slug}'...`);
+          const buildCmd = isRoot
+            ? [
+                "runuser",
+                "-u",
+                tenantUser,
+                "--",
+                "env",
+                `DB_PATH=${dbPath}`,
+                "NITRO_PRESET=node-server",
+                ...extraEnvArgs,
+                "bun",
+                "run",
+                "build",
+              ]
+            : ["bun", "run", "build"];
+          const buildProc = Bun.spawn(buildCmd, {
+            cwd: codeDir,
+            env: {
+              ...process.env,
+              ...tenantEnv,
+              DB_PATH: dbPath,
+              NODE_ENV: "production",
+              NITRO_PRESET: "node-server",
+            },
+            stdout: "pipe",
+            stderr: "pipe",
+          });
+          await buildProc.exited;
+        } finally {
+          tenantBuildLocks.delete(slug);
+        }
+      })();
+      tenantBuildLocks.set(slug, buildPromise);
+    }
+    await buildPromise;
+    entrypoint = findTenantProductionEntrypoint(codeDir);
   }
 
-  const proc = existsSync(buildIndex)
+  const proc = entrypoint
     ? Bun.spawn(
         isRoot
           ? [
@@ -1289,10 +1328,9 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
               "HOST=0.0.0.0",
               `DB_PATH=${dbPath}`,
               ...extraEnvArgs,
-              "bun",
-              "./build/index.js",
+              ...entrypoint.cmd,
             ]
-          : ["bun", "./build/index.js"],
+          : entrypoint.cmd,
         {
           cwd: codeDir,
           env: {
@@ -1301,6 +1339,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
             PORT: String(port),
             HOST: "0.0.0.0",
             DB_PATH: dbPath,
+            NODE_ENV: "production",
           },
           stdout: "inherit",
           stderr: "inherit",
@@ -1384,6 +1423,7 @@ function stopTenantProdServer(slug: string): boolean {
     try {
       const tenantUser = ensureTenantSystemUser(slug);
       Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", "build/index.js"]);
+      Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", ".output/server/index.mjs"]);
     } catch {}
   }
   tenantProdServers.delete(slug);
