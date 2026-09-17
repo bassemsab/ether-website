@@ -230,6 +230,39 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       );
     }
 
+    // 4.5 Capture pre-rendered HTML snapshot for crawler caching
+    try {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        try {
+          const snapRes = await fetch(
+            `http://web-prod.${namespace}.svc.cluster.local:3000/`,
+            { signal: AbortSignal.timeout(1500) },
+          );
+          if (snapRes.ok) {
+            const snapHtml = await snapRes.text();
+            if (snapHtml && snapHtml.length > 100) {
+              await fetch(`${runnerUrl}/snapshot/${tenantSlug}`, {
+                method: "POST",
+                headers: { "Content-Type": "text/html; charset=utf-8" },
+                body: snapHtml,
+                signal: AbortSignal.timeout(3000),
+              });
+              console.log(
+                `[publish] Saved crawler static snapshot for ${tenantSlug}`,
+              );
+              break;
+            }
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    } catch (snapErr: any) {
+      console.warn(
+        `[publish] Snapshot capture note for ${tenantSlug}:`,
+        snapErr.message,
+      );
+    }
+
     await updateTenantStatus(tenant.domain, "active", {
       updated_at: new Date().toISOString(),
     });

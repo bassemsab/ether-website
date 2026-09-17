@@ -1742,7 +1742,7 @@ const server = Bun.serve({
 
     // Tenant Production Bundle Export Endpoint (Streams .tar.gz for isolated pod deployment)
     const bundleMatch = path.match(/^\/bundle\/([a-zA-Z0-9_-]+)$/);
-    if (bundleMatch && req.method === "GET") {
+    if (bundleMatch && (req.method === "GET" || req.method === "HEAD")) {
       const tenantSlug = bundleMatch[1];
       const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
       if (!existsSync(codeDir)) {
@@ -1796,6 +1796,59 @@ const server = Bun.serve({
       } catch (err: any) {
         return new Response(`Bundle generation failed: ${err.message}`, {
           status: 500,
+          headers: corsHeaders,
+      }
+    }
+
+    // Static HTML Snapshot Endpoint for search crawlers
+    const snapshotMatch = path.match(/^\/snapshot\/([a-zA-Z0-9_-]+)$/);
+    if (snapshotMatch) {
+      const tenantSlug = snapshotMatch[1];
+      const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
+      const snapshotPath = join(codeDir, ".output", "public", "index.html");
+
+      if (req.method === "POST") {
+        try {
+          const body = await req.text();
+          if (body && body.length > 0) {
+            const pubDir = join(codeDir, ".output", "public");
+            if (!existsSync(pubDir)) {
+              Bun.spawnSync(["mkdir", "-p", pubDir]);
+            }
+            await Bun.write(snapshotPath, body);
+            return Response.json({ success: true }, { headers: corsHeaders });
+          }
+        } catch (err: any) {
+          return Response.json(
+            { success: false, error: err.message },
+            { status: 500, headers: corsHeaders },
+          );
+        }
+      }
+
+      if (req.method === "GET" || req.method === "HEAD") {
+        const candidatePaths = [
+          snapshotPath,
+          join(codeDir, "build", "client", "index.html"),
+          join(codeDir, "dist", "index.html"),
+          join(codeDir, "public", "index.html"),
+        ];
+        for (const candidate of candidatePaths) {
+          if (existsSync(candidate)) {
+            const file = Bun.file(candidate);
+            return new Response(file, {
+              status: 200,
+              headers: {
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control": "public, max-age=3600",
+                "X-Served-By": "Ether-Static-Crawler-Cache",
+                "Access-Control-Allow-Origin": "*",
+              },
+            });
+          }
+        }
+        return new Response("Snapshot not found", {
+          status: 404,
           headers: corsHeaders,
         });
       }

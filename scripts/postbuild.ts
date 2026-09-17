@@ -277,21 +277,14 @@ async function handleTenantProdRequest(slug, req, rawHost) {
     if (probe.ok) isAwake = true;
   } catch (_) {}
 
-  // 2. Search crawler policy: if asleep, serve pre-rendered static HTML directly from disk/PVC in 5ms
+  // 2. Search crawler policy: if asleep, serve pre-rendered static HTML directly from runner snapshot in 5ms
   if (isCrawler && !isAwake) {
-    var codeDir = process.env.DATA_DIR
-      ? (process.env.DATA_DIR + "/tenants/" + slug + "/code")
-      : ("/data/tenants/" + slug + "/code");
-    var candidates = [
-      codeDir + "/.output/public/index.html",
-      codeDir + "/build/client/index.html",
-      codeDir + "/dist/index.html",
-      codeDir + "/public/index.html",
-    ];
-    for (var c of candidates) {
-      var file = Bun.file(c);
-      if (await file.exists()) {
-        return new Response(file, {
+    try {
+      var snapRes = await fetch(runnerUrl + "/snapshot/" + slug, {
+        signal: AbortSignal.timeout(1000),
+      });
+      if (snapRes.ok) {
+        return new Response(snapRes.body, {
           status: 200,
           headers: {
             "Content-Type": "text/html; charset=utf-8",
@@ -300,7 +293,7 @@ async function handleTenantProdRequest(slug, req, rawHost) {
           },
         });
       }
-    }
+    } catch (_) {}
   }
 
   // 3. If asleep and visitor is human: wake up the pod in background (~800ms) while holding connection

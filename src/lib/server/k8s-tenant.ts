@@ -9,7 +9,7 @@ export interface TenantK8sConfig {
 }
 
 export function generateTenantManifests(config: TenantK8sConfig): string {
-  const hosts = [config.subdomain];
+  const hosts: string[] = [];
   if (config.customDomain) {
     const cleanCustom = config.customDomain
       .toLowerCase()
@@ -24,11 +24,14 @@ export function generateTenantManifests(config: TenantK8sConfig): string {
     }
   }
 
-  const tlsHosts = hosts.map((h) => `        - ${h}`).join("\n");
   const brandName = (config.brandName || config.slug).replace(/"/g, '\\"');
-  const ingressRules = hosts
-    .map(
-      (h) => `  - host: ${h}
+  let ingressSection = "";
+
+  if (hosts.length > 0) {
+    const tlsHosts = hosts.map((h) => `        - ${h}`).join("\n");
+    const ingressRules = hosts
+      .map(
+        (h) => `  - host: ${h}
     http:
       paths:
       - path: /
@@ -38,8 +41,29 @@ export function generateTenantManifests(config: TenantK8sConfig): string {
             name: web-prod
             port:
               number: 3000`,
-    )
-    .join("\n");
+      )
+      .join("\n");
+
+    ingressSection = `---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-ingress
+  namespace: ${config.namespace}
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/limit-rps: "25"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+${tlsHosts}
+      secretName: ${config.slug}-tls
+  rules:
+${ingressRules}
+`;
+  }
 
   return `apiVersion: v1
 kind: Namespace
@@ -198,39 +222,7 @@ spec:
   ports:
     - port: 3000
       targetPort: 3000
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: ether-gateway
-  namespace: ${config.namespace}
-spec:
-  type: ExternalName
-  externalName: ether-website.ether.svc.cluster.local
-  ports:
-    - port: 80
-      targetPort: 3000
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: web-ingress
-  namespace: ${config.namespace}
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/limit-rps: "25"
-    nginx.ingress.kubernetes.io/limit-connections: "20"
-    nginx.ingress.kubernetes.io/custom-http-errors: "502,503"
-    nginx.ingress.kubernetes.io/default-backend: "ether-gateway"
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-${tlsHosts}
-      secretName: ${config.slug}-tls
-  rules:
-${ingressRules}
----
+${ingressSection}---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
