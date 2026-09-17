@@ -1676,6 +1676,7 @@ const server = Bun.serve({
 
       try {
         const gitRepoUrl = req.headers.get("x-git-repo-url") || undefined;
+        const gitToken = req.headers.get("x-git-token") || undefined;
         const devPort = await getOrLaunchTenantDevServer(
           tenantSlug,
           gitRepoUrl,
