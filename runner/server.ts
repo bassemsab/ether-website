@@ -7,6 +7,7 @@ import {
   statSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
 } from "fs";
 import { join, relative, dirname, resolve } from "path";
 import { Database } from "bun:sqlite";
@@ -1007,6 +1008,16 @@ interface DevServerInstance {
 const tenantDevServers = new Map<string, DevServerInstance>();
 let nextAvailablePort = 5200;
 
+// Idle Resource Management (reap idle dev servers & compact heap memory while still)
+const IDLE_SERVER_TIMEOUT_MS = parseInt(
+  process.env.IDLE_SERVER_TIMEOUT_MS || "600000",
+  10,
+); // 10 minutes default
+const MAX_RUNNING_DEV_SERVERS = parseInt(
+  process.env.MAX_RUNNING_DEV_SERVERS || "3",
+  10,
+); // LRU eviction cap
+
 // Active Tenant Turn Management (for instant Stop/Abort)
 interface ActiveTenantTurn {
   proc: any;
@@ -1067,6 +1078,26 @@ function getTenantEnv(slug: string, codeDir: string): Record<string, string> {
   return envVars;
 }
 
+/**
+ * Gracefully terminates and removes an active Vite dev server for a tenant.
+ */
+function stopTenantDevServer(slug: string): boolean {
+  const existing = tenantDevServers.get(slug);
+  if (!existing) return false;
+  try {
+    existing.proc.kill();
+  } catch {}
+  if (isLinuxRoot()) {
+    try {
+      const tenantUser = ensureTenantSystemUser(slug);
+      Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", "vite"]);
+    } catch {}
+  }
+  tenantDevServers.delete(slug);
+  console.log(`[reaper] Stopped Vite dev server for tenant '${slug}'`);
+  return true;
+}
+
 async function getOrLaunchTenantDevServer(
   slug: string,
   gitRepoUrl?: string,
@@ -1078,20 +1109,32 @@ async function getOrLaunchTenantDevServer(
   const existing = tenantDevServers.get(slug);
   if (existing && existing.proc.exitCode === null && !existing.proc.killed) {
     if (viteUpdated) {
-      try {
-        existing.proc.kill();
-      } catch {}
-      tenantDevServers.delete(slug);
+      stopTenantDevServer(slug);
     } else {
       existing.lastActive = Date.now();
       return existing.port;
     }
   }
   if (existing) {
-    try {
-      existing.proc.kill();
-    } catch {}
-    tenantDevServers.delete(slug);
+    stopTenantDevServer(slug);
+  }
+
+  // LRU eviction cap: ensure maximum concurrent dev servers is respected
+  if (tenantDevServers.size >= MAX_RUNNING_DEV_SERVERS) {
+    let oldestSlug: string | null = null;
+    let oldestTime = Infinity;
+    for (const [s, inst] of tenantDevServers) {
+      if (s !== slug && inst.lastActive < oldestTime) {
+        oldestTime = inst.lastActive;
+        oldestSlug = s;
+      }
+    }
+    if (oldestSlug) {
+      console.log(
+        `[LRU] Evicting idle dev server for '${oldestSlug}' to respect MAX_RUNNING_DEV_SERVERS=${MAX_RUNNING_DEV_SERVERS}`,
+      );
+      stopTenantDevServer(oldestSlug);
+    }
   }
 
   await ensureTenantCodebase(slug, gitRepoUrl, gitToken);
@@ -1327,6 +1370,113 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
 
   return port;
 }
+
+/**
+ * Gracefully terminates and removes an active production server for a tenant.
+ */
+function stopTenantProdServer(slug: string): boolean {
+  const existing = tenantProdServers.get(slug);
+  if (!existing) return false;
+  try {
+    existing.proc.kill();
+  } catch {}
+  if (isLinuxRoot()) {
+    try {
+      const tenantUser = ensureTenantSystemUser(slug);
+      Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", "build/index.js"]);
+    } catch {}
+  }
+  tenantProdServers.delete(slug);
+  console.log(`[reaper] Stopped prod server for tenant '${slug}'`);
+  return true;
+}
+
+/**
+ * Reaps idle preview servers and background tmux sessions to drastically minimize
+ * memory consumption when the agent runner is idle / sitting still.
+ * Also invokes synchronous Bun garbage collection to return unmapped heap pages to the OS.
+ */
+function reapIdleResources() {
+  const now = Date.now();
+  let reapedCount = 0;
+
+  // 1. Terminate idle Vite dev servers
+  for (const [slug, inst] of tenantDevServers) {
+    if (now - inst.lastActive > IDLE_SERVER_TIMEOUT_MS) {
+      console.log(
+        `[reaper] Reaping idle dev server for '${slug}' (inactive for ${Math.round((now - inst.lastActive) / 60000)}m)`,
+      );
+      if (stopTenantDevServer(slug)) {
+        reapedCount++;
+      }
+    }
+  }
+
+  // 2. Terminate idle production preview servers
+  for (const [slug, inst] of tenantProdServers) {
+    if (now - inst.lastActive > IDLE_SERVER_TIMEOUT_MS) {
+      console.log(
+        `[reaper] Reaping idle prod server for '${slug}' (inactive for ${Math.round((now - inst.lastActive) / 60000)}m)`,
+      );
+      if (stopTenantProdServer(slug)) {
+        reapedCount++;
+      }
+    }
+  }
+
+  // 3. Terminate stale tmux sessions for tenants without active turns (> 30m)
+  const tenantsDir = join(DATA_DIR, "tenants");
+  if (existsSync(tenantsDir)) {
+    try {
+      for (const slug of readdirSync(tenantsDir)) {
+        if (activeTenantTurns.has(slug)) continue;
+        const sockPath = join(tenantsDir, slug, "tmux.sock");
+        if (existsSync(sockPath)) {
+          try {
+            const stat = statSync(sockPath);
+            if (now - stat.mtimeMs > 30 * 60 * 1000) {
+              const tenantUser = `tenant_${slug.toLowerCase().replace(/[^a-z0-9_-]/g, "")}`;
+              if (isLinuxRoot()) {
+                Bun.spawnSync([
+                  "runuser",
+                  "-u",
+                  tenantUser,
+                  "--",
+                  "tmux",
+                  "-S",
+                  sockPath,
+                  "kill-server",
+                ]);
+              } else {
+                Bun.spawnSync(["tmux", "-S", sockPath, "kill-server"]);
+              }
+              try {
+                unlinkSync(sockPath);
+              } catch {}
+              reapedCount++;
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Force JavaScriptCore garbage collection to return heap memory to the OS
+  if (typeof Bun !== "undefined" && typeof (Bun as any).gc === "function") {
+    try {
+      (Bun as any).gc(true);
+    } catch {}
+  }
+
+  if (reapedCount > 0) {
+    console.log(
+      `[reaper] Completed idle cycle: reclaimed memory from ${reapedCount} idle resources`,
+    );
+  }
+}
+
+// Run idle resource reaper every 60 seconds
+setInterval(reapIdleResources, 60000);
 
 const server = Bun.serve({
   port: PORT,
@@ -2644,22 +2794,10 @@ const server = Bun.serve({
       );
 
       // 1. Kill and remove active Vite dev server
-      const devInst = tenantDevServers.get(tenantSlug);
-      if (devInst) {
-        try {
-          devInst.proc.kill();
-        } catch {}
-        tenantDevServers.delete(tenantSlug);
-      }
+      stopTenantDevServer(tenantSlug);
 
       // 2. Kill and remove active Production server
-      const prodInst = tenantProdServers.get(tenantSlug);
-      if (prodInst) {
-        try {
-          prodInst.proc.kill();
-        } catch {}
-        tenantProdServers.delete(tenantSlug);
-      }
+      stopTenantProdServer(tenantSlug);
 
       // 3. Kill tmux session if running
       try {

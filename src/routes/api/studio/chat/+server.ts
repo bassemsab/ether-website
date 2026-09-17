@@ -10,6 +10,7 @@ import {
   getStudioConversations,
   resolveUserWorkspace,
 } from "$lib/server/db";
+import { logUserActivity } from "$lib/server/openobserve";
 
 function isUserAuthorizedForTenant(locals: App.Locals, tenant: any): boolean {
   if (!locals.user) return false;
@@ -94,6 +95,30 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     const effectivePrompt =
       prompt ||
       "Voici une image jointe. Intègre-la dans le site ou adapte le design en fonction.";
+
+    const clientIp =
+      request.headers.get("x-forwarded-host") ||
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const userAgent = request.headers.get("user-agent") || "unknown";
+
+    void logUserActivity({
+      action: "studio_prompt",
+      user_id: locals.user.id,
+      user_email: locals.user.email,
+      tenant_slug: projectSlug,
+      domain: tenant?.custom_domain || tenant?.subdomain || tenant?.domain,
+      ip: clientIp,
+      user_agent: userAgent,
+      status: "success",
+      details: {
+        prompt_length: effectivePrompt.length,
+        has_image: Boolean(image),
+        conversation_id: conversationId,
+        preferred_profile: preferredProfile || "auto",
+      },
+    });
 
     // 1. Tenant Fair-Use Quota Check
     const plan = tenant?.plan || "demo";

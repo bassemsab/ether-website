@@ -7,6 +7,7 @@ import {
   getSessionCookieDomain,
   SESSION_MAX_AGE_SECONDS,
 } from "$lib/server/auth";
+import { logUserActivity } from "$lib/server/openobserve";
 
 export const POST: RequestHandler = async ({ request, cookies, url }) => {
   try {
@@ -68,6 +69,22 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
         { status: 500 },
       );
     }
+
+    const clientIp =
+      request.headers.get("x-forwarded-host") ||
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const userAgent = request.headers.get("user-agent") || "unknown";
+
+    void logUserActivity({
+      action: "login_otp",
+      user_id: user.id,
+      user_email: user.email,
+      ip: clientIp,
+      user_agent: userAgent,
+      status: "success",
+    });
 
     const host =
       request.headers.get("x-forwarded-host") ||

@@ -5,8 +5,9 @@ import {
   getSessionCookieDomain,
   SESSION_MAX_AGE_SECONDS,
 } from "$lib/server/auth";
+import { logUserActivity } from "$lib/server/openobserve";
 
-export const GET: RequestHandler = async ({ url, cookies }) => {
+export const GET: RequestHandler = async ({ url, cookies, request }) => {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
@@ -36,6 +37,22 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   try {
     // Exchange code for tokens and create user session
     const { user, sessionToken } = await handleGitHubCallback(code);
+
+    const clientIp =
+      request.headers.get("x-forwarded-host") ||
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const userAgent = request.headers.get("user-agent") || "unknown";
+
+    void logUserActivity({
+      action: "login_github",
+      user_id: user.id,
+      user_email: user.email || "",
+      ip: clientIp,
+      user_agent: userAgent,
+      status: "success",
+    });
 
     // Set session cookie scoped across .ether.paris subdomains
     cookies.set("session", sessionToken, {

@@ -15,6 +15,7 @@ import {
 import { getRunnerProfiles } from "$lib/server/agent-bridge";
 import { listTenantFiles } from "$lib/server/tenant-files";
 import { getSessionCookieDomain } from "$lib/server/auth";
+import { logUserActivity } from "$lib/server/openobserve";
 
 export const load: PageServerLoad = async ({
   url,
@@ -79,6 +80,24 @@ export const load: PageServerLoad = async ({
   const tenant = await resolveUserWorkspace(locals.user, cookies, null);
   const projectSlug = tenant.slug || "workspace";
   const tenantData = tenant;
+
+  const clientIp =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+  const userAgent = request.headers.get("user-agent") || "unknown";
+
+  void logUserActivity({
+    action: "studio_session",
+    user_id: locals.user.id,
+    user_email: locals.user.email,
+    tenant_slug: projectSlug,
+    domain: tenant.custom_domain || tenant.subdomain || tenant.domain,
+    ip: clientIp,
+    user_agent: userAgent,
+    status: "success",
+  });
 
   // If returning from Stripe top-up checkout, synchronously verify and credit session
   const topupSessionId = url.searchParams.get("session_id");
