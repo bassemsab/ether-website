@@ -183,7 +183,6 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         { label: "Expertise", href: "#expertise" },
         { label: "Projets", href: "#cases" },
         { label: "Approche", href: "#approach" },
-        { label: "Studio", href: "#studio" },
         { label: "Contact", href: "#contact" },
       ],
       socials: [
@@ -401,7 +400,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         ],
       },
       studio: {
-        eyebrow: "Studio",
+        eyebrow: "Studios",
         title: "Ancrage parisien, rayonnement global.",
         description:
           "Un studio indépendant à taille humaine, réactif et flexible pour concevoir et déployer vos projets.",
@@ -490,7 +489,6 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         { label: "Expertise", href: "#expertise" },
         { label: "Projects", href: "#cases" },
         { label: "Approach", href: "#approach" },
-        { label: "Studio", href: "#studio" },
         { label: "Contact", href: "#contact" },
       ],
       socials: [
@@ -708,7 +706,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         ],
       },
       studio: {
-        eyebrow: "Studio",
+        eyebrow: "Studios",
         title: "Rooted in Paris, collaborating globally.",
         description:
           "An independent, human-scale studio that is agile, responsive, and dedicated to your digital products.",
@@ -796,7 +794,6 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         { label: "الخبرات", href: "#expertise" },
         { label: "المشاريع", href: "#cases" },
         { label: "المنهجية", href: "#approach" },
-        { label: "الاستوديو", href: "#studio" },
         { label: "تواصل", href: "#contact" },
       ],
       socials: [
@@ -1012,7 +1009,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         ],
       },
       studio: {
-        eyebrow: "الاستوديو",
+        eyebrow: "الاستوديوهات",
         title: "انطلاق من باريس، وحضور عالمي.",
         description:
           "استوديو مستقل يتسم بالمرونة والسرعة لتنفيذ وتطوير مشاريعك الرقمية.",
