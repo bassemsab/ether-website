@@ -15,7 +15,10 @@ import {
   ensureGiteaUser,
 } from "$lib/server/gitea";
 
-async function resolveAuthorizedTenant(locals: App.Locals, requestedSlug?: string | null) {
+async function resolveAuthorizedTenant(
+  locals: App.Locals,
+  requestedSlug?: string | null,
+) {
   if (!locals.user) return null;
   const slug = requestedSlug?.trim().toLowerCase();
   if (!slug) return null;
@@ -125,7 +128,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         return json(
           {
             success: false,
-            error: "Impossible de mettre à jour le mot de passe sur le serveur Git.",
+            error:
+              "Impossible de mettre à jour le mot de passe sur le serveur Git.",
           },
           { status: 500 },
         );
@@ -152,7 +156,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       const result = await addGiteaUserKey(giteaUsername, title, key);
       if (!result.success) {
         return json(
-          { success: false, error: result.error || "Erreur lors de l'ajout de la clé." },
+          {
+            success: false,
+            error: result.error || "Erreur lors de l'ajout de la clé.",
+          },
           { status: 400 },
         );
       }
@@ -169,7 +176,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     if (action === "delete-ssh-key") {
       const keyId = parseInt(body.keyId, 10);
       if (isNaN(keyId)) {
-        return json({ success: false, error: "ID de clé invalide." }, { status: 400 });
+        return json(
+          { success: false, error: "ID de clé invalide." },
+          { status: 400 },
+        );
       }
 
       const ok = await deleteGiteaUserKey(giteaUsername, keyId);

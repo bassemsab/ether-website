@@ -136,6 +136,77 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       namespace,
     });
 
+    // 3.5. Stream compiled bundle directly into tenant pod's /app PVC
+    let syncOk = false;
+    try {
+      console.log(
+        `[publish] Streaming build bundle for ${tenantSlug} into pod...`,
+      );
+      // Ensure deployment is running (at least 1 replica)
+      await Bun.spawn([
+        "kubectl",
+        "scale",
+        "deployment/web-prod",
+        "--replicas=1",
+        "-n",
+        namespace,
+      ]).exited;
+      await Bun.spawn([
+        "kubectl",
+        "rollout",
+        "status",
+        "deployment/web-prod",
+        "-n",
+        namespace,
+        "--timeout=25s",
+      ]).exited;
+
+      // Stream bundle from runner directly into /app via kubectl exec
+      const bundleRes = await fetch(`${runnerUrl}/bundle/${tenantSlug}`, {
+        signal: AbortSignal.timeout(30000),
+      });
+      if (bundleRes.ok && bundleRes.body) {
+        const execProc = Bun.spawn(
+          [
+            "kubectl",
+            "exec",
+            "-i",
+            "-n",
+            namespace,
+            "deployment/web-prod",
+            "--",
+            "tar",
+            "-xz",
+            "-C",
+            "/app",
+          ],
+          {
+            stdin: bundleRes.body,
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        const exitCode = await execProc.exited;
+        if (exitCode === 0) {
+          syncOk = true;
+          console.log(
+            `[publish] Successfully synced bundle into ${namespace}/web-prod`,
+          );
+        } else {
+          const errText = await new Response(execProc.stderr).text();
+          console.warn(
+            `[publish] Bundle sync stderr for ${tenantSlug}:`,
+            errText,
+          );
+        }
+      }
+    } catch (syncErr: any) {
+      console.warn(
+        `[publish] Error syncing bundle for ${tenantSlug}:`,
+        syncErr.message,
+      );
+    }
+
     // 4. Rollout restart the production deployment
     try {
       const proc = Bun.spawn({

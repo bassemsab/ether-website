@@ -95,7 +95,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   if (tenantSlug) {
     let tenant = await getTenantBySlug(tenantSlug);
-    if (!tenant && process.env.TENANT_SLUG && process.env.TENANT_SLUG === tenantSlug) {
+    if (
+      !tenant &&
+      process.env.TENANT_SLUG &&
+      process.env.TENANT_SLUG === tenantSlug
+    ) {
       // Fallback only for pod running in isolated tenant namespace
       tenant = {
         id: 0,

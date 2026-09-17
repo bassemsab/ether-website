@@ -166,7 +166,8 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
     }
 
     const diffProc = Bun.spawnSync(diffArgs, { cwd: codeDir });
-    const diffOutput = diffProc.exitCode === 0 ? diffProc.stdout.toString() : "";
+    const diffOutput =
+      diffProc.exitCode === 0 ? diffProc.stdout.toString() : "";
 
     const numstatArgs = isWorkingTree
       ? ["git", "diff", "--numstat", baseRef]

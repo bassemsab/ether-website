@@ -51,7 +51,9 @@ export async function sendO2Log(
       );
     }
   } catch (err: any) {
-    console.warn(`[OpenObserve Audit] Network error (${stream}): ${err.message}`);
+    console.warn(
+      `[OpenObserve Audit] Network error (${stream}): ${err.message}`,
+    );
   }
 }
 
@@ -84,9 +86,7 @@ export interface PublishAuditEvent {
 /**
  * Logs a site publish event into the 'publish_audit' stream in OpenObserve.
  */
-export async function logPublishAudit(
-  event: PublishAuditEvent,
-): Promise<void> {
+export async function logPublishAudit(event: PublishAuditEvent): Promise<void> {
   return sendO2Log("publish_audit", event);
 }
 
@@ -117,9 +117,7 @@ export interface UserActivityEvent {
  * Logs user platform usage into the 'user_activity' stream in OpenObserve.
  * Tracks who is using the system, what action they took, which workspace, and when.
  */
-export async function logUserActivity(
-  event: UserActivityEvent,
-): Promise<void> {
+export async function logUserActivity(event: UserActivityEvent): Promise<void> {
   return sendO2Log("user_activity", event);
 }
 

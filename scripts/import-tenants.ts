@@ -10,7 +10,9 @@ console.log(`[Import] Connecting to SQLite database at: ${DB_PATH}`);
 // Ensure users table exists and insert / retrieve users
 function ensureUser(email: string, username: string) {
   const normEmail = email.trim().toLowerCase();
-  let user = db.query("SELECT * FROM users WHERE email = ?").get(normEmail) as any;
+  let user = db
+    .query("SELECT * FROM users WHERE email = ?")
+    .get(normEmail) as any;
   if (!user) {
     console.log(`[Import] Creating user for ${normEmail}...`);
     const insert = db.prepare(`
@@ -22,7 +24,7 @@ function ensureUser(email: string, username: string) {
       normEmail,
       `email:${normEmail}`,
       username,
-      `otp:${Date.now()}`
+      `otp:${Date.now()}`,
     );
   } else {
     console.log(`[Import] User found: ID ${user.id} (${user.email})`);
@@ -46,7 +48,9 @@ function ensureTenant({
   customDomain: string | null;
   email: string;
 }) {
-  let tenant = db.query("SELECT * FROM tenants WHERE slug = ?").get(slug) as any;
+  let tenant = db
+    .query("SELECT * FROM tenants WHERE slug = ?")
+    .get(slug) as any;
   if (!tenant) {
     console.log(`[Import] Creating tenant for ${slug}...`);
     const insert = db.prepare(`
@@ -65,16 +69,18 @@ function ensureTenant({
       domain,
       customDomain,
       email,
-      `tenant-${slug}`
+      `tenant-${slug}`,
     );
     console.log(`[Import] Tenant created: ID ${tenant.id} (${tenant.slug})`);
   } else {
     console.log(`[Import] Updating existing tenant ${slug}...`);
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE tenants
       SET user_id = ?, brand_name = ?, domain = ?, subdomain = ?, custom_domain = ?, email = ?, status = 'active', plan = 'custom'
       WHERE slug = ?
-    `).run(userId, brandName, domain, domain, customDomain, email, slug);
+    `,
+    ).run(userId, brandName, domain, domain, customDomain, email, slug);
     tenant = db.query("SELECT * FROM tenants WHERE slug = ?").get(slug);
   }
   return tenant;
@@ -119,7 +125,10 @@ const roseeTenant = ensureTenant({
   customDomain: "rosee-minerale.fr",
   email: "cbarrett320@gmail.com",
 });
-linkWorkspace("rosee-minerale", "/Users/bassem/Documents/projects/rosee-minerale-web");
+linkWorkspace(
+  "rosee-minerale",
+  "/Users/bassem/Documents/projects/rosee-minerale-web",
+);
 
 // 3. Simon Nicole (Artist's Inner Realm / Le Chat Perdu)
 const simonUser = ensureUser("simon431998@gmail.com", "simon-nicole");
@@ -131,8 +140,15 @@ const simonTenant = ensureTenant({
   customDomain: null,
   email: "simon431998@gmail.com",
 });
-linkWorkspace("lechatperdu", "/Users/bassem/Documents/projects/artist-s-inner-realm");
+linkWorkspace(
+  "lechatperdu",
+  "/Users/bassem/Documents/projects/artist-s-inner-realm",
+);
 
 console.log("\n✅ Import completed successfully!");
-console.log(`- Rosée Minérale: Tenant ID ${roseeTenant.id}, Domain: ${roseeTenant.domain}, Custom: ${roseeTenant.custom_domain}`);
-console.log(`- Le Chat Perdu: Tenant ID ${simonTenant.id}, Domain: ${simonTenant.domain}, Custom: ${simonTenant.custom_domain || "None yet"}`);
+console.log(
+  `- Rosée Minérale: Tenant ID ${roseeTenant.id}, Domain: ${roseeTenant.domain}, Custom: ${roseeTenant.custom_domain}`,
+);
+console.log(
+  `- Le Chat Perdu: Tenant ID ${simonTenant.id}, Domain: ${simonTenant.domain}, Custom: ${simonTenant.custom_domain || "None yet"}`,
+);

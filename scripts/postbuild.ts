@@ -286,6 +286,118 @@ var serverOptions = {
       }
     }
 
+async function handleTenantProdRequest(slug, req, rawHost) {
+  var url = new URL(req.url);
+
+  // 1. Instant 404 for vulnerability scanners
+  if (
+    /^\/(?:wp-|xmlrpc|\.env|\.git|php|actuator|setup\.cgi|solr|autodiscover|config\.)/i.test(url.pathname) ||
+    /\.(?:php|asp|aspx|jsp|cgi|env|git|bak|old)$/i.test(url.pathname)
+  ) {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  var userAgent = req.headers.get("user-agent") || "";
+  var isCrawler = /Googlebot|bingbot|yandex|Baiduspider|DuckDuckBot/i.test(userAgent);
+  var targetPodUrl = "http://web-prod.tenant-" + slug + ".svc.cluster.local:3000";
+
+  // Quick check if the tenant pod is awake
+  var isAwake = false;
+  try {
+    var probe = await fetch(targetPodUrl + "/api/_health", {
+      signal: AbortSignal.timeout(200),
+    });
+    if (probe.ok) isAwake = true;
+  } catch (_) {}
+
+  // 2. Search crawler policy: if asleep, serve pre-rendered static HTML directly from disk/PVC in 5ms
+  if (isCrawler && !isAwake) {
+    var codeDir = process.env.DATA_DIR
+      ? (process.env.DATA_DIR + "/tenants/" + slug + "/code")
+      : ("/data/tenants/" + slug + "/code");
+    var candidates = [
+      codeDir + "/.output/public/index.html",
+      codeDir + "/build/client/index.html",
+      codeDir + "/dist/index.html",
+      codeDir + "/public/index.html",
+    ];
+    for (var c of candidates) {
+      var file = Bun.file(c);
+      if (await file.exists()) {
+        return new Response(file, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=3600",
+            "X-Served-By": "Ether-Static-Crawler-Cache",
+          },
+        });
+      }
+    }
+  }
+
+  // 3. If asleep and visitor is human: wake up the pod in background (~800ms) while holding connection
+  if (!isAwake) {
+    try {
+      console.log("[wake-on-request] Scaling up pod for tenant '" + slug + "'...");
+      var scaleProc = Bun.spawn(
+        ["kubectl", "scale", "deployment/web-prod", "--replicas=1", "-n", "tenant-" + slug],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      await scaleProc.exited;
+
+      for (var attempt = 0; attempt < 80; attempt++) {
+        try {
+          var check = await fetch(targetPodUrl + "/api/_health", {
+            signal: AbortSignal.timeout(250),
+          });
+          if (check.ok) {
+            isAwake = true;
+            break;
+          }
+        } catch (_) {}
+        await new Promise(function(r) { setTimeout(r, 100); });
+      }
+    } catch (err) {
+      console.warn("[wake-on-request] Failed to scale up tenant " + slug + ":", err.message);
+    }
+  }
+
+  // 4. Proxy to the live tenant pod if awake
+  if (isAwake) {
+    var forwardHeaders = new Headers(req.headers);
+    forwardHeaders.set("host", "web-prod.tenant-" + slug + ".svc.cluster.local:3000");
+    forwardHeaders.set("x-forwarded-host", rawHost);
+    forwardHeaders.set("accept-encoding", "identity");
+
+    var reqBody =
+      req.method !== "GET" && req.method !== "HEAD" ? await req.blob() : undefined;
+
+    try {
+      var podRes = await fetch(targetPodUrl + url.pathname + url.search, {
+        method: req.method,
+        headers: forwardHeaders,
+        body: reqBody,
+      });
+
+      var resHeaders = new Headers(podRes.headers);
+      resHeaders.delete("content-encoding");
+      resHeaders.delete("content-length");
+
+      return new Response(podRes.body, {
+        status: podRes.status,
+        statusText: podRes.statusText,
+        headers: resHeaders,
+      });
+    } catch (err) {
+      console.warn("[Proxy to tenant pod failed for " + slug + "]:", err.message);
+    }
+  }
+
+  // 5. Fallback to runner if tenant pod is not yet provisioned
+  return proxyToRunner(slug, req, rawHost, false);
+}
+
     // 3. Check if host is a published tenant (e.g. tester.ether.paris)
     if (
       host.endsWith(".ether.paris") &&
@@ -297,7 +409,7 @@ var serverOptions = {
       var candidate = host.replace(".ether.paris", "");
       if (candidate.length > 0 && !RESERVED_SLUGS.has(candidate)) {
         try {
-          var proxied = await proxyToRunner(candidate, req, rawHost, false);
+          var proxied = await handleTenantProdRequest(candidate, req, rawHost);
           if (proxied) return proxied;
         } catch (err) {
           console.warn("[Tenant proxy failed for " + candidate + "]:", err.message);

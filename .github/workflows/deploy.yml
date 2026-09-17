@@ -13,6 +13,10 @@ on:
         description: "Force rebuild and restart agent-runner"
         type: boolean
         default: false
+      force_tenant_runner:
+        description: "Force rebuild and push ether-tenant-runner"
+        type: boolean
+        default: true
       force_website:
         description: "Force rebuild and redeploy ether-website"
         type: boolean
@@ -41,6 +45,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "Workflow dispatch triggered."
             echo "runner_changed=${{ inputs.force_runner }}" >> $GITHUB_OUTPUT
+            echo "tenant_runner_changed=${{ inputs.force_tenant_runner }}" >> $GITHUB_OUTPUT
             echo "website_changed=${{ inputs.force_website }}" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -62,19 +67,26 @@ jobs:
             RUNNER_CHANGED=true
           fi
 
+          TENANT_RUNNER_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -q -E '^docker/tenant-runner/'; then
+            TENANT_RUNNER_CHANGED=true
+          fi
+
           WEBSITE_CHANGED=false
-          if echo "$CHANGED_FILES" | grep -v -E '^(runner/|k8s/studio/)' | grep -q .; then
+          if echo "$CHANGED_FILES" | grep -v -E '^(runner/|k8s/studio/|docker/tenant-runner/)' | grep -q .; then
             WEBSITE_CHANGED=true
           fi
 
           echo "Detected RUNNER_CHANGED: $RUNNER_CHANGED"
+          echo "Detected TENANT_RUNNER_CHANGED: $TENANT_RUNNER_CHANGED"
           echo "Detected WEBSITE_CHANGED: $WEBSITE_CHANGED"
 
           echo "runner_changed=$RUNNER_CHANGED" >> $GITHUB_OUTPUT
+          echo "tenant_runner_changed=$TENANT_RUNNER_CHANGED" >> $GITHUB_OUTPUT
           echo "website_changed=$WEBSITE_CHANGED" >> $GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry
-        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true'
+        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true' || steps.changes.outputs.tenant_runner_changed == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -82,7 +94,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true'
+        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true' || steps.changes.outputs.tenant_runner_changed == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Extract Website Docker metadata
@@ -120,8 +132,20 @@ jobs:
             ${{ env.REGISTRY }}/bassemsab/agy-runner:latest
             ${{ env.REGISTRY }}/bassemsab/agy-runner:${{ github.sha }}
 
+      - name: Build and push Tenant Runner Docker image
+        if: steps.changes.outputs.tenant_runner_changed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/tenant-runner/Dockerfile
+          push: true
+          no-cache: true
+          tags: |
+            ${{ env.REGISTRY }}/bassemsab/ether-tenant-runner:latest
+            ${{ env.REGISTRY }}/bassemsab/ether-tenant-runner:${{ github.sha }}
+
       - name: Set up Kubeconfig
-        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true'
+        if: steps.changes.outputs.website_changed == 'true' || steps.changes.outputs.runner_changed == 'true' || steps.changes.outputs.tenant_runner_changed == 'true'
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config

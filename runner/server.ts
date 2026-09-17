@@ -11,6 +11,59 @@ import {
 } from "fs";
 import { join, relative, dirname, resolve } from "path";
 import { Database } from "bun:sqlite";
+import { dlopen, FFIType } from "bun:ffi";
+
+let libcWaitpid:
+  | ((pid: number, status: any, options: number) => number)
+  | null = null;
+try {
+  const libc = dlopen("libc.so.6", {
+    waitpid: {
+      args: [FFIType.i32, FFIType.ptr, FFIType.i32],
+      returns: FFIType.i32,
+    },
+  });
+  libcWaitpid = libc.symbols.waitpid;
+} catch {
+  try {
+    const libc = dlopen("libc.so", {
+      waitpid: {
+        args: [FFIType.i32, FFIType.ptr, FFIType.i32],
+        returns: FFIType.i32,
+      },
+    });
+    libcWaitpid = libc.symbols.waitpid;
+  } catch {
+    try {
+      const libc = dlopen("libc.dylib", {
+        waitpid: {
+          args: [FFIType.i32, FFIType.ptr, FFIType.i32],
+          returns: FFIType.i32,
+        },
+      });
+      libcWaitpid = libc.symbols.waitpid;
+    } catch {}
+  }
+}
+
+function reapZombies(): number {
+  if (!libcWaitpid) return 0;
+  let count = 0;
+  try {
+    while (libcWaitpid(-1, null, 1) > 0) {
+      count++;
+    }
+  } catch {}
+  return count;
+}
+
+function isBotScannerProbe(pathname: string): boolean {
+  return (
+    /^\/(?:wp-|xmlrpc|\.env|\.git|php|actuator|setup\.cgi|solr|autodiscover|config\.)/i.test(
+      pathname,
+    ) || /\.(?:php|asp|aspx|jsp|cgi|env|git|bak|old)$/i.test(pathname)
+  );
+}
 import {
   listStoredProfiles,
   generateAuthUrl,
@@ -726,7 +779,12 @@ function ensureTenantSharedDependencies(codeDir: string, tenantUser: string) {
     }
 
     if (isLinuxRoot()) {
-      Bun.spawnSync(["chown", "-hR", `${tenantUser}:${tenantUser}`, tenantModules]);
+      Bun.spawnSync([
+        "chown",
+        "-hR",
+        `${tenantUser}:${tenantUser}`,
+        tenantModules,
+      ]);
     }
   } catch (e: any) {
     console.warn("[Runner] Shared dependencies link fallback:", e.message);
@@ -1010,13 +1068,21 @@ let nextAvailablePort = 5200;
 
 // Idle Resource Management (reap idle dev servers & compact heap memory while still)
 const IDLE_SERVER_TIMEOUT_MS = parseInt(
-  process.env.IDLE_SERVER_TIMEOUT_MS || "600000",
+  process.env.IDLE_SERVER_TIMEOUT_MS || "180000",
   10,
-); // 10 minutes default
+); // 3 minutes default for dev servers
+const IDLE_PROD_TIMEOUT_MS = parseInt(
+  process.env.IDLE_PROD_TIMEOUT_MS || "180000",
+  10,
+); // 3 minutes default for prod servers
 const MAX_RUNNING_DEV_SERVERS = parseInt(
-  process.env.MAX_RUNNING_DEV_SERVERS || "3",
+  process.env.MAX_RUNNING_DEV_SERVERS || "2",
   10,
-); // LRU eviction cap
+); // LRU eviction cap for dev servers
+const MAX_RUNNING_PROD_SERVERS = parseInt(
+  process.env.MAX_RUNNING_PROD_SERVERS || "2",
+  10,
+); // LRU eviction cap for prod servers
 
 // Active Tenant Turn Management (for instant Stop/Abort)
 interface ActiveTenantTurn {
@@ -1104,7 +1170,9 @@ async function getOrLaunchTenantDevServer(
   gitToken?: string,
 ): Promise<number> {
   const codeDir = join(DATA_DIR, "tenants", slug, "code");
-  const viteUpdated = existsSync(codeDir) ? ensureTenantViteConfig(codeDir) : false;
+  const viteUpdated = existsSync(codeDir)
+    ? ensureTenantViteConfig(codeDir)
+    : false;
 
   const existing = tenantDevServers.get(slug);
   if (existing && existing.proc.exitCode === null && !existing.proc.killed) {
@@ -1232,7 +1300,9 @@ const tenantProdServers = new Map<string, DevServerInstance>();
 const tenantBuildLocks = new Map<string, Promise<void>>();
 let nextAvailableProdPort = 5400;
 
-function findTenantProductionEntrypoint(codeDir: string): { cmd: string[]; type: string } | null {
+function findTenantProductionEntrypoint(
+  codeDir: string,
+): { cmd: string[]; type: string } | null {
   // 1. SvelteKit (bun/node adapter): build/index.js
   const svelteBuild = join(codeDir, "build", "index.js");
   if (existsSync(svelteBuild)) {
@@ -1276,7 +1346,9 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
     if (!buildPromise) {
       buildPromise = (async () => {
         try {
-          console.log(`[Prod Build] Building production bundle for tenant '${slug}'...`);
+          console.log(
+            `[Prod Build] Building production bundle for tenant '${slug}'...`,
+          );
           const buildCmd = isRoot
             ? [
                 "runuser",
@@ -1423,7 +1495,14 @@ function stopTenantProdServer(slug: string): boolean {
     try {
       const tenantUser = ensureTenantSystemUser(slug);
       Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", "build/index.js"]);
-      Bun.spawnSync(["pkill", "-9", "-u", tenantUser, "-f", ".output/server/index.mjs"]);
+      Bun.spawnSync([
+        "pkill",
+        "-9",
+        "-u",
+        tenantUser,
+        "-f",
+        ".output/server/index.mjs",
+      ]);
     } catch {}
   }
   tenantProdServers.delete(slug);
@@ -1454,7 +1533,7 @@ function reapIdleResources() {
 
   // 2. Terminate idle production preview servers
   for (const [slug, inst] of tenantProdServers) {
-    if (now - inst.lastActive > IDLE_SERVER_TIMEOUT_MS) {
+    if (now - inst.lastActive > IDLE_PROD_TIMEOUT_MS) {
       console.log(
         `[reaper] Reaping idle prod server for '${slug}' (inactive for ${Math.round((now - inst.lastActive) / 60000)}m)`,
       );
@@ -1501,7 +1580,13 @@ function reapIdleResources() {
     } catch {}
   }
 
-  // 4. Force JavaScriptCore garbage collection to return heap memory to the OS
+  // 4. Reap defunct zombie child processes reparented to PID 1
+  const reapedZombies = reapZombies();
+  if (reapedZombies > 0) {
+    reapedCount += reapedZombies;
+  }
+
+  // 5. Force JavaScriptCore garbage collection to return heap memory to the OS
   if (typeof Bun !== "undefined" && typeof (Bun as any).gc === "function") {
     try {
       (Bun as any).gc(true);
@@ -1585,9 +1670,12 @@ const server = Bun.serve({
         }
       }
 
+      if (isBotScannerProbe(subPath)) {
+        return new Response("Not Found", { status: 404, headers: corsHeaders });
+      }
+
       try {
         const gitRepoUrl = req.headers.get("x-git-repo-url") || undefined;
-        const gitToken = req.headers.get("x-git-token") || undefined;
         const devPort = await getOrLaunchTenantDevServer(
           tenantSlug,
           gitRepoUrl,
@@ -1652,11 +1740,129 @@ const server = Bun.serve({
       }
     }
 
-    // Tenant Production Server Reverse Proxy (for Published Sites)
+    // Tenant Production Bundle Export Endpoint (Streams .tar.gz for isolated pod deployment)
+    const bundleMatch = path.match(/^\/bundle\/([a-zA-Z0-9_-]+)$/);
+    if (bundleMatch && req.method === "GET") {
+      const tenantSlug = bundleMatch[1];
+      const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
+      if (!existsSync(codeDir)) {
+        return new Response("Tenant codebase not found", {
+          status: 404,
+          headers: corsHeaders,
+        });
+      }
+
+      // Collect target directories/files to archive
+      const possibleEntries = [
+        ".output",
+        "build",
+        "dist",
+        "public",
+        "uploads",
+        "package.json",
+      ];
+      const archiveEntries = possibleEntries.filter((e) =>
+        existsSync(join(codeDir, e)),
+      );
+
+      if (archiveEntries.length === 0) {
+        return new Response(
+          "No build artifacts found. Please build the site first.",
+          {
+            status: 400,
+            headers: corsHeaders,
+          },
+        );
+      }
+
+      try {
+        console.log(
+          `[bundle] Creating artifact stream for tenant '${tenantSlug}' (${archiveEntries.join(", ")})...`,
+        );
+        const tarProc = Bun.spawn(["tar", "-cz", ...archiveEntries], {
+          cwd: codeDir,
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+
+        return new Response(tarProc.stdout, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/gzip",
+            "Content-Disposition": `attachment; filename="${tenantSlug}-bundle.tar.gz"`,
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      } catch (err: any) {
+        return new Response(`Bundle generation failed: ${err.message}`, {
+          status: 500,
+          headers: corsHeaders,
+        });
+      }
+    }
+
+    // Tenant Production Server Reverse Proxy (Fallback & Compatibility)
     const prodMatch = path.match(/^\/prod\/([a-zA-Z0-9_-]+)(\/.*)?$/);
     if (prodMatch) {
       const tenantSlug = prodMatch[1];
-      const subPath = (prodMatch[2] || "/") + url.search;
+      const rawSubPath = prodMatch[2] || "/";
+      const cleanSubPath = rawSubPath.split("?")[0];
+      const subPath = rawSubPath + url.search;
+
+      if (isBotScannerProbe(subPath)) {
+        return new Response("Not Found", { status: 404, headers: corsHeaders });
+      }
+
+      const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
+
+      // Fast path: Direct static client assets serving from disk
+      if (cleanSubPath !== "/" && !cleanSubPath.endsWith("/")) {
+        const candidatePaths = [
+          join(codeDir, ".output", "public", cleanSubPath),
+          join(codeDir, "build", "client", cleanSubPath),
+          join(codeDir, "dist", "client", cleanSubPath),
+          join(codeDir, "dist", cleanSubPath),
+          join(codeDir, "public", cleanSubPath),
+          join(codeDir, "uploads", cleanSubPath.replace(/^\/uploads\//, "")),
+        ];
+
+        for (const candidate of candidatePaths) {
+          if (existsSync(candidate)) {
+            try {
+              const fileStat = statSync(candidate);
+              if (fileStat.isFile()) {
+                const resolved = resolve(candidate);
+                if (!resolved.startsWith(codeDir)) continue;
+
+                const bunFile = Bun.file(candidate);
+                const fileHeaders = new Headers({
+                  "Access-Control-Allow-Origin": "*",
+                });
+                if (bunFile.type) {
+                  fileHeaders.set("Content-Type", bunFile.type);
+                }
+
+                if (
+                  cleanSubPath.startsWith("/assets/") ||
+                  cleanSubPath.startsWith("/_app/")
+                ) {
+                  fileHeaders.set(
+                    "Cache-Control",
+                    "public, max-age=31536000, immutable",
+                  );
+                } else {
+                  fileHeaders.set("Cache-Control", "public, max-age=3600");
+                }
+
+                return new Response(bunFile, {
+                  status: 200,
+                  headers: fileHeaders,
+                });
+              }
+            } catch {}
+          }
+        }
+      }
 
       try {
         const prodPort = await getOrLaunchTenantProdServer(tenantSlug);
@@ -2219,7 +2425,11 @@ const server = Bun.serve({
           // If the specified commit doesn't resolve, fallback safely to HEAD~stepsBack
           if (target !== `HEAD~${stepsBack}`) {
             target = `HEAD~${stepsBack}`;
-            const fbCheck = runTenantGit(tenantSlug, ["cat-file", "-t", target]);
+            const fbCheck = runTenantGit(tenantSlug, [
+              "cat-file",
+              "-t",
+              target,
+            ]);
             if (fbCheck.exitCode !== 0 || fbCheck.stdout !== "commit") {
               return Response.json(
                 {
@@ -2270,7 +2480,12 @@ const server = Bun.serve({
         }
 
         // Ensure critical dependencies are still intact after revert
-        const nodeModulesKit = join(codeDir, "node_modules", "@sveltejs", "kit");
+        const nodeModulesKit = join(
+          codeDir,
+          "node_modules",
+          "@sveltejs",
+          "kit",
+        );
         if (!existsSync(nodeModulesKit)) {
           console.log(
             `[Runner] Re-linking dependencies for ${tenantSlug} after revert...`,
@@ -2421,7 +2636,10 @@ const server = Bun.serve({
           }
 
           // Check if there are uncommitted working tree changes
-          const statusProc = runTenantGit(tenantSlug, ["status", "--porcelain"]);
+          const statusProc = runTenantGit(tenantSlug, [
+            "status",
+            "--porcelain",
+          ]);
           const hasUncommitted = Boolean(
             statusProc.stdout && statusProc.stdout.trim().length > 0,
           );
@@ -2537,7 +2755,8 @@ const server = Bun.serve({
             totalDeletions += deletions;
 
             const statusCode = statusMap.get(fPath) || "M";
-            let status: "modified" | "added" | "deleted" | "renamed" = "modified";
+            let status: "modified" | "added" | "deleted" | "renamed" =
+              "modified";
             if (statusCode === "A") status = "added";
             else if (statusCode === "D") status = "deleted";
             else if (statusCode === "R") status = "renamed";
@@ -2583,10 +2802,13 @@ const server = Bun.serve({
           if (sh) baseShort = sh;
           if (m) baseMsg = m;
           if (ts) {
-            baseDate = new Date(parseInt(ts, 10) * 1000).toLocaleString("fr-FR", {
-              dateStyle: "short",
-              timeStyle: "short",
-            });
+            baseDate = new Date(parseInt(ts, 10) * 1000).toLocaleString(
+              "fr-FR",
+              {
+                dateStyle: "short",
+                timeStyle: "short",
+              },
+            );
           }
         }
 

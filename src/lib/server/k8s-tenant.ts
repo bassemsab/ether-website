@@ -146,44 +146,44 @@ spec:
         - name: ghcr-secret
       containers:
         - name: website
-          image: ghcr.io/bassemsab/ether-website:latest
+          image: ghcr.io/bassemsab/ether-tenant-runner:latest
           imagePullPolicy: Always
           env:
             - name: PORT
               value: "3000"
             - name: NODE_ENV
               value: "production"
+            - name: APP_DIR
+              value: "/app"
             - name: DB_PATH
-              value: "/data/app.db"
+              value: "/app/app.db"
             - name: TENANT_SLUG
               value: "${config.slug}"
             - name: TENANT_DOMAIN
               value: "${config.subdomain}"
             - name: TENANT_BRAND_NAME
               value: "${brandName}"
-            - name: RUNNER_API_URL
-              value: "http://agent-runner.ether.svc.cluster.local:8080"
           ports:
             - containerPort: 3000
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/_health
               port: 3000
-            initialDelaySeconds: 2
+            initialDelaySeconds: 1
             periodSeconds: 2
             failureThreshold: 3
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 25m
+              memory: 64Mi
             limits:
               cpu: 250m
               memory: 256Mi
           volumeMounts:
-            - name: data
-              mountPath: /data
+            - name: app-storage
+              mountPath: /app
       volumes:
-        - name: data
+        - name: app-storage
           persistentVolumeClaim:
             claimName: tenant-storage
 ---
@@ -199,6 +199,18 @@ spec:
     - port: 3000
       targetPort: 3000
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ether-gateway
+  namespace: ${config.namespace}
+spec:
+  type: ExternalName
+  externalName: ether-website.ether.svc.cluster.local
+  ports:
+    - port: 80
+      targetPort: 3000
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -208,6 +220,8 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/limit-rps: "25"
     nginx.ingress.kubernetes.io/limit-connections: "20"
+    nginx.ingress.kubernetes.io/custom-http-errors: "502,503"
+    nginx.ingress.kubernetes.io/default-backend: "ether-gateway"
 spec:
   ingressClassName: nginx
   tls:

@@ -252,8 +252,7 @@ export async function setGiteaUserPassword(
  * Generates a high-entropy URL-safe Git password.
  */
 export function generateSecureGitPassword(): string {
-  const chars =
-    "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let pwd = "eth_";
   const bytes = crypto.getRandomValues(new Uint8Array(20));
   for (let i = 0; i < 20; i++) {
@@ -353,7 +352,9 @@ export async function addGiteaUserKey(
     });
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({ message: "Erreur Gitea" }));
+      const errData = await res
+        .json()
+        .catch(() => ({ message: "Erreur Gitea" }));
       return {
         success: false,
         error:

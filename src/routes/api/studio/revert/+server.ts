@@ -25,11 +25,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
     const projectSlug = tenant.slug || "workspace";
 
     // 1. Look up and delete reverted chat messages from SQLite (falls back to latest assistant message if messageId omitted)
-    const revertDbRes = revertStudioChatMessages(
-      projectSlug,
-      messageId,
-      true,
-    );
+    const revertDbRes = revertStudioChatMessages(projectSlug, messageId, true);
     const deletedCount = revertDbRes.deletedCount;
     if (!targetCommit && revertDbRes.targetCommitHash) {
       targetCommit = revertDbRes.targetCommitHash;
