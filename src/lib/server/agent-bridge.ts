@@ -19,6 +19,10 @@ Technical Engineering Rules:
    - The database file is located on persistent storage at "/data/app.db" (or locally at "./data/app.db").
 3. Styling: Tailwind CSS. Create clean, elegant, responsive layouts.
 4. Always preserve existing project configuration files (package.json, svelte.config.js, vite.config.ts).
+5. Fast Execution & Verification:
+   - For UI, layout, styling, text, and animation modifications, make file edits directly.
+   - DO NOT run heavy production builds ("bun run build") or full type checks ("bun run check") on simple visual changes unless explicitly requested.
+   - The active preview dev server provides instant live feedback. Keep your responses fast and direct.
 
 Tenant Isolation & Security Rules:
 1. Workspace confinement: You are strictly restricted to the customer's project workspace.

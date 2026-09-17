@@ -561,6 +561,7 @@ async function resolveTenantGitCredentials(
 function runTenantGit(
   tenantSlug: string,
   gitArgs: string[],
+  options?: { raw?: boolean },
 ): { exitCode: number; stdout: string; stderr: string } {
   const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
   const tenantUser = ensureTenantSystemUser(tenantSlug);
@@ -571,10 +572,12 @@ function runTenantGit(
     : ["git", ...fullGitArgs];
 
   const proc = Bun.spawnSync(cmd, { cwd: codeDir });
+  const stdoutStr = proc.stdout ? proc.stdout.toString() : "";
+  const stderrStr = proc.stderr ? proc.stderr.toString() : "";
   return {
     exitCode: proc.exitCode,
-    stdout: (proc.stdout ? proc.stdout.toString() : "").trim(),
-    stderr: (proc.stderr ? proc.stderr.toString() : "").trim(),
+    stdout: options?.raw ? stdoutStr : stdoutStr.trim(),
+    stderr: options?.raw ? stderrStr : stderrStr.trim(),
   };
 }
 
@@ -1032,6 +1035,38 @@ function killTenantTurn(tenantSlug: string): boolean {
   return stopped;
 }
 
+function getTenantEnv(slug: string, codeDir: string): Record<string, string> {
+  const envVars: Record<string, string> = {};
+  const paths = [
+    join(DATA_DIR, "tenants", slug, ".env"),
+    join(codeDir, ".env"),
+  ];
+  for (const p of paths) {
+    if (existsSync(p)) {
+      try {
+        const raw = readFileSync(p, "utf-8");
+        for (const line of raw.split("\n")) {
+          const t = line.trim();
+          if (!t || t.startsWith("#")) continue;
+          const eq = t.indexOf("=");
+          if (eq > 0) {
+            const k = t.slice(0, eq).trim();
+            let v = t.slice(eq + 1).trim();
+            if (
+              (v.startsWith('"') && v.endsWith('"')) ||
+              (v.startsWith("'") && v.endsWith("'"))
+            ) {
+              v = v.slice(1, -1);
+            }
+            envVars[k] = v;
+          }
+        }
+      } catch {}
+    }
+  }
+  return envVars;
+}
+
 async function getOrLaunchTenantDevServer(
   slug: string,
   gitRepoUrl?: string,
@@ -1071,6 +1106,8 @@ async function getOrLaunchTenantDevServer(
   const port = nextAvailablePort++;
 
   const dbPath = join(DATA_DIR, "tenants", slug, "app.db");
+  const tenantEnv = getTenantEnv(slug, codeDir);
+  const extraEnvArgs = Object.entries(tenantEnv).map(([k, v]) => `${k}=${v}`);
 
   const viteBin = existsSync(join(codeDir, "node_modules", ".bin", "vite"))
     ? "./node_modules/.bin/vite"
@@ -1087,6 +1124,7 @@ async function getOrLaunchTenantDevServer(
         `PORT=${port}`,
         "HOST=0.0.0.0",
         `DB_PATH=${dbPath}`,
+        ...extraEnvArgs,
         "bun",
         "--bun",
         viteBin,
@@ -1111,6 +1149,7 @@ async function getOrLaunchTenantDevServer(
     cwd: codeDir,
     env: {
       ...process.env,
+      ...tenantEnv,
       PORT: String(port),
       HOST: "0.0.0.0",
       DB_PATH: dbPath,
@@ -1161,6 +1200,8 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
   const isRoot = isLinuxRoot();
   const port = nextAvailableProdPort++;
   const dbPath = join(DATA_DIR, "tenants", slug, "app.db");
+  const tenantEnv = getTenantEnv(slug, codeDir);
+  const extraEnvArgs = Object.entries(tenantEnv).map(([k, v]) => `${k}=${v}`);
 
   const buildIndex = join(codeDir, "build", "index.js");
   if (!existsSync(buildIndex)) {
@@ -1172,6 +1213,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
           "--",
           "env",
           `DB_PATH=${dbPath}`,
+          ...extraEnvArgs,
           "bun",
           "run",
           "build",
@@ -1181,6 +1223,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
       cwd: codeDir,
       env: {
         ...process.env,
+        ...tenantEnv,
         DB_PATH: dbPath,
         NODE_ENV: "production",
       },
@@ -1202,6 +1245,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
               `PORT=${port}`,
               "HOST=0.0.0.0",
               `DB_PATH=${dbPath}`,
+              ...extraEnvArgs,
               "bun",
               "./build/index.js",
             ]
@@ -1210,6 +1254,7 @@ async function getOrLaunchTenantProdServer(slug: string): Promise<number> {
           cwd: codeDir,
           env: {
             ...process.env,
+            ...tenantEnv,
             PORT: String(port),
             HOST: "0.0.0.0",
             DB_PATH: dbPath,
@@ -1928,6 +1973,10 @@ const server = Bun.serve({
           (pushProc.stdout ? pushProc.stdout.toString() : "") +
           (pushProc.stderr ? pushProc.stderr.toString() : "");
 
+        // Tag this commit as 'published' to easily diff against last publish
+        runGit(["tag", "-f", "published"]);
+        runGit(["push", "-f", "origin", "published"]);
+
         return Response.json(
           {
             success: pushProc.exitCode === 0,
@@ -2104,56 +2153,270 @@ const server = Bun.serve({
     if (diffMatch && (req.method === "GET" || req.method === "POST")) {
       const tenantSlug = diffMatch[1];
       const targetFile = (url.searchParams.get("path") || "").trim();
+      const action = url.searchParams.get("action") || "";
+
       try {
-        let original = "";
-        let current = "";
         const codeDir = join(DATA_DIR, "tenants", tenantSlug, "code");
+        if (!existsSync(codeDir) || !existsSync(join(codeDir, ".git"))) {
+          return Response.json(
+            { success: false, error: "Dépôt Git non initialisé pour ce site" },
+            { status: 400, headers: corsHeaders },
+          );
+        }
 
-        if (targetFile) {
-          const absTarget = join(codeDir, targetFile);
-          if (existsSync(absTarget)) {
-            current = readFileSync(absTarget, "utf-8");
+        // Action: list recent commits & detect published commit
+        if (action === "commits") {
+          let publishedHash = "";
+          const tagProc = runTenantGit(tenantSlug, [
+            "rev-parse",
+            "-q",
+            "--verify",
+            "refs/tags/published",
+          ]);
+          if (tagProc.exitCode === 0 && tagProc.stdout) {
+            publishedHash = tagProc.stdout.trim();
           }
 
-          const headPrevProc = runTenantGit(tenantSlug, [
-            "show",
-            `HEAD~1:${targetFile}`,
+          const logProc = runTenantGit(tenantSlug, [
+            "log",
+            "-n",
+            "40",
+            "--pretty=format:%H%x09%h%x09%an%x09%at%x09%s",
           ]);
-          if (headPrevProc.exitCode === 0) {
-            original = headPrevProc.stdout;
-          } else {
-            const headProc = runTenantGit(tenantSlug, [
-              "show",
-              `HEAD:${targetFile}`,
-            ]);
-            original = headProc.exitCode === 0 ? headProc.stdout : "";
+          const commits: Array<{
+            hash: string;
+            shortHash: string;
+            author: string;
+            timestamp: number;
+            date: string;
+            message: string;
+            isPublish: boolean;
+          }> = [];
+
+          if (logProc.exitCode === 0 && logProc.stdout) {
+            const rawLines = logProc.stdout.trim().split("\n");
+            for (const line of rawLines) {
+              if (!line.trim()) continue;
+              const [hash, shortHash, author, tsStr, ...msgParts] =
+                line.split("\t");
+              const message = msgParts.join("\t");
+              const ts = parseInt(tsStr, 10) * 1000;
+              const isPublish =
+                (publishedHash && hash === publishedHash) ||
+                message
+                  .toLowerCase()
+                  .includes("publication via ether studio") ||
+                message.toLowerCase().startsWith("publier") ||
+                message.toLowerCase().startsWith("publish");
+
+              if (!publishedHash && isPublish) {
+                publishedHash = hash;
+              }
+
+              commits.push({
+                hash,
+                shortHash: shortHash || hash.slice(0, 7),
+                author: author || "Ether Studio",
+                timestamp: isNaN(ts) ? Date.now() : ts,
+                date: isNaN(ts)
+                  ? ""
+                  : new Date(ts).toLocaleString("fr-FR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }),
+                message: message || "Mise à jour",
+                isPublish: Boolean(isPublish),
+              });
+            }
           }
 
-          const diffProc = runTenantGit(tenantSlug, [
-            "diff",
-            "HEAD~1",
-            "--",
-            targetFile,
-          ]);
-          const diffOutput = diffProc.exitCode === 0 ? diffProc.stdout : "";
+          // Check if there are uncommitted working tree changes
+          const statusProc = runTenantGit(tenantSlug, ["status", "--porcelain"]);
+          const hasUncommitted = Boolean(
+            statusProc.stdout && statusProc.stdout.trim().length > 0,
+          );
 
           return Response.json(
             {
               success: true,
-              path: targetFile,
-              original,
-              current,
-              diff: diffOutput,
+              commits,
+              publishedHash: publishedHash || (commits[0]?.hash ?? ""),
+              hasUncommitted,
             },
             { headers: corsHeaders },
           );
         }
 
-        const fullDiffProc = runTenantGit(tenantSlug, ["diff", "HEAD~1"]);
+        // Action: Calculate Diff
+        let baseParam = url.searchParams.get("base") || "publish";
+        const targetParam = url.searchParams.get("target") || "working";
+
+        // Resolve 'publish' to actual commit or tag
+        let baseRef = baseParam;
+        if (baseParam === "publish") {
+          const tagProc = runTenantGit(tenantSlug, [
+            "rev-parse",
+            "-q",
+            "--verify",
+            "refs/tags/published",
+          ]);
+          if (tagProc.exitCode === 0 && tagProc.stdout.trim()) {
+            baseRef = tagProc.stdout.trim();
+          } else {
+            // Find commit with "Publication via Ether Studio"
+            const findPubProc = runTenantGit(tenantSlug, [
+              "log",
+              "-n",
+              "50",
+              "--grep=Publication via Ether Studio",
+              "--pretty=format:%H",
+            ]);
+            if (findPubProc.exitCode === 0 && findPubProc.stdout.trim()) {
+              baseRef = findPubProc.stdout.trim().split("\n")[0];
+            } else {
+              // Fallback to HEAD~1 or HEAD
+              const checkHead1 = runTenantGit(tenantSlug, [
+                "rev-parse",
+                "-q",
+                "--verify",
+                "HEAD~1",
+              ]);
+              baseRef = checkHead1.exitCode === 0 ? "HEAD~1" : "HEAD";
+            }
+          }
+        }
+
+        const isWorkingTree = targetParam === "working";
+        const diffArgs: string[] = isWorkingTree
+          ? ["diff", baseRef]
+          : ["diff", `${baseRef}..${targetParam}`];
+
+        const numstatArgs: string[] = isWorkingTree
+          ? ["diff", "--numstat", baseRef]
+          : ["diff", "--numstat", `${baseRef}..${targetParam}`];
+
+        const nameStatusArgs: string[] = isWorkingTree
+          ? ["diff", "--name-status", baseRef]
+          : ["diff", "--name-status", `${baseRef}..${targetParam}`];
+
+        if (targetFile) {
+          diffArgs.push("--", targetFile);
+          numstatArgs.push("--", targetFile);
+          nameStatusArgs.push("--", targetFile);
+        }
+
+        const diffProc = runTenantGit(tenantSlug, diffArgs, { raw: true });
+        const diffOutput = diffProc.exitCode === 0 ? diffProc.stdout : "";
+
+        const numstatProc = runTenantGit(tenantSlug, numstatArgs);
+        const nameStatusProc = runTenantGit(tenantSlug, nameStatusArgs);
+
+        // Parse file status map
+        const statusMap = new Map<string, string>();
+        if (nameStatusProc.exitCode === 0 && nameStatusProc.stdout) {
+          for (const l of nameStatusProc.stdout.split("\n")) {
+            const trimmed = l.trim();
+            if (!trimmed) continue;
+            const parts = trimmed.split(/\s+/);
+            if (parts.length >= 2) {
+              const code = parts[0][0]; // M, A, D, R
+              const fPath = parts.slice(1).join(" ");
+              statusMap.set(fPath, code);
+            }
+          }
+        }
+
+        let totalAdditions = 0;
+        let totalDeletions = 0;
+        const files: Array<{
+          path: string;
+          status: "modified" | "added" | "deleted" | "renamed";
+          additions: number;
+          deletions: number;
+        }> = [];
+
+        if (numstatProc.exitCode === 0 && numstatProc.stdout) {
+          for (const l of numstatProc.stdout.split("\n")) {
+            const trimmed = l.trim();
+            if (!trimmed) continue;
+            const [addStr, delStr, ...fileParts] = trimmed.split("\t");
+            const fPath = fileParts.join("\t");
+            const additions = parseInt(addStr, 10) || 0;
+            const deletions = parseInt(delStr, 10) || 0;
+            totalAdditions += additions;
+            totalDeletions += deletions;
+
+            const statusCode = statusMap.get(fPath) || "M";
+            let status: "modified" | "added" | "deleted" | "renamed" = "modified";
+            if (statusCode === "A") status = "added";
+            else if (statusCode === "D") status = "deleted";
+            else if (statusCode === "R") status = "renamed";
+
+            files.push({
+              path: fPath,
+              status,
+              additions,
+              deletions,
+            });
+          }
+        }
+
+        let original = "";
+        let current = "";
+        if (targetFile) {
+          const absTarget = join(codeDir, targetFile);
+          if (existsSync(absTarget)) {
+            current = readFileSync(absTarget, "utf-8");
+          }
+          const origProc = runTenantGit(
+            tenantSlug,
+            ["show", `${baseRef}:${targetFile}`],
+            { raw: true },
+          );
+          if (origProc.exitCode === 0) {
+            original = origProc.stdout;
+          }
+        }
+
+        // Fetch info about base commit
+        const baseInfoProc = runTenantGit(tenantSlug, [
+          "log",
+          "-1",
+          "--pretty=format:%h%x09%s%x09%at",
+          baseRef,
+        ]);
+        let baseShort = baseRef.slice(0, 7);
+        let baseMsg = "Commit de référence";
+        let baseDate = "";
+        if (baseInfoProc.exitCode === 0 && baseInfoProc.stdout) {
+          const [sh, m, ts] = baseInfoProc.stdout.split("\t");
+          if (sh) baseShort = sh;
+          if (m) baseMsg = m;
+          if (ts) {
+            baseDate = new Date(parseInt(ts, 10) * 1000).toLocaleString("fr-FR", {
+              dateStyle: "short",
+              timeStyle: "short",
+            });
+          }
+        }
+
         return Response.json(
           {
             success: true,
-            diff: fullDiffProc.exitCode === 0 ? fullDiffProc.stdout : "",
+            baseRef,
+            baseShort,
+            baseMsg,
+            baseDate,
+            targetRef: targetParam,
+            stats: {
+              filesChanged: files.length,
+              totalAdditions,
+              totalDeletions,
+            },
+            files,
+            diff: diffOutput,
+            original: targetFile ? original : undefined,
+            current: targetFile ? current : undefined,
           },
           { headers: corsHeaders },
         );

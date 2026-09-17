@@ -18,6 +18,7 @@
   import ThemeToggle from "$lib/components/theme-toggle.svelte";
   import DomainModal from "$lib/components/domain-modal.svelte";
   import GitAccessModal from "$lib/components/studio/GitAccessModal.svelte";
+  import GitDiffModal from "$lib/components/studio/GitDiffModal.svelte";
   import MenuPopover from "$lib/components/menu-popover.svelte";
   import { theme } from "$lib/stores/theme";
   import { oneDark } from "@codemirror/theme-one-dark";
@@ -168,6 +169,7 @@
   // Domain Management Modal States
   let isDomainModalOpen = $state(false);
   let isGitModalOpen = $state(false);
+  let isDiffModalOpen = $state(false);
   let domainInput = $state("");
   let domainLinkLoading = $state(false);
   let domainLinkStatus = $state<string | null>(null);
@@ -2505,6 +2507,18 @@
         </button>
       {/if}
 
+      <!-- Git Diff Modal Trigger -->
+      <button
+        onclick={() => { isDiffModalOpen = true; }}
+        class="focus-ring px-3 py-1.5 rounded-full border border-black/10 dark:border-white/10 bg-card dark:bg-white/[0.04] hover:bg-surface dark:hover:bg-white/10 text-foreground dark:text-white text-xs font-medium uppercase tracking-[0.12em] shadow-retro-sm transition-all inline-flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5 shrink-0"
+        title="Voir les différences Git depuis la dernière publication"
+      >
+        <svg class="w-3.5 h-3.5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+        </svg>
+        <span>Diff</span>
+      </button>
+
       <button
         onclick={handlePublish}
         disabled={publishLoading}
@@ -4146,6 +4160,15 @@
     isOpen={isGitModalOpen}
     projectSlug={projectSlug}
     onClose={() => (isGitModalOpen = false)}
+  />
+{/if}
+
+<!-- Git Diff Inspector Modal -->
+{#if isDiffModalOpen}
+  <GitDiffModal
+    isOpen={isDiffModalOpen}
+    projectSlug={projectSlug}
+    onClose={() => (isDiffModalOpen = false)}
   />
 {/if}
 
