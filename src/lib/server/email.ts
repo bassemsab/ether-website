@@ -108,10 +108,17 @@ export async function sendContactEmail(payload: ContactPayload) {
           color: #111827;
           -webkit-font-smoothing: antialiased;
         }
-        .brand-badge {
-          background-color: #0c0f17;
-          border: 1px solid #232838;
-          border-radius: 14px;
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
         }
         @media (prefers-color-scheme: dark) {
           body, .email-table {
@@ -123,9 +130,11 @@ export async function sendContactEmail(payload: ContactPayload) {
             box-shadow: none !important;
             color: #F1F5F9 !important;
           }
-          .brand-badge {
-            background-color: #0c0f17 !important;
-            border-color: rgba(255, 255, 255, 0.15) !important;
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
           }
           .card-title, .val-text {
             color: #F8FAFC !important;
@@ -154,9 +163,11 @@ export async function sendContactEmail(payload: ContactPayload) {
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .brand-badge, [data-ogsb] .brand-badge {
-          background-color: #0c0f17 !important;
-          border-color: rgba(255, 255, 255, 0.15) !important;
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
         }
         [data-ogsc] .details-box, [data-ogsb] .details-box {
           background-color: #1a1a24 !important;
@@ -176,21 +187,25 @@ export async function sendContactEmail(payload: ContactPayload) {
           <td align="center" style="padding: 36px 16px; background-color: #f9fafb;">
             <div class="email-card" style="max-width: 520px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: left;">
               
-              <!-- Brand mark badge -->
+              <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto; border-collapse: separate;">
-                  <tr>
-                    <td align="center" class="brand-badge" style="background-color: #0c0f17; border: 1px solid #232838; border-radius: 14px; padding: 10px 16px; vertical-align: middle; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
-                      <img
-                        src="https://ether.paris/ether-logo-white.png"
-                        alt="ether"
-                        width="60"
-                        style="display: block; width: 60px; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none;"
-                      />
-                    </td>
-                  </tr>
-                </table>
-                <div class="brand-subtitle" style="margin-top: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <img
+                  src="https://ether.paris/ether-logo-resilient.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-light"
+                  style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   studio &amp; hébergement web
                 </div>
               </div>
@@ -340,10 +355,17 @@ export async function sendOtpEmail(email: string, code: string) {
           padding: 36px 32px;
           text-align: center;
         }
-        .brand-badge {
-          background-color: #0c0f17;
-          border: 1px solid #232838;
-          border-radius: 14px;
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -402,9 +424,11 @@ export async function sendOtpEmail(email: string, code: string) {
             box-shadow: none !important;
             color: #F1F5F9 !important;
           }
-          .brand-badge {
-            background-color: #0c0f17 !important;
-            border-color: rgba(255, 255, 255, 0.15) !important;
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
           }
           .greeting, .code-number {
             color: #F8FAFC !important;
@@ -416,6 +440,7 @@ export async function sendOtpEmail(email: string, code: string) {
             background-color: #1a1a24 !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             box-shadow: none !important;
+            color: #F1F5F9 !important;
           }
           .footer-note {
             border-top-color: rgba(255, 255, 255, 0.08) !important;
@@ -428,9 +453,11 @@ export async function sendOtpEmail(email: string, code: string) {
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .brand-badge, [data-ogsb] .brand-badge {
-          background-color: #0c0f17 !important;
-          border-color: rgba(255, 255, 255, 0.15) !important;
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
         }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
@@ -445,21 +472,25 @@ export async function sendOtpEmail(email: string, code: string) {
           <td align="center" style="padding: 32px 16px;">
             <div class="email-card" style="max-width: 480px; margin: 0 auto; background-color: #FFFFFF; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 36px 32px; text-align: center;">
               
-              <!-- Brand mark badge -->
+              <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto; border-collapse: separate;">
-                  <tr>
-                    <td align="center" class="brand-badge" style="background-color: #0c0f17; border: 1px solid #232838; border-radius: 14px; padding: 10px 16px; vertical-align: middle; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
-                      <img
-                        src="https://ether.paris/ether-logo-white.png"
-                        alt="ether"
-                        width="60"
-                        style="display: block; width: 60px; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none;"
-                      />
-                    </td>
-                  </tr>
-                </table>
-                <div class="brand-subtitle" style="margin-top: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <img
+                  src="https://ether.paris/ether-logo-resilient.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-light"
+                  style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   studio &amp; hébergement web
                 </div>
               </div>
@@ -688,10 +719,17 @@ export async function sendPromptTopupConfirmationEmail(
           padding: 36px 32px;
           text-align: center;
         }
-        .brand-badge {
-          background-color: #0c0f17;
-          border: 1px solid #232838;
-          border-radius: 14px;
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -761,9 +799,11 @@ export async function sendPromptTopupConfirmationEmail(
             box-shadow: none !important;
             color: #F1F5F9 !important;
           }
-          .brand-badge {
-            background-color: #0c0f17 !important;
-            border-color: rgba(255, 255, 255, 0.15) !important;
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
@@ -793,9 +833,11 @@ export async function sendPromptTopupConfirmationEmail(
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .brand-badge, [data-ogsb] .brand-badge {
-          background-color: #0c0f17 !important;
-          border-color: rgba(255, 255, 255, 0.15) !important;
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
         }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
@@ -815,21 +857,25 @@ export async function sendPromptTopupConfirmationEmail(
           <td align="center" style="padding: 32px 16px;">
             <div class="email-card">
               
-              <!-- Brand mark badge -->
+              <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto; border-collapse: separate;">
-                  <tr>
-                    <td align="center" class="brand-badge" style="background-color: #0c0f17; border: 1px solid #232838; border-radius: 14px; padding: 10px 16px; vertical-align: middle; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
-                      <img
-                        src="https://ether.paris/ether-logo-white.png"
-                        alt="ether"
-                        width="60"
-                        style="display: block; width: 60px; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none;"
-                      />
-                    </td>
-                  </tr>
-                </table>
-                <div class="brand-subtitle" style="margin-top: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <img
+                  src="https://ether.paris/ether-logo-resilient.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-light"
+                  style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   studio &amp; hébergement web
                 </div>
               </div>
@@ -986,10 +1032,17 @@ export async function sendDomainPurchaseConfirmationEmail(
           padding: 36px 32px;
           text-align: center;
         }
-        .brand-badge {
-          background-color: #0c0f17;
-          border: 1px solid #232838;
-          border-radius: 14px;
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -1059,9 +1112,11 @@ export async function sendDomainPurchaseConfirmationEmail(
             box-shadow: none !important;
             color: #F1F5F9 !important;
           }
-          .brand-badge {
-            background-color: #0c0f17 !important;
-            border-color: rgba(255, 255, 255, 0.15) !important;
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
@@ -1091,9 +1146,11 @@ export async function sendDomainPurchaseConfirmationEmail(
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .brand-badge, [data-ogsb] .brand-badge {
-          background-color: #0c0f17 !important;
-          border-color: rgba(255, 255, 255, 0.15) !important;
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
         }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
@@ -1113,21 +1170,25 @@ export async function sendDomainPurchaseConfirmationEmail(
           <td align="center" style="padding: 32px 16px;">
             <div class="email-card">
               
-              <!-- Brand mark badge -->
+              <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto; border-collapse: separate;">
-                  <tr>
-                    <td align="center" class="brand-badge" style="background-color: #0c0f17; border: 1px solid #232838; border-radius: 14px; padding: 10px 16px; vertical-align: middle; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
-                      <img
-                        src="https://ether.paris/ether-logo-white.png"
-                        alt="ether"
-                        width="60"
-                        style="display: block; width: 60px; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none;"
-                      />
-                    </td>
-                  </tr>
-                </table>
-                <div class="brand-subtitle" style="margin-top: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <img
+                  src="https://ether.paris/ether-logo-resilient.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-light"
+                  style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   studio &amp; hébergement web
                 </div>
               </div>
@@ -1275,10 +1336,17 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           padding: 36px 32px;
           text-align: center;
         }
-        .brand-badge {
-          background-color: #0c0f17;
-          border: 1px solid #232838;
-          border-radius: 14px;
+        .logo-mark {
+          display: inline-block;
+          width: 72px;
+          height: auto;
+          vertical-align: middle;
+        }
+        .logo-light {
+          display: inline-block;
+        }
+        .logo-dark {
+          display: none;
         }
         .brand-subtitle {
           margin-top: 8px;
@@ -1348,9 +1416,11 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
             box-shadow: none !important;
             color: #F1F5F9 !important;
           }
-          .brand-badge {
-            background-color: #0c0f17 !important;
-            border-color: rgba(255, 255, 255, 0.15) !important;
+          .logo-light {
+            display: none !important;
+          }
+          .logo-dark {
+            display: inline-block !important;
           }
           .greeting, .val-text {
             color: #F8FAFC !important;
@@ -1380,9 +1450,11 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           box-shadow: none !important;
           color: #F1F5F9 !important;
         }
-        [data-ogsc] .brand-badge, [data-ogsb] .brand-badge {
-          background-color: #0c0f17 !important;
-          border-color: rgba(255, 255, 255, 0.15) !important;
+        [data-ogsc] .logo-light, [data-ogsb] .logo-light {
+          display: none !important;
+        }
+        [data-ogsc] .logo-dark, [data-ogsb] .logo-dark {
+          display: inline-block !important;
         }
         [data-ogsc] .code-container, [data-ogsb] .code-container {
           background-color: #1a1a24 !important;
@@ -1402,21 +1474,25 @@ export async function sendDomainLinkedEmail(params: DomainLinkedEmailParams) {
           <td align="center" style="padding: 32px 16px;">
             <div class="email-card">
               
-              <!-- Brand mark badge -->
+              <!-- Official ether logo -->
               <div style="text-align: center; margin-bottom: 20px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto; border-collapse: separate;">
-                  <tr>
-                    <td align="center" class="brand-badge" style="background-color: #0c0f17; border: 1px solid #232838; border-radius: 14px; padding: 10px 16px; vertical-align: middle; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
-                      <img
-                        src="https://ether.paris/ether-logo-white.png"
-                        alt="ether"
-                        width="60"
-                        style="display: block; width: 60px; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none;"
-                      />
-                    </td>
-                  </tr>
-                </table>
-                <div class="brand-subtitle" style="margin-top: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
+                <img
+                  src="https://ether.paris/ether-logo-resilient.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-light"
+                  style="display: inline-block; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--[if !mso]><!-->
+                <img
+                  src="https://ether.paris/ether-logo-white.png"
+                  alt="ether"
+                  width="72"
+                  class="logo-mark logo-dark"
+                  style="display: none; width: 72px; height: auto; margin: 0 auto; vertical-align: middle;"
+                />
+                <!--<![endif]-->
+                <div class="brand-subtitle" style="margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: #64748b; font-family: -apple-system, BlinkMacSystemFont, 'Space Grotesk', 'Segoe UI', Roboto, sans-serif;">
                   studio &amp; hébergement web
                 </div>
               </div>
