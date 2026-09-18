@@ -25,6 +25,8 @@ type CaseStudy = {
   metrics: string[];
   image: string;
   url?: string;
+  badge?: string;
+  deploymentNote?: string;
 };
 
 type ApproachStep = {
@@ -222,8 +224,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       highlights: [
         {
           label: "Projets en production",
-          value: "3",
-          detail: "Applications IA, e-commerce & art interactif",
+          value: "4",
+          detail: "Applications IA, audio temps réel, e-commerce & art interactif",
         },
         {
           label: "Ingénierie sur-mesure",
@@ -252,66 +254,65 @@ const dictionaries: Record<Locale, HomeDictionary> = {
     },
     sections: {
       platform: {
-        eyebrow: "Plateforme & Déploiement",
-        title: "Votre présence en ligne, instantanément déployée.",
+        eyebrow: "Offre Studio",
+        title: "Votre site conçu, produit et déployé.",
         description:
-          "Générez vos sites web avec SvelteKit & Bun, obtenez un nom de domaine ou sous-domaine ether.paris, et pilotez votre code en toute autonomie.",
-        primaryCta: "Créer un site",
-        secondaryCta: "En savoir plus",
+          "Pour les marques, créateurs et entreprises qui refusent les templates génériques : Ether conçoit des produits web sur-mesure, rapides, durables et fidèles à votre univers.",
+        primaryCta: "Démarrer un projet",
+        secondaryCta: "Voir les réalisations",
         features: [
-          "Nom de domaine",
-          "Infrastructure Bun & SQLite",
-          "Dépôt Git dédié",
-          "Studio IA Ether",
+          "Direction artistique & design d'interaction",
+          "Ingénierie full-stack haute performance",
+          "Hébergement, maintenance & évolutions",
         ],
       },
       manifesto: {
         eyebrow: "Manifeste",
-        title: "Concevoir des outils et des mémoires digitales singulières.",
+        title: "L'artisanat logiciel au service de l'essentiel.",
         description:
-          "Ether allie rigueur technique et sensibilité artistique pour bâtir des interfaces vivantes, tactiles et performantes.",
+          "Chez Ether, nous croyons qu'un produit numérique doit être précis, rapide et singulier.",
         paragraphs: [
-          "Nous rejetons les modèles préfabriqués et les coquilles vides. Chaque création naît d'une intention claire, d'un dialogue direct et d'un soin maniaque apporté aux moindres détails d'interaction.",
-          "L’approche Retroui infuse les technologies web modernes de textures mémorielles : matières organiques, typographies expressives et micro-animations fluides. Des outils pensés pour durer, navigables avec plaisir.",
+          "Le web contemporain est saturé de frameworks lourds, de dépendances superflues et d'interfaces interchangeables. Nous prenons le contrepied de cette standardisation.",
+          "Nous concevons chaque produit avec une exigence artisanale : des architectures légères, un code maîtrisé de bout en bout, et des interfaces pensées pour durer.",
         ],
         bullets: [
-          "Développement sans superflu : code lisible, ultra-rapide et respectueux des standards ouverts.",
-          "Architecture moderne : runtime Bun, composants réactifs Svelte 5, zéro dette inutile.",
-          "Créativité technique : interactions sur-mesure au service de l'identité de chaque projet.",
+          "Performances sans compromis et sobriété technique",
+          "Esthétique singulière et respectueuse de votre identité",
+          "Interlocuteur unique de la conception au déploiement",
         ],
         offer: {
-          title: "Cycle de réalisation",
+          title: "Notre engagement",
           description:
-            "Un processus direct et sans intermédiaire, de l'esquisse conceptuelle jusqu'à la mise en production.",
+            "Un accompagnement sur-mesure, de la première esquisse jusqu'à la mise en ligne et au-delà.",
           phases: [
-            { label: "Cadrage & Intentions", timeline: "Semaine 1" },
-            { label: "Design & Prototype", timeline: "Semaines 2-3" },
-            { label: "Développement & Lancement", timeline: "Semaines 4-6" },
+            { label: "Cadrage & Direction Artistique", timeline: "Semaine 1" },
+            { label: "Développement & Prototypage", timeline: "Semaines 2-3" },
+            { label: "Finitions, Tests & Déploiement", timeline: "Semaine 4" },
           ],
         },
       },
       expertise: {
-        eyebrow: "Expertise",
-        title: "Nos trois domaines d’intervention.",
+        eyebrow: "Savoir-faire",
+        title: "De la vision à la production.",
         description:
-          "Une synergie entre ingénierie logicielle, recherche esthétique et technologies d'intelligence artificielle.",
+          "Trois pôles de compétences complémentaires pour donner vie à vos projets numériques les plus ambitieux.",
         services: [
           {
-            title: "Applications Web & Mobile",
+            title: "Architecture Web & Performance",
             description:
-              "Conception et développement d’applications complètes, rapides et réactives. Du prototype au produit déployé à l'échelle.",
+              "Applications web modernes construites sur Bun, SvelteKit et SQLite. Temps de chargement instantanés, consommation de ressources minimale et fiabilité exemplaire.",
             deliverables: [
-              "Architecture produit & API",
-              "Frontend SvelteKit & Runes",
-              "PWA & optimisation mobile",
+              "Applications SvelteKit & Runes Svelte 5",
+              "Bases SQLite embarquées & APIs légères",
+              "Audit de performance & optimisation SEO",
             ],
           },
           {
-            title: "Expériences Interactives & Design",
+            title: "Design d'Interaction & Création Visuelle",
             description:
-              "Création d'univers visuels mémorables, d'animations vectorielles sur-mesure et d'interfaces tactiles qui se démarquent des standards génériques.",
+              "Interfaces singulières qui marquent les esprits. Animations fluides, navigation sur-mesure et identité visuelle affirmée pour vous démarquer.",
             deliverables: [
-              "Direction artistique digitale",
+              "Direction artistique numérique",
               "Animations SVG & shaders",
               "Micro-interactions fluides",
             ],
@@ -332,7 +333,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         eyebrow: "Projets",
         title: "Réalisations en production.",
         description:
-          "Trois projets concrets conçus et développés par le studio, illustrant la diversité de nos savoir-faire.",
+          "Quatre projets concrets conçus et développés par le studio, illustrant la diversité de nos savoir-faire.",
         caseStudies: [
           {
             title: "ami",
@@ -372,6 +373,21 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             ],
             image: "/artists-inner-realm-jewellery.svg",
             url: "https://lechatperdu.ether.paris",
+          },
+          {
+            title: "t-et-t",
+            sector: "Application Locale · Audio Temps Réel & Traduction",
+            summary:
+              "Application desktop et mobile de transcription et traduction vocale en continu avec diffusion multilingue instantanée aux auditeurs (sur smartphone via QR code). Architecture hybride ultra-basse latence (sub-500ms) pour conférences et événements en direct.",
+            metrics: [
+              "Pipeline IA temps réel sub-500ms (Gemini Live, Deepgram, Whisper)",
+              "Diffusion multilingue synchrone sur smartphones via QR code",
+              "Runtime natif multi-plateforme (Tauri 2 Rust, Go, SvelteKit)",
+              "Projet local · Déploiement et installation sur site à la demande",
+            ],
+            image: "/t-et-t-icon.png",
+            badge: "Projet local · Sur demande",
+            deploymentNote: "Déploiement sur demande",
           },
         ],
       },
@@ -528,8 +544,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       highlights: [
         {
           label: "Live production projects",
-          value: "3",
-          detail: "AI applications, e-commerce & interactive art",
+          value: "4",
+          detail: "AI platforms, real-time audio, bespoke e-commerce & interactive art",
         },
         {
           label: "Bespoke engineering",
@@ -638,7 +654,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         eyebrow: "Projects",
         title: "Work in production.",
         description:
-          "Three live projects conceived and developed by the studio, illustrating our range of craft.",
+          "Four live projects conceived and developed by the studio, illustrating our range of craft.",
         caseStudies: [
           {
             title: "ami",
@@ -678,6 +694,21 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             ],
             image: "/artists-inner-realm-jewellery.svg",
             url: "https://lechatperdu.ether.paris",
+          },
+          {
+            title: "t-et-t",
+            sector: "Local App · Real-Time Audio & Translation",
+            summary:
+              "Local desktop and mobile app providing real-time audio transcription and translation, broadcasting instant multilingual audio to audience smartphones via QR code. Ultra-low latency pipeline (sub-500ms) designed for conferences and live events.",
+            metrics: [
+              "Sub-500ms real-time AI pipeline (Gemini Live, Deepgram, Whisper)",
+              "Synchronous multilingual broadcast to smartphones via QR code",
+              "Native cross-platform local runtime (Tauri 2 Rust, Go, SvelteKit)",
+              "Local project · On-premise deployment available on request",
+            ],
+            image: "/t-et-t-icon.png",
+            badge: "Local project · On request",
+            deploymentNote: "Deploy on request",
           },
         ],
       },
@@ -831,8 +862,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       highlights: [
         {
           label: "مشاريع قيد التشغيل",
-          value: "3",
-          detail: "تطبيقات ذكاء اصطناعي، تجارة وتجارب تفاعلية",
+          value: "4",
+          detail: "تطبيقات ذكاء اصطناعي وبث صوتي وتجارة وتجارب تفاعلية",
         },
         {
           label: "هندسة مخصصة",
@@ -941,7 +972,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         eyebrow: "المشاريع",
         title: "أعمال حية في الإنتاج.",
         description:
-          "ثلاثة مشاريع حقيقية صممها وطورها الاستوديو تعكس تنوع خبراتنا ودقتها.",
+          "أربعة مشاريع حية صممها وطورها الاستوديو تعكس تنوع خبراتنا ودقتها.",
         caseStudies: [
           {
             title: "ami",
@@ -981,6 +1012,21 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             ],
             image: "/artists-inner-realm-jewellery.svg",
             url: "https://lechatperdu.ether.paris",
+          },
+          {
+            title: "t-et-t",
+            sector: "تطبيق محلي · صوت فوري وترجمة متعددة اللغات",
+            summary:
+              "تطبيق محلي مكتبي وجوال للنسخ والترجمة الصوتية الفورية وبث الترجمة الصوتية إلى هواتف الحضور في القاعة مباشرة عبر رمز QR بلغتهم المختارة. بنية برمجية فائقة السرعة للمؤتمرات والفعاليات الحية.",
+            metrics: [
+              "بنية ذكاء اصطناعي فورية بزمن استجابة أقل من 500ms",
+              "بث صوتي متزامن متعدد اللغات للحضور عبر رمز QR",
+              "تشغيل محلي بالكامل وتطبيق أصلي (Tauri 2 Rust, Go, SvelteKit)",
+              "مشروع محلي · نشر وتثبيت في الموقع عند الطلب",
+            ],
+            image: "/t-et-t-icon.png",
+            badge: "مشروع محلي · عند الطلب",
+            deploymentNote: "طلب النشر والتنفيذ",
           },
         ],
       },

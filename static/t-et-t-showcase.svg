@@ -1,0 +1,242 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000">
+  <defs>
+    <!-- Background Gradients -->
+    <radialGradient id="bg-glow" cx="50%" cy="46%" r="65%">
+      <stop offset="0%" stop-color="#141d33" />
+      <stop offset="45%" stop-color="#0b101e" />
+      <stop offset="100%" stop-color="#05070d" />
+    </radialGradient>
+    
+    <radialGradient id="amber-halo" cx="50%" cy="40%" r="35%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.18" />
+      <stop offset="70%" stop-color="#f59e0b" stop-opacity="0.03" />
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="indigo-halo" cx="50%" cy="58%" r="40%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.22" />
+      <stop offset="80%" stop-color="#6366f1" stop-opacity="0.02" />
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Border Gradients -->
+    <linearGradient id="brand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="45%" stop-color="#fb923c" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+
+    <linearGradient id="wave-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#fb923c" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Grid Pattern -->
+    <pattern id="audio-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#313d5a" stroke-width="0.75" stroke-opacity="0.25" />
+      <circle cx="40" cy="40" r="1" fill="#fbbf24" fill-opacity="0.25" />
+    </pattern>
+
+    <!-- Filters -->
+    <filter id="soft-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Layer -->
+  <rect width="800" height="1000" fill="url(#bg-glow)" />
+  <rect width="800" height="1000" fill="url(#audio-grid)" />
+  
+  <!-- Ambient Halos -->
+  <circle cx="400" cy="420" r="320" fill="url(#amber-halo)" />
+  <circle cx="400" cy="580" r="340" fill="url(#indigo-halo)" />
+
+  <!-- Radiating Broadcast Waves (Concentric pulses) -->
+  <g fill="none" stroke-linecap="round" opacity="0.6">
+    <circle cx="400" cy="460" r="160" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4 8" stroke-opacity="0.4" />
+    <circle cx="400" cy="460" r="210" stroke="#fb923c" stroke-width="1.2" stroke-dasharray="6 10" stroke-opacity="0.4" />
+    <circle cx="400" cy="460" r="265" stroke="#6366f1" stroke-width="1.2" stroke-dasharray="8 12" stroke-opacity="0.35" />
+    <circle cx="400" cy="460" r="325" stroke="#818cf8" stroke-width="1" stroke-dasharray="10 16" stroke-opacity="0.25" />
+    <circle cx="400" cy="460" r="380" stroke="#a5b4fc" stroke-width="0.8" stroke-dasharray="12 20" stroke-opacity="0.15" />
+  </g>
+
+  <!-- Top System Header Bar -->
+  <g transform="translate(60, 64)">
+    <rect width="680" height="42" rx="21" fill="#0d1424" fill-opacity="0.8" stroke="#25324e" stroke-width="1" />
+    <circle cx="24" cy="21" r="5" fill="#10b981" />
+    <circle cx="24" cy="21" r="9" fill="#10b981" fill-opacity="0.25" />
+    <text x="42" y="26" font-family="'IBM Plex Mono', monospace, -apple-system" font-size="12" font-weight="600" fill="#94a3b8" letter-spacing="1.5">LIVE BROADCAST ENGINE</text>
+    <rect x="520" y="10" width="144" height="22" rx="11" fill="#1e293b" />
+    <text x="592" y="25" text-anchor="middle" font-family="'IBM Plex Mono', monospace, -apple-system" font-size="10" font-weight="600" fill="#38bdf8" letter-spacing="1">SUB-500MS STREAM</text>
+  </g>
+
+  <!-- Audio Spectrum Waveforms (Top) -->
+  <g transform="translate(100, 160)" opacity="0.85">
+    <path d="M 0 60 Q 40 20 70 60 T 140 60 T 210 20 T 280 60 T 350 90 T 420 40 T 490 60 T 540 30 T 600 60" 
+          fill="none" stroke="url(#wave-grad)" stroke-width="2.5" />
+    <path d="M 0 60 Q 30 75 60 60 T 120 45 T 180 60 T 240 75 T 300 60 T 360 35 T 420 60 T 480 80 T 540 60 T 600 60" 
+          fill="none" stroke="#6366f1" stroke-width="1.5" stroke-opacity="0.5" />
+    
+    <!-- Spectrum vertical bars -->
+    <g fill="#f59e0b" opacity="0.45">
+      <rect x="40" y="45" width="3" height="30" rx="1.5" />
+      <rect x="60" y="35" width="3" height="50" rx="1.5" />
+      <rect x="80" y="50" width="3" height="20" rx="1.5" />
+      <rect x="100" y="28" width="3" height="64" rx="1.5" fill="#fb923c" />
+      <rect x="120" y="40" width="3" height="40" rx="1.5" fill="#fb923c" />
+      <rect x="140" y="30" width="3" height="60" rx="1.5" />
+      <rect x="160" y="48" width="3" height="24" rx="1.5" />
+      <rect x="180" y="20" width="3" height="80" rx="1.5" fill="#fbbf24" />
+      <rect x="200" y="38" width="3" height="44" rx="1.5" />
+      <rect x="220" y="52" width="3" height="16" rx="1.5" />
+      <rect x="240" y="32" width="3" height="56" rx="1.5" fill="#fb923c" />
+      <rect x="260" y="42" width="3" height="36" rx="1.5" />
+      <rect x="280" y="25" width="3" height="70" rx="1.5" fill="#818cf8" />
+      <rect x="300" y="45" width="3" height="30" rx="1.5" fill="#818cf8" />
+      <rect x="320" y="34" width="3" height="52" rx="1.5" fill="#6366f1" />
+      <rect x="340" y="18" width="3" height="84" rx="1.5" fill="#6366f1" />
+      <rect x="360" y="38" width="3" height="44" rx="1.5" fill="#6366f1" />
+      <rect x="380" y="48" width="3" height="24" rx="1.5" />
+      <rect x="400" y="24" width="3" height="72" rx="1.5" fill="#818cf8" />
+      <rect x="420" y="40" width="3" height="40" rx="1.5" />
+      <rect x="440" y="32" width="3" height="56" rx="1.5" fill="#fb923c" />
+      <rect x="460" y="50" width="3" height="20" rx="1.5" />
+      <rect x="480" y="26" width="3" height="68" rx="1.5" fill="#fbbf24" />
+      <rect x="500" y="42" width="3" height="36" rx="1.5" />
+      <rect x="520" y="36" width="3" height="48" rx="1.5" />
+      <rect x="540" y="48" width="3" height="24" rx="1.5" />
+      <rect x="560" y="55" width="3" height="10" rx="1.5" />
+    </g>
+  </g>
+
+  <!-- Central Emblem: t&t Core Device Card -->
+  <g transform="translate(260, 320)">
+    <!-- Glow Backdrop -->
+    <rect x="-10" y="-10" width="300" height="300" rx="68" fill="#f59e0b" fill-opacity="0.08" filter="url(#soft-glow)" />
+    
+    <!-- Outer Rim -->
+    <rect width="280" height="280" rx="60" fill="#0b0f19" stroke="url(#brand-grad)" stroke-width="5" />
+    
+    <!-- Inner Inset -->
+    <rect x="12" y="12" width="256" height="256" rx="48" fill="#080c14" stroke="#1f2a40" stroke-width="1.5" />
+    
+    <!-- Audio Waveform in Inset -->
+    <path d="M 30 185 Q 70 160 100 185 T 160 185 T 220 185" fill="none" stroke="#fb923c" stroke-width="2" opacity="0.3" />
+
+    <!-- Big Brand Text "t&t" -->
+    <text x="140" y="172" 
+          font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif" 
+          font-weight="900" 
+          font-size="112" 
+          fill="#f59e0b" 
+          text-anchor="middle" 
+          letter-spacing="-4">t&amp;t</text>
+    
+    <text x="140" y="215" 
+          font-family="'IBM Plex Mono', monospace, -apple-system" 
+          font-size="11" 
+          font-weight="700" 
+          fill="#94a3b8" 
+          text-anchor="middle" 
+          letter-spacing="3">AUDIO COGNITION</text>
+  </g>
+
+  <!-- Multilingual Broadcast Nodes (Floating Satellite Pills) -->
+  <!-- Node 1: Source Language FR (Left) -->
+  <g transform="translate(70, 390)">
+    <rect width="130" height="52" rx="26" fill="#0e172a" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.6" />
+    <circle cx="28" cy="26" r="12" fill="#f59e0b" fill-opacity="0.2" />
+    <text x="28" y="30" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="700" fill="#fbbf24">FR</text>
+    <text x="76" y="28" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#f1f5f9">Source</text>
+    <text x="76" y="40" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#94a3b8">Audio In</text>
+  </g>
+
+  <!-- Node 2: Target EN (Right) -->
+  <g transform="translate(600, 360)">
+    <rect width="130" height="52" rx="26" fill="#0e172a" stroke="#6366f1" stroke-width="1.5" stroke-opacity="0.6" />
+    <circle cx="28" cy="26" r="12" fill="#6366f1" fill-opacity="0.2" />
+    <text x="28" y="30" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="700" fill="#818cf8">EN</text>
+    <text x="76" y="28" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#f1f5f9">English</text>
+    <text x="76" y="40" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#94a3b8">Earphone</text>
+  </g>
+
+  <!-- Node 3: Target ES (Right Lower) -->
+  <g transform="translate(580, 470)">
+    <rect width="130" height="52" rx="26" fill="#0e172a" stroke="#818cf8" stroke-width="1.2" stroke-opacity="0.4" />
+    <circle cx="28" cy="26" r="12" fill="#818cf8" fill-opacity="0.15" />
+    <text x="28" y="30" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="700" fill="#a5b4fc">ES</text>
+    <text x="76" y="28" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#e2e8f0">Español</text>
+    <text x="76" y="40" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#64748b">Subtitles</text>
+  </g>
+
+  <!-- Node 4: Target DE (Left Lower) -->
+  <g transform="translate(90, 500)">
+    <rect width="130" height="52" rx="26" fill="#0e172a" stroke="#fb923c" stroke-width="1.2" stroke-opacity="0.4" />
+    <circle cx="28" cy="26" r="12" fill="#fb923c" fill-opacity="0.15" />
+    <text x="28" y="30" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="700" fill="#fdba74">DE</text>
+    <text x="76" y="28" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#e2e8f0">Deutsch</text>
+    <text x="76" y="40" font-family="'IBM Plex Mono', monospace" font-size="9" fill="#64748b">Direct WS</text>
+  </g>
+
+  <!-- Connection Lines from Center to Satellites -->
+  <g stroke="#334155" stroke-width="1" stroke-dasharray="3 3" opacity="0.6">
+    <line x1="200" y1="416" x2="260" y2="440" />
+    <line x1="220" y1="526" x2="260" y2="480" />
+    <line x1="540" y1="440" x2="600" y2="386" />
+    <line x1="540" y1="480" x2="580" y2="496" />
+  </g>
+
+  <!-- Bottom Architecture & Capability Matrix -->
+  <g transform="translate(60, 680)">
+    <!-- Container Card -->
+    <rect width="680" height="240" rx="24" fill="#0b101e" fill-opacity="0.85" stroke="#1e293b" stroke-width="1.5" />
+    
+    <!-- Title / Subhead -->
+    <text x="36" y="44" font-family="-apple-system, sans-serif" font-size="15" font-weight="700" fill="#f8fafc" letter-spacing="0.3">
+      Local Multi-Engine Speech Architecture
+    </text>
+    <text x="36" y="66" font-family="'IBM Plex Mono', monospace" font-size="11" fill="#94a3b8">
+      Zero-Cloud Dependency Option · Low Latency Synchronous Audio
+    </text>
+
+    <!-- 3 Tech Pillars -->
+    <g transform="translate(36, 92)">
+      <!-- Pillar 1 -->
+      <rect width="186" height="116" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+      <text x="18" y="32" font-family="'IBM Plex Mono', monospace" font-size="10" font-weight="700" fill="#f59e0b">01 / ENGINES</text>
+      <text x="18" y="58" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Gemini Live + Nova</text>
+      <text x="18" y="80" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">Bidirectional streaming</text>
+      <text x="18" y="96" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">&amp; Deepgram STT</text>
+
+      <!-- Pillar 2 -->
+      <g transform="translate(210, 0)">
+        <rect width="186" height="116" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+        <text x="18" y="32" font-family="'IBM Plex Mono', monospace" font-size="10" font-weight="700" fill="#fb923c">02 / RUNTIME</text>
+        <text x="18" y="58" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Tauri 2 + Rust + Go</text>
+        <text x="18" y="80" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">Native audio capture,</text>
+        <text x="18" y="96" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">local hub &amp; WebSocket</text>
+      </g>
+
+      <!-- Pillar 3 -->
+      <g transform="translate(420, 0)">
+        <rect width="186" height="116" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+        <text x="18" y="32" font-family="'IBM Plex Mono', monospace" font-size="10" font-weight="700" fill="#818cf8">03 / AUDIENCE</text>
+        <text x="18" y="58" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Mobile QR Stream</text>
+        <text x="18" y="80" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">Attendee smartphone</text>
+        <text x="18" y="96" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">browser &amp; earphones</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Technical Footer Stamp -->
+  <g transform="translate(60, 960)">
+    <text x="0" y="0" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#475569" letter-spacing="1">
+      ETHER STUDIO · T-ET-T APPLICATION SUITE
+    </text>
+    <text x="680" y="0" text-anchor="end" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#10b981" letter-spacing="1">
+      ● LOCAL ON-PREMISE DEPLOYMENT
+    </text>
+  </g>
+</svg>
