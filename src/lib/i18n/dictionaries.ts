@@ -224,8 +224,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       highlights: [
         {
           label: "Projets en production",
-          value: "4",
-          detail: "Applications IA, audio temps réel, e-commerce & art interactif",
+          value: "5",
+          detail: "Applications IA, audio temps réel, e-commerce, santé & art interactif",
         },
         {
           label: "Ingénierie sur-mesure",
@@ -333,7 +333,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         eyebrow: "Projets",
         title: "Réalisations en production.",
         description:
-          "Quatre projets concrets conçus et développés par le studio, illustrant la diversité de nos savoir-faire.",
+          "Cinq projets concrets conçus et développés par le studio, illustrant la diversité de nos savoir-faire.",
         caseStudies: [
           {
             title: "ami",
@@ -388,6 +388,19 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             image: "/t-et-t-icon.png",
             badge: "Projet local · Sur demande",
             deploymentNote: "Déploiement sur demande",
+          },
+          {
+            title: "Sabbagh Medical",
+            sector: "Santé & Ingénierie Clinique",
+            summary:
+              "Plateforme web bilingue pour un acteur majeur de la distribution d'équipements médicaux et d'ingénierie hospitalière au Moyen-Orient. Architecture statique performante et design éditorial soigné.",
+            metrics: [
+              "Architecture bilingue anglais / arabe (LTR & RTL)",
+              "Catalogue de solutions d'imagerie & dentaire",
+              "Performance statique instantanée (SvelteKit & Bun)",
+            ],
+            image: "/sabbaghmedical-logo.png",
+            url: "https://sabbaghmedical.com",
           },
         ],
       },
@@ -544,8 +557,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       highlights: [
         {
           label: "Live production projects",
-          value: "4",
-          detail: "AI platforms, real-time audio, bespoke e-commerce & interactive art",
+          value: "5",
+          detail: "AI platforms, real-time audio, bespoke e-commerce, healthcare & interactive art",
         },
         {
           label: "Bespoke engineering",
@@ -654,7 +667,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         eyebrow: "Projects",
         title: "Work in production.",
         description:
-          "Four live projects conceived and developed by the studio, illustrating our range of craft.",
+          "Five live projects conceived and developed by the studio, illustrating our range of craft.",
         caseStudies: [
           {
             title: "ami",
@@ -709,6 +722,19 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             image: "/t-et-t-icon.png",
             badge: "Local project · On request",
             deploymentNote: "Deploy on request",
+          },
+          {
+            title: "Sabbagh Medical",
+            sector: "Healthcare Infrastructure & Clinical Solutions",
+            summary:
+              "Bilingual static web platform for a leading provider of medical imaging, dental equipment, and turnkey clinical engineering across the Middle East. Editorial typography and high-speed architecture.",
+            metrics: [
+              "Bilingual EN / AR localized architecture (LTR & RTL)",
+              "Clinical imaging & dental turnkey catalogs",
+              "Instant static performance (SvelteKit & Bun)",
+            ],
+            image: "/sabbaghmedical-logo.png",
+            url: "https://sabbaghmedical.com",
           },
         ],
       },
@@ -862,8 +888,8 @@ const dictionaries: Record<Locale, HomeDictionary> = {
       highlights: [
         {
           label: "مشاريع قيد التشغيل",
-          value: "4",
-          detail: "تطبيقات ذكاء اصطناعي وبث صوتي وتجارة وتجارب تفاعلية",
+          value: "5",
+          detail: "تطبيقات ذكاء اصطناعي، بث صوتي، تجارة إلكترونية، رعاية صحية وفنون تفاعلية",
         },
         {
           label: "هندسة مخصصة",
@@ -972,7 +998,7 @@ const dictionaries: Record<Locale, HomeDictionary> = {
         eyebrow: "المشاريع",
         title: "أعمال حية في الإنتاج.",
         description:
-          "أربعة مشاريع حية صممها وطورها الاستوديو تعكس تنوع خبراتنا ودقتها.",
+          "خمسة مشاريع حية صممها وطورها الاستوديو تعكس تنوع خبراتنا ودقتها.",
         caseStudies: [
           {
             title: "ami",
@@ -1027,6 +1053,19 @@ const dictionaries: Record<Locale, HomeDictionary> = {
             image: "/t-et-t-icon.png",
             badge: "مشروع محلي · عند الطلب",
             deploymentNote: "طلب النشر والتنفيذ",
+          },
+          {
+            title: "Sabbagh Medical",
+            sector: "رعاية صحية وتجهيزات طبية سريرية",
+            summary:
+              "منصة ويب ثنائية اللغة لدار متخصصة في توريد حلول التصوير الطبي والمعدات الجراحية والهندسة السريرية بالشرق الأوسط. بنية برمجية سريعة وطباعة متقنة.",
+            metrics: [
+              "بنية ثنائية اللغة إنجليزية وعربية بالكامل (LTR & RTL)",
+              "كتالوجات حلول التصوير السريري وتجهيزات الأسنان",
+              "أداء فائق السرعة وتوليد ثابت (SvelteKit وBun)",
+            ],
+            image: "/sabbaghmedical-logo.png",
+            url: "https://sabbaghmedical.com",
           },
         ],
       },
