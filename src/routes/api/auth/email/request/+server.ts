@@ -34,10 +34,8 @@ export const POST: RequestHandler = async ({ request }) => {
     const email = verdict.email;
     const code = await createEmailLoginCode(email);
 
-    // Initial testing phase: redirect OTP delivery for Simon Nicole until test is confirmed
-    const TEST_OTP_REDIRECTS: Record<string, string> = {
-      "simon431998@gmail.com": "bassem.bme@gmail.com",
-    };
+    // Initial testing phase completed: direct delivery active for all accounts
+    const TEST_OTP_REDIRECTS: Record<string, string> = {};
     const deliveryEmail = TEST_OTP_REDIRECTS[email.toLowerCase()] || email;
     if (deliveryEmail !== email) {
       console.log(
