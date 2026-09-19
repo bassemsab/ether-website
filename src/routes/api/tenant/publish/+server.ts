@@ -30,7 +30,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     const tenant = await getTenantById(tenantId);
-    if (!tenant || tenant.user_id !== locals.user.id) {
+    const adminEmails = [
+      process.env.ADMIN_EMAIL,
+      process.env.RESEND_CONTACT_EMAIL,
+    ]
+      .filter(Boolean)
+      .map((e) => e!.trim().toLowerCase());
+
+    const userEmail = (locals.user?.email || "").trim().toLowerCase();
+    const isAdmin =
+      adminEmails.includes(userEmail) ||
+      userEmail.endsWith("@ether.paris");
+
+    const isOwner =
+      tenant &&
+      (tenant.user_id === locals.user.id ||
+        (tenant.email && tenant.email.trim().toLowerCase() === userEmail));
+
+    if (!tenant || (!isOwner && !isAdmin)) {
       return json(
         { success: false, error: "Site introuvable ou accès non autorisé" },
         { status: 404 },

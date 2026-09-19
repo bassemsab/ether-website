@@ -1605,6 +1605,7 @@ setInterval(reapIdleResources, 60000);
 
 const server = Bun.serve({
   port: PORT,
+  idleTimeout: 120,
   async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname;
