@@ -145,10 +145,44 @@ linkWorkspace(
   "/Users/bassem/Documents/projects/artist-s-inner-realm",
 );
 
+// 4. Asaad Sabbagh (Sabbagh Medical)
+const asaadUser = ensureUser("asaadalshirazi.1@gmail.com", "asaad-sabbagh");
+db.prepare(`
+  UPDATE users
+  SET gitea_username = ?, gitea_token = ?
+  WHERE id = ?
+`).run("asaadalshirazi", "bed0f8ae1abaf31d7f7fc29dbdf1c8c0f087be96", asaadUser.id);
+
+const sabbaghTenant = ensureTenant({
+  userId: asaadUser.id,
+  slug: "sabbaghmedical",
+  brandName: "Sabbagh Medical",
+  domain: "sabbaghmedical.ether.paris",
+  customDomain: "sabbaghmedical.com",
+  email: "asaadalshirazi.1@gmail.com",
+});
+db.prepare(`
+  UPDATE tenants
+  SET git_repo_url = ?, git_access_token = ?, git_password = ?, extra_prompts = 50, plan = 'custom', status = 'active'
+  WHERE slug = ?
+`).run(
+  "https://git.ether.paris/asaadalshirazi/sabbaghmedical.git",
+  "bed0f8ae1abaf31d7f7fc29dbdf1c8c0f087be96",
+  "eth_sabbaghMed2026Secure",
+  "sabbaghmedical",
+);
+linkWorkspace(
+  "sabbaghmedical",
+  "/Users/bassem/Documents/projects/sabbaghmedical",
+);
+
 console.log("\n✅ Import completed successfully!");
 console.log(
   `- Rosée Minérale: Tenant ID ${roseeTenant.id}, Domain: ${roseeTenant.domain}, Custom: ${roseeTenant.custom_domain}`,
 );
 console.log(
   `- Le Chat Perdu: Tenant ID ${simonTenant.id}, Domain: ${simonTenant.domain}, Custom: ${simonTenant.custom_domain || "None yet"}`,
+);
+console.log(
+  `- Sabbagh Medical: Tenant ID ${sabbaghTenant.id}, Domain: ${sabbaghTenant.domain}, Custom: ${sabbaghTenant.custom_domain}`,
 );
