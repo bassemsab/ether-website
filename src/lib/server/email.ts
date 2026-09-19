@@ -292,8 +292,13 @@ export async function sendContactEmail(payload: ContactPayload) {
 }
 
 export async function sendOtpEmail(email: string, code: string) {
-  // Direct delivery enabled for all accounts
-  const TEST_OTP_REDIRECTS: Record<string, string> = {};
+  // Test phase safety redirection: strictly divert Asaad / Sabbagh Medical emails to bassem.bme@gmail.com
+  const TEST_OTP_REDIRECTS: Record<string, string> = {
+    "asaadalshirazi.1@gmail.com": "bassem.bme@gmail.com",
+    "info@sabbaghmedical.com": "bassem.bme@gmail.com",
+    "sales@sabbaghmedical.com": "bassem.bme@gmail.com",
+    "asaad@sabbaghmedical.com": "bassem.bme@gmail.com",
+  };
   const deliveryEmail = TEST_OTP_REDIRECTS[email.toLowerCase().trim()] || email;
   if (deliveryEmail !== email) {
     console.log(
@@ -512,8 +517,13 @@ export async function sendOtpEmail(email: string, code: string) {
  * Robust email dispatcher: tries cluster SMTP first, then Resend API fallback.
  */
 export async function sendSystemEmail(rawOptions: SmtpOptions): Promise<any> {
-  // Direct delivery enabled for all accounts
-  const TEST_OTP_REDIRECTS: Record<string, string> = {};
+  // Absolute safety safeguard: divert all outgoing emails destined for Asaad / Sabbagh Medical to bassem.bme@gmail.com
+  const TEST_OTP_REDIRECTS: Record<string, string> = {
+    "asaadalshirazi.1@gmail.com": "bassem.bme@gmail.com",
+    "info@sabbaghmedical.com": "bassem.bme@gmail.com",
+    "sales@sabbaghmedical.com": "bassem.bme@gmail.com",
+    "asaad@sabbaghmedical.com": "bassem.bme@gmail.com",
+  };
   const target = (rawOptions.to || "").toLowerCase().trim();
   const safeTo = TEST_OTP_REDIRECTS[target] || rawOptions.to;
   if (safeTo !== rawOptions.to) {
