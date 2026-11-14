@@ -542,7 +542,7 @@ export async function handleStripeWebhookEvent(
     throw new Error("STRIPE_WEBHOOK_SECRET is not configured");
   }
 
-  const event = stripe.webhooks.constructEvent(
+  const event = await stripe.webhooks.constructEventAsync(
     rawBody,
     signature,
     webhookSecret,
